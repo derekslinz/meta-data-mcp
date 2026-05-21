@@ -183,21 +183,36 @@ describe("listRegions", () => {
 // ---------------------------------------------------------------------------
 
 describe("describeProvider", () => {
-  it("returns entry when found", async () => {
+  it("returns entry when found — server returns flat entry dict at top level", async () => {
     const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
-    mockCallTool(client, {
-      "opendata-describe-provider": { provider: USGS_ENTRY },
-    });
+    // The server returns entry fields directly, not nested under a "provider" key.
+    mockCallTool(client, { "opendata-describe-provider": USGS_ENTRY });
 
     const entry = await client.describeProvider("us_usgs_earthquake");
     expect(entry?.id).toBe("us_usgs_earthquake");
+    expect(entry?.title).toBe("USGS Earthquake Hazards");
   });
 
-  it("returns null when not found", async () => {
+  it("returns null when not found — server returns {error: 'Provider X not found'}", async () => {
     const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
-    mockCallTool(client, { "opendata-describe-provider": {} });
+    // Server returns {"error": "Provider 'not_real' not found"}.
+    // _callWithClient throws; describeProvider catches and returns null.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (client as any).callTool = jest.fn(async () => {
+      throw new Error("Tool \"opendata-describe-provider\" failed: Provider 'not_real' not found");
+    });
 
     expect(await client.describeProvider("not_real")).toBeNull();
+  });
+
+  it("re-throws non-not-found errors", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (client as any).callTool = jest.fn(async () => {
+      throw new Error("network error");
+    });
+
+    await expect(client.describeProvider("us_usgs_earthquake")).rejects.toThrow("network error");
   });
 });
 

@@ -71,32 +71,12 @@ export class RemoteClient {
 
   /** Open a persistent MCP session. Must be paired with `disconnect()`. */
   async connect(): Promise<void> {
-    if (this.client) return; // already connected
-    const headers: Record<string, string> = {};
-    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
-
-    const transport = new SSEClientTransport(
-      new URL(`${this.baseUrl}/sse`),
-      {
-        // EventSourceInit.headers doesn't exist — headers on the initial SSE
-        // GET must be injected via a custom fetch wrapper. requestInit covers
-        // the subsequent JSON-RPC POST calls. Both are required for servers
-        // that validate auth at the SSE handshake as well as on tool calls.
-        eventSourceInit: {
-          fetch: (url: URL | string, init?: RequestInit) =>
-            globalThis.fetch(url, {
-              ...init,
-              headers: { ...(init?.headers ?? {}), ...headers },
-            }),
-        },
-        requestInit: { headers },
-      },
-    );
+    if (this.client) return; // already connected — idempotent
     this.client = new Client(
       { name: "@meta-data-mcp/sdk", version: "2.2.0" },
       { capabilities: {} },
     );
-    await this.client.connect(transport);
+    await this.client.connect(this._makeTransport());
   }
 
   /** Close the active MCP session. */
@@ -117,6 +97,33 @@ export class RemoteClient {
    * Uses the persistent session when `connect()` has been called, otherwise
    * opens a fresh session for this call and closes it immediately after.
    */
+  private _makeTransport(): SSEClientTransport {
+    const headers: Record<string, string> = {};
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+    // AbortSignal.timeout is available in Node ≥ 17.3 / modern browsers.
+    // We use it for the connect handshake; individual tool-call timeouts
+    // follow the server's own per-request timeout.
+    const signal = AbortSignal.timeout(this.timeoutMs);
+    return new SSEClientTransport(
+      new URL(`${this.baseUrl}/sse`),
+      {
+        // EventSourceInit has no headers field — headers on the initial SSE
+        // GET must be injected via a custom fetch wrapper. requestInit covers
+        // the subsequent JSON-RPC POST calls.  The timeout signal is wired
+        // into both so a stalled handshake is still aborted.
+        eventSourceInit: {
+          fetch: (url: URL | string, init?: RequestInit) =>
+            globalThis.fetch(url, {
+              ...init,
+              headers: { ...(init?.headers ?? {}), ...headers },
+              signal,
+            }),
+        },
+        requestInit: { headers, signal },
+      },
+    );
+  }
+
   private async callTool(
     name: string,
     args: Record<string, unknown>,
@@ -126,31 +133,11 @@ export class RemoteClient {
     }
 
     // One-shot: open + close a temporary session.
-    const headers: Record<string, string> = {};
-    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
-
-    const transport = new SSEClientTransport(
-      new URL(`${this.baseUrl}/sse`),
-      {
-        // EventSourceInit.headers doesn't exist — headers on the initial SSE
-        // GET must be injected via a custom fetch wrapper. requestInit covers
-        // the subsequent JSON-RPC POST calls. Both are required for servers
-        // that validate auth at the SSE handshake as well as on tool calls.
-        eventSourceInit: {
-          fetch: (url: URL | string, init?: RequestInit) =>
-            globalThis.fetch(url, {
-              ...init,
-              headers: { ...(init?.headers ?? {}), ...headers },
-            }),
-        },
-        requestInit: { headers },
-      },
-    );
     const tempClient = new Client(
       { name: "@meta-data-mcp/sdk", version: "2.2.0" },
       { capabilities: {} },
     );
-    await tempClient.connect(transport);
+    await tempClient.connect(this._makeTransport());
     try {
       return await this._callWithClient(tempClient, name, args);
     } finally {
@@ -241,12 +228,22 @@ export class RemoteClient {
    * Return the registry entry for the given provider, or `null` if not found.
    * Accepts both snake_case ids (`us_usgs_earthquake`) and kebab-case server
    * names (`us-usgs-earthquake`).
+   *
+   * The server returns the entry dict flat at the top level when found, and
+   * `{ error: "Provider 'X' not found" }` when unknown (which `_callWithClient`
+   * converts to a thrown Error). We catch that error and return `null`.
    */
   async describeProvider(providerId: string): Promise<ProviderEntry | null> {
-    const payload = await this.callTool("opendata-describe-provider", {
-      provider_id: providerId,
-    });
-    return (payload.provider as ProviderEntry) ?? null;
+    try {
+      const payload = await this.callTool("opendata-describe-provider", {
+        provider_id: providerId,
+      });
+      // The entry fields (id, title, domains, …) are at the top level.
+      return payload as unknown as ProviderEntry;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("not found")) return null;
+      throw err;
+    }
   }
 
   /**
