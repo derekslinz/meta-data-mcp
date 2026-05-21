@@ -348,6 +348,7 @@ uv run meta-data-mcp run --host 0.0.0.0 --port 3001       # SSE bound to all int
   - `ui://meta-data-mcp/shape/geofeatures/v1` — Leaflet map + marker cluster, covers 12 providers
   - `ui://meta-data-mcp/shape/records/v1` — faceted table + column profiler (vanilla JS), covers 27 providers
   - 8 custom apps for domain-specific shapes: vulnerability radar, entity graph, news tone, trade-flow Sankey, molecular viewer, museum image grid, ASN topology, tide chart — cover the remaining 20 providers
+- **Generator + tooling (v2.0 Phase 6):** `response_shape` field in the spec schema drives shape binding at generate time; `tests/test_ui_bundle_sizes.py` enforces the 100 KB warn / 1 MB error budget in CI; `tests/smoke/test_ui_bundles.py` loads each bundle headlessly via Playwright; `make pr-check N=<pr_number>` wraps the merge-gate checklist.
 
 ### Still ahead
 
