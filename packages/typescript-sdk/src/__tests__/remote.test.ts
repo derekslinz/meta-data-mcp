@@ -255,3 +255,110 @@ describe("error handling", () => {
     await expect(client.findProviders()).rejects.toThrow("connection refused");
   });
 });
+
+// ---------------------------------------------------------------------------
+// _callWithClient content parsing (exercises the actual MCP result parsing)
+// ---------------------------------------------------------------------------
+
+describe("_callWithClient content parsing", () => {
+  // Access private method via any cast for direct unit testing.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function callWith(client: RemoteClient, mockClient: Record<string, unknown>): (name: string, args: Record<string, unknown>) => Promise<Record<string, unknown>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (name, args) => (client as any)._callWithClient(mockClient, name, args);
+  }
+
+  it("parses text/content result correctly", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    const mockMcpClient = {
+      callTool: jest.fn(async () => ({
+        isError: false,
+        content: [{ type: "text", text: '{"domains":["health","finance"]}' }],
+      })),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (client as any)._callWithClient(mockMcpClient, "opendata-list-domains", {});
+    expect(result).toEqual({ domains: ["health", "finance"] });
+  });
+
+  it("throws when isError is true", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    const mockMcpClient = {
+      callTool: jest.fn(async () => ({
+        isError: true,
+        content: [{ type: "text", text: "internal error" }],
+      })),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect((client as any)._callWithClient(mockMcpClient, "any-tool", {}))
+      .rejects.toThrow('returned an MCP error');
+  });
+
+  it("throws on legacy toolResult compatibility shape", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    const mockMcpClient = {
+      callTool: jest.fn(async () => ({
+        toolResult: { some: "data" },
+        // no content key
+      })),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect((client as any)._callWithClient(mockMcpClient, "any-tool", {}))
+      .rejects.toThrow("legacy toolResult format");
+  });
+
+  it("throws on tool payload with error key", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    const mockMcpClient = {
+      callTool: jest.fn(async () => ({
+        isError: false,
+        content: [{ type: "text", text: '{"error":"Provider not found"}' }],
+      })),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await expect((client as any)._callWithClient(mockMcpClient, "any-tool", {}))
+      .rejects.toThrow("Provider not found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// connect / disconnect lifecycle
+// ---------------------------------------------------------------------------
+
+describe("connect / disconnect lifecycle", () => {
+  it("connect() is idempotent — second call is a no-op", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    const fakeMcpClient = { close: jest.fn() };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (client as any).client = fakeMcpClient;
+
+    // connect() should return early without creating a new transport
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const connectSpy = jest.spyOn(client as any, "connect");
+    await client.connect(); // should no-op because this.client is already set
+    expect(fakeMcpClient.close).not.toHaveBeenCalled();
+    connectSpy.mockRestore();
+  });
+
+  it("disconnect() clears the session", async () => {
+    const client = new RemoteClient("https://mcp.example.com", { token: "tok" });
+    const fakeMcpClient = { close: jest.fn(async () => {}) };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (client as any).client = fakeMcpClient;
+
+    await client.disconnect();
+
+    expect(fakeMcpClient.close).toHaveBeenCalledTimes(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((client as any).client).toBeNull();
+  });
+
+  it("disconnect() is safe when not connected", async () => {
+    const client = new RemoteClient("https://mcp.example.com");
+    await expect(client.disconnect()).resolves.toBeUndefined();
+  });
+});

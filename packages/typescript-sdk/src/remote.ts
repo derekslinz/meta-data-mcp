@@ -77,7 +77,20 @@ export class RemoteClient {
 
     const transport = new SSEClientTransport(
       new URL(`${this.baseUrl}/sse`),
-      { requestInit: { headers } },
+      {
+        // EventSourceInit.headers doesn't exist — headers on the initial SSE
+        // GET must be injected via a custom fetch wrapper. requestInit covers
+        // the subsequent JSON-RPC POST calls. Both are required for servers
+        // that validate auth at the SSE handshake as well as on tool calls.
+        eventSourceInit: {
+          fetch: (url: URL | string, init?: RequestInit) =>
+            globalThis.fetch(url, {
+              ...init,
+              headers: { ...(init?.headers ?? {}), ...headers },
+            }),
+        },
+        requestInit: { headers },
+      },
     );
     this.client = new Client(
       { name: "@meta-data-mcp/sdk", version: "2.2.0" },
@@ -118,7 +131,20 @@ export class RemoteClient {
 
     const transport = new SSEClientTransport(
       new URL(`${this.baseUrl}/sse`),
-      { requestInit: { headers } },
+      {
+        // EventSourceInit.headers doesn't exist — headers on the initial SSE
+        // GET must be injected via a custom fetch wrapper. requestInit covers
+        // the subsequent JSON-RPC POST calls. Both are required for servers
+        // that validate auth at the SSE handshake as well as on tool calls.
+        eventSourceInit: {
+          fetch: (url: URL | string, init?: RequestInit) =>
+            globalThis.fetch(url, {
+              ...init,
+              headers: { ...(init?.headers ?? {}), ...headers },
+            }),
+        },
+        requestInit: { headers },
+      },
     );
     const tempClient = new Client(
       { name: "@meta-data-mcp/sdk", version: "2.2.0" },
@@ -139,7 +165,17 @@ export class RemoteClient {
   ): Promise<Record<string, unknown>> {
     const result = await client.callTool({ name, arguments: args });
 
-    // The SDK return type uses an index signature so we cast the known fields.
+    // The SDK callTool return type is a union:
+    //   • Standard:     { content: [...]; isError?: boolean }
+    //   • Compatibility: { toolResult: unknown }  (legacy protocol v2024-10-07)
+    // We must check for the compatibility shape before accessing .content to
+    // avoid silently returning {} when the server uses the older response format.
+    if ("toolResult" in result && !("content" in result)) {
+      throw new Error(
+        `Tool "${name}" returned legacy toolResult format — upgrade the server to MCP protocol 2024-11-05+`,
+      );
+    }
+
     const isError = result.isError as boolean | undefined;
     const content = result.content as Array<{ type: string; text?: string }> | undefined;
 
