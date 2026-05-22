@@ -330,4 +330,7 @@ class SmitheryTriggersMiddleware:
             ):
                 response_done.set()
 
-        await self.app(scope, replay_receive, send_wrapper)
+        try:
+            await self.app(scope, replay_receive, send_wrapper)
+        finally:
+            response_done.set()
