@@ -374,6 +374,10 @@
       return m ? m[1] : '';
     }
 
+    function safeUrl(url) {
+      return url && /^https?:\/\//i.test(url) ? url : null;
+    }
+
     function sortByDate(arr) {
       return arr.slice().sort(function (a, b) {
         return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
@@ -550,9 +554,10 @@
       row('Domain', ev.domain || '-');
       row('Language', ev.language || '-');
       card.appendChild(dl);
-      if (ev.url) {
+      var safe = safeUrl(ev.url);
+      if (safe) {
         card.appendChild(el('a', {
-          href: ev.url, target: '_blank', rel: 'noopener noreferrer',
+          href: safe, target: '_blank', rel: 'noopener noreferrer',
           text: ev.url,
         }));
       }
@@ -665,7 +670,7 @@
           renderRightPanel();
         });
         g.addEventListener('click', function () {
-          if (ev.url && /^https?:\/\//i.test(ev.url)) window.open(ev.url, '_blank', 'noopener,noreferrer');
+          var u = safeUrl(ev.url); if (u) window.open(u, '_blank', 'noopener,noreferrer');
         });
         var titleEl = svg('title');
         titleEl.textContent = ev.date + ' - ' + (ev.country || '-') +
@@ -827,7 +832,7 @@
           renderRightPanel();
         });
         tr.addEventListener('click', function () {
-          if (ev.url && /^https?:\/\//i.test(ev.url)) window.open(ev.url, '_blank', 'noopener,noreferrer');
+          var u = safeUrl(ev.url); if (u) window.open(u, '_blank', 'noopener,noreferrer');
         });
         tbody.appendChild(tr);
       });
