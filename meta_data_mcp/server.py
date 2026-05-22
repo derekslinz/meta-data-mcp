@@ -390,10 +390,18 @@ async def run_server(
 
         oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
         if oauth_issuer:
-            from mcp.server.auth.routes import (
-                create_auth_routes,
-                create_protected_resource_routes,
-            )
+            try:
+                from mcp.server.auth.routes import (
+                    create_auth_routes,
+                    create_protected_resource_routes,
+                )
+            except ImportError as exc:
+                raise RuntimeError(
+                    "OAuth support requires an MCP SDK version that provides "
+                    "`mcp.server.auth.routes.create_protected_resource_routes`. "
+                    "Please upgrade the `mcp` package to a compatible version or "
+                    "unset META_DATA_MCP_OAUTH_ISSUER to disable OAuth."
+                ) from exc
             from mcp.server.auth.settings import ClientRegistrationOptions
             from pydantic import AnyHttpUrl
             from starlette.responses import HTMLResponse
