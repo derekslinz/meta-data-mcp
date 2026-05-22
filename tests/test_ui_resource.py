@@ -186,7 +186,7 @@ def test_tool_underscore_meta_round_trips_to_wire():
     """Constructing with the alias keyword (`_meta=`) serializes to `_meta`."""
     app_uri = "ui://meta-data-mcp/discovery"
     tool = types.Tool(
-        name="opendata-find-providers",
+        name="opendata.providers.find",
         description="Find providers.",
         inputSchema={"type": "object"},
         _meta={"ui": {"resourceUri": app_uri}},
@@ -207,7 +207,7 @@ def test_tool_meta_via_field_assignment_round_trips_to_wire():
     `_meta`. This is the alternative wiring pattern providers may use."""
     app_uri = "ui://meta-data-mcp/discovery"
     tool = types.Tool(
-        name="opendata-find-providers",
+        name="opendata.providers.find",
         description="Find providers.",
         inputSchema={"type": "object"},
     )

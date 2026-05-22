@@ -47,17 +47,17 @@ def test_meta_module_advertises_only_meta_tools_by_default():
     tool_names = {t.name for t in srv.TOOLS}
     # Sanity: the meta tools we expect should all be present.
     expected_meta = {
-        "opendata-find-providers",
-        "opendata-create-plugin",
-        "opendata-draft-spec",
-        "opendata-explain-choice",
-        "opendata-list-domains",
-        "opendata-list-regions",
-        "opendata-describe-provider",
-        "opendata-list-providers",
-        "opendata-activate-provider",
-        "opendata-deactivate-provider",
-        "opendata-list-active-providers",
+        "opendata.providers.find",
+        "opendata.plugins.create",
+        "opendata.plugins.draft",
+        "opendata.explain.choice",
+        "opendata.domains.list",
+        "opendata.regions.list",
+        "opendata.providers.describe",
+        "opendata.providers.list",
+        "opendata.providers.activate",
+        "opendata.providers.deactivate",
+        "opendata.providers.list_active",
     }
     assert expected_meta.issubset(tool_names)
     # None of the data-plugin tools should be in the catalog at import time.
@@ -204,7 +204,7 @@ async def test_find_providers_no_match_keeps_create_plugin_hint():
     payload = _payload(r)
     assert payload["count"] == 0
     assert payload.get("no_match") is True
-    assert "opendata-create-plugin" in payload.get("next_step", "")
+    assert "opendata.plugins.create" in payload.get("next_step", "")
 
 
 # ---------------------------------------------------------------------------

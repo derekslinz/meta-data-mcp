@@ -34,12 +34,12 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 
 
 ###################
-# mcp-registry-search
+# mcp.registry.search
 ###################
 
 
 class McpRegistrySearchParams(BaseModel):
-    """Parameters for mcp-registry-search."""
+    """Parameters for mcp.registry.search."""
 
     q: Optional[str] = Field(
         None,
@@ -58,7 +58,7 @@ class McpRegistrySearchParams(BaseModel):
 
 
 def fetch_mcp_registry_search(params: McpRegistrySearchParams) -> Any:
-    """Fetch data for the mcp-registry-search tool."""
+    """Fetch data for the mcp.registry.search tool."""
     url = f"{BASE_URL}/v0/servers"
     query: dict = {}
     if params.q is not None:
@@ -74,33 +74,33 @@ def fetch_mcp_registry_search(params: McpRegistrySearchParams) -> Any:
 async def handle_mcp_registry_search(
     arguments: dict[str, Any] | None = None,
 ) -> Sequence[types.TextContent]:
-    """Handle the mcp-registry-search tool call."""
+    """Handle the mcp.registry.search tool call."""
     try:
         params = McpRegistrySearchParams(**(arguments or {}))
         data = fetch_mcp_registry_search(params)
         return [types.TextContent(type="text", text=serialize_for_llm(data))]
     except Exception as e:
-        log.error(f"Error handling mcp-registry-search: {e}")
+        log.error(f"Error handling mcp.registry.search: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="mcp-registry-search",
+        name="mcp.registry.search",
         description="Search the MCP server registry by keyword",
         inputSchema=McpRegistrySearchParams.model_json_schema(),
     )
 )
-TOOLS_HANDLERS["mcp-registry-search"] = handle_mcp_registry_search
+TOOLS_HANDLERS["mcp.registry.search"] = handle_mcp_registry_search
 
 
 ###################
-# mcp-registry-list
+# mcp.registry.list
 ###################
 
 
 class McpRegistryListParams(BaseModel):
-    """Parameters for mcp-registry-list."""
+    """Parameters for mcp.registry.list."""
 
     limit: Optional[int] = Field(
         50,
@@ -114,7 +114,7 @@ class McpRegistryListParams(BaseModel):
 
 
 def fetch_mcp_registry_list(params: McpRegistryListParams) -> Any:
-    """Fetch data for the mcp-registry-list tool."""
+    """Fetch data for the mcp.registry.list tool."""
     url = f"{BASE_URL}/v0/servers"
     query: dict = {}
     if params.limit is not None:
@@ -128,24 +128,24 @@ def fetch_mcp_registry_list(params: McpRegistryListParams) -> Any:
 async def handle_mcp_registry_list(
     arguments: dict[str, Any] | None = None,
 ) -> Sequence[types.TextContent]:
-    """Handle the mcp-registry-list tool call."""
+    """Handle the mcp.registry.list tool call."""
     try:
         params = McpRegistryListParams(**(arguments or {}))
         data = fetch_mcp_registry_list(params)
         return [types.TextContent(type="text", text=serialize_for_llm(data))]
     except Exception as e:
-        log.error(f"Error handling mcp-registry-list: {e}")
+        log.error(f"Error handling mcp.registry.list: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="mcp-registry-list",
+        name="mcp.registry.list",
         description="List all servers in the MCP registry, newest first",
         inputSchema=McpRegistryListParams.model_json_schema(),
     )
 )
-TOOLS_HANDLERS["mcp-registry-list"] = handle_mcp_registry_list
+TOOLS_HANDLERS["mcp.registry.list"] = handle_mcp_registry_list
 
 
 async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"):

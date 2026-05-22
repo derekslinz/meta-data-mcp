@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.derekslinz/meta-data-mcp",
   "description": "Query 76 open data APIs — government, science, finance, environment, and more.",
-  "version": "2.3.8",
+  "version": "2.4.0",
   "repository": {
     "url": "https://github.com/derekslinz/meta-data-mcp",
     "source": "github"
@@ -11,7 +11,7 @@
     {
       "registryType": "pypi",
       "identifier": "meta-data-mcp",
-      "version": "2.3.8",
+      "version": "2.4.0",
       "runtimeHint": "python",
       "transport": {
         "type": "sse",
@@ -33,68 +33,68 @@
           "health",
           "law"
         ],
-        "pitch": "One MCP server, 76 open data sources. Ask about GDP, earthquakes, court records, air quality, drug approvals, satellite imagery, or biodiversity — meta-data-mcp routes the request to the right API and returns structured data. Providers activate lazily so the default tool surface stays small; use opendata-find-providers to discover and opendata-activate-provider to unlock domain-specific tools on demand.",
+        "pitch": "One MCP server, 76 open data sources. Ask about GDP, earthquakes, court records, air quality, drug approvals, satellite imagery, or biodiversity — meta-data-mcp routes the request to the right API and returns structured data. Providers activate lazily so the default tool surface stays small; use opendata.providers.find to discover and opendata.providers.activate to unlock domain-specific tools on demand.",
         "example_calls": [
-          "opendata-find-providers({ query: \"climate\" })  ->  ranked list of climate/weather providers",
-          "opendata-activate-provider({ provider_id: \"global-world-bank\" })  ->  activates World Bank tools",
-          "opendata-list-domains()  ->  full taxonomy of covered domains",
-          "mcp-registry-search({ q: \"open data\" })  ->  discover other open-data MCP servers"
+          "opendata.providers.find({ query: \"climate\" })  ->  ranked list of climate/weather providers",
+          "opendata.providers.activate({ provider_id: \"global-world-bank\" })  ->  activates World Bank tools",
+          "opendata.domains.list()  ->  full taxonomy of covered domains",
+          "mcp.registry.search({ q: \"open data\" })  ->  discover other open-data MCP servers"
         ],
         "tools": [
           {
-            "name": "opendata-find-providers",
+            "name": "opendata.providers.find",
             "description": "Semantic search across 76 providers — ranked matches with health scores and domain tags."
           },
           {
-            "name": "opendata-activate-provider",
+            "name": "opendata.providers.activate",
             "description": "Lazily activate a provider to expose its domain-specific tools without restarting the server."
           },
           {
-            "name": "opendata-deactivate-provider",
+            "name": "opendata.providers.deactivate",
             "description": "Deactivate a provider and remove its tools from the active surface."
           },
           {
-            "name": "opendata-list-providers",
+            "name": "opendata.providers.list",
             "description": "List all available providers with metadata and health scores."
           },
           {
-            "name": "opendata-list-active-providers",
+            "name": "opendata.providers.list_active",
             "description": "List currently activated providers and their exposed tools."
           },
           {
-            "name": "opendata-list-domains",
+            "name": "opendata.domains.list",
             "description": "List all data domains covered (government, science, finance, environment, health, law, and more)."
           },
           {
-            "name": "opendata-list-regions",
+            "name": "opendata.regions.list",
             "description": "List geographic regions with available providers."
           },
           {
-            "name": "opendata-describe-provider",
+            "name": "opendata.providers.describe",
             "description": "Full metadata for a provider: tools, endpoints, auth requirements, health score."
           },
           {
-            "name": "opendata-health-snapshot",
+            "name": "opendata.health.snapshot",
             "description": "Real-time health scores for all providers — uptime, latency, error rates."
           },
           {
-            "name": "opendata-explain-choice",
+            "name": "opendata.explain.choice",
             "description": "Explain why a specific provider was ranked or selected for a query."
           },
           {
-            "name": "opendata-draft-spec",
+            "name": "opendata.plugins.draft",
             "description": "Generate a provider spec scaffold for a new open data API."
           },
           {
-            "name": "opendata-create-plugin",
+            "name": "opendata.plugins.create",
             "description": "Create and register a new provider plugin from a spec."
           },
           {
-            "name": "mcp-registry-search",
+            "name": "mcp.registry.search",
             "description": "Search the official MCP server registry — meta-data-mcp can discover other MCP servers."
           },
           {
-            "name": "mcp-registry-list",
+            "name": "mcp.registry.list",
             "description": "List all servers in the MCP registry, with pagination."
           }
         ]

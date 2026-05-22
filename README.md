@@ -12,7 +12,7 @@ You install one server. You get all the data, discoverable through built-in rout
 
 Finding open data isn't the hard part — there's an absurd amount of it available. The hard part is finding the right dataset *when you need it*. `meta-data-mcp` makes that automatic:
 
-- The LLM calls `opendata-find-providers` ("FX rates", "court rulings", "earthquakes near Lisbon") and the server routes the query against an internal registry of every bundled plugin.
+- The LLM calls `opendata.providers.find` ("FX rates", "court rulings", "earthquakes near Lisbon") and the server routes the query against an internal registry of every bundled plugin.
 - The LLM then calls the matching tool directly. No setup step in between, no separate servers, no per-provider install rituals.
 
 This project was forked from [opendata-mcp](https://github.com/OpenDataMCP/OpenDataMCP) and reshaped around the single-server idea once the catalogue passed a few dozen plugins.
@@ -105,27 +105,27 @@ Once `meta-data-mcp` is running, the LLM has access to two layers of tools — a
 
 | Tool | Purpose |
 |---|---|
-| `opendata-find-providers` | Free-text search over the plugin registry. Returns ranked matches. When nothing matches the response carries a `no_match: true` flag and a `next_step` hint pointing at `opendata-draft-spec` + `opendata-create-plugin`. |
-| `opendata-explain-choice` | Show the scoring breakdown for a search (useful for debugging routing decisions). |
-| `opendata-list-domains` | Enumerate the controlled domain vocabulary (`health`, `legal`, `finance`, `earth-science`, …). |
-| `opendata-list-regions` | Enumerate the controlled region vocabulary (`us`, `eu`, `uk`, `global`, …). |
-| `opendata-describe-provider` | Full metadata for one plugin by id — title, description, domains, regions, keywords, homepage, required env vars. |
-| `opendata-list-providers` | Paginated dump of the whole registry. |
-| `opendata-draft-spec` | **Build a validated plugin YAML spec from structured inputs.** Takes id, base_url, tool definitions (name, endpoint, params), and registry metadata. Validates id/tool-name casing, path-placeholder/param consistency, and parameter types, then emits a YAML string ready to feed into `opendata-create-plugin`. Use this so the LLM never has to hand-author YAML. |
-| `opendata-create-plugin` | **Autonomously create a new plugin.** Takes a YAML spec (typically produced by `opendata-draft-spec`), runs the generator, imports the new module, registers it in the live registry, and hot-loads its tools onto the running server. Use this when `opendata-find-providers` returns no match. |
+| `opendata.providers.find` | Free-text search over the plugin registry. Returns ranked matches. When nothing matches the response carries a `no_match: true` flag and a `next_step` hint pointing at `opendata.plugins.draft` + `opendata.plugins.create`. |
+| `opendata.explain.choice` | Show the scoring breakdown for a search (useful for debugging routing decisions). |
+| `opendata.domains.list` | Enumerate the controlled domain vocabulary (`health`, `legal`, `finance`, `earth-science`, …). |
+| `opendata.regions.list` | Enumerate the controlled region vocabulary (`us`, `eu`, `uk`, `global`, …). |
+| `opendata.providers.describe` | Full metadata for one plugin by id — title, description, domains, regions, keywords, homepage, required env vars. |
+| `opendata.providers.list` | Paginated dump of the whole registry. |
+| `opendata.plugins.draft` | **Build a validated plugin YAML spec from structured inputs.** Takes id, base_url, tool definitions (name, endpoint, params), and registry metadata. Validates id/tool-name casing, path-placeholder/param consistency, and parameter types, then emits a YAML string ready to feed into `opendata.plugins.create`. Use this so the LLM never has to hand-author YAML. |
+| `opendata.plugins.create` | **Autonomously create a new plugin.** Takes a YAML spec (typically produced by `opendata.plugins.draft`), runs the generator, imports the new module, registers it in the live registry, and hot-loads its tools onto the running server. Use this when `opendata.providers.find` returns no match. |
 
 ### The autonomous discovery flow
 
 The reason this server is called "meta" is that it routes data requests on the user's behalf — including by *creating* the route when one doesn't exist yet. The full flow:
 
 1. **User asks for data**, e.g. "show me the most recent published CVEs."
-2. **LLM calls `opendata-find-providers`** with the query (`cve`, `vulnerability`, …).
+2. **LLM calls `opendata.providers.find`** with the query (`cve`, `vulnerability`, …).
 3. **If the registry has a match**: the LLM picks the matching plugin's tool and answers — done.
 4. **If the registry has no match**: the response includes `no_match: true` and a `next_step` field that explains the autonomous creation path. The LLM:
    1. Tells the user it's about to add coverage for this data source.
    2. Web-searches for an open API that exposes the requested data (e.g. the NVD or CIRCL CVE API).
-   3. Calls `opendata-draft-spec` with the API's id, base URL, and structured tool definitions. The server validates the inputs (id casing, path-placeholder consistency, parameter types) and returns a YAML string.
-   4. Passes that YAML to `opendata-create-plugin`. The server materializes the plugin module + tests, imports the module, registers a `ProviderEntry` in the in-memory dynamic registry, and merges the new tools into the running server's tool list.
+   3. Calls `opendata.plugins.draft` with the API's id, base URL, and structured tool definitions. The server validates the inputs (id casing, path-placeholder consistency, parameter types) and returns a YAML string.
+   4. Passes that YAML to `opendata.plugins.create`. The server materializes the plugin module + tests, imports the module, registers a `ProviderEntry` in the in-memory dynamic registry, and merges the new tools into the running server's tool list.
    5. Calls the newly-available tool to answer the user's original question.
 5. **User gets their answer** — and the plugin remains available for the rest of the session.
 
@@ -133,7 +133,7 @@ The materialized plugin lives on disk (`meta_data_mcp/providers/{id}.py` + `test
 
 ### Plugin tools
 
-Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata-find-providers` and `opendata-describe-provider`; you don't need to memorize them.
+Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata.providers.find` and `opendata.providers.describe`; you don't need to memorize them.
 
 ## Presentation layer (MCP Apps)
 
@@ -157,7 +157,7 @@ Some data shapes don't fit a generic primitive. v2.0 ships dedicated apps for th
 
 | App | Drives | Visualization |
 |---|---|---|
-| `discovery/v1` | `opendata-find-providers`, `opendata-list-domains`, `opendata-list-regions`, `opendata-activate-provider`, etc. | Faceted plugin browser with live health badges. |
+| `discovery/v1` | `opendata.providers.find`, `opendata.domains.list`, `opendata.regions.list`, `opendata.providers.activate`, etc. | Faceted plugin browser with live health badges. |
 | `vulnerability/v1` | `nvd-*`, `osv-*`, `epss-*`, `cisa-kev`. | CVSS radar + severity heatmap + exploitation-probability gauge. |
 | `entity-graph/v1` | `crossref-works-by-author`, `openalex-search-works`, `wikidata-search-entities`, `opensanctions-search`. | Force-directed graph (D3) with co-authorship overlay. |
 | `trade-flows/v1` | `comtrade-trade-data`. | Reporter → commodity → partner Sankey + commodity treemap. |
@@ -343,12 +343,12 @@ uv run meta-data-mcp run --host 0.0.0.0 --port 3001       # SSE bound to all int
 
 ### Shipped
 
-- **Hierarchical discovery (v2.0):** `opendata-find-providers` with ranked scoring replaces the originally-planned browse/list tools.
-- **Agent-driven generation (v2.1):** `opendata-draft-spec` + `opendata-create-plugin` let the model close coverage gaps autonomously. Hardened in v2.1.1 with input allowlists, path containment, and a post-generation AST validator (14 RCE/path-traversal/bypass paths closed).
+- **Hierarchical discovery (v2.0):** `opendata.providers.find` with ranked scoring replaces the originally-planned browse/list tools.
+- **Agent-driven generation (v2.1):** `opendata.plugins.draft` + `opendata.plugins.create` let the model close coverage gaps autonomously. Hardened in v2.1.1 with input allowlists, path containment, and a post-generation AST validator (14 RCE/path-traversal/bypass paths closed).
 - **Self-hosted SSE deployment (v2.1):** bearer-auth-protected, systemd-managed, reverse-proxied.
 - **Multi-language SDK (v2.2):** Python embedded client (`meta_data_mcp.sdk`) and TypeScript/Node client (`@meta-data-mcp/sdk`) for discovery over MCP SSE.
 - **OAuth 2.0 (v2.3):** Authorization Code + PKCE + Dynamic Client Registration. Works with Claude.ai (StreamableHTTP) and MCP Inspector. `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, and `/.well-known/openid-configuration` all served.
-- **MCP registry provider (v2.3.4):** `mcp-registry-search` and `mcp-registry-list` — discover other MCP servers from within meta-data-mcp. Listed on the official MCP registry and Smithery.
+- **MCP registry provider (v2.3.4):** `mcp.registry.search` and `mcp.registry.list` — discover other MCP servers from within meta-data-mcp. Listed on the official MCP registry and Smithery.
 
 ### Still ahead
 

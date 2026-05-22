@@ -298,7 +298,7 @@ class RoutingEngine:
 
         # Apply hard filters (outside lock — read-only registry access).
         # iter_registry() yields both the static REGISTRY and the in-memory
-        # DYNAMIC_REGISTRY, so plugins hot-loaded via `opendata-create-plugin`
+        # DYNAMIC_REGISTRY, so plugins hot-loaded via `opendata.plugins.create`
         # show up here without a server restart.
         filtered = [
             p for p in iter_registry() if self._passes_filters(p, domain, region)

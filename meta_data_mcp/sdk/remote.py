@@ -207,7 +207,7 @@ class RemoteClient:
             args["domain"] = domain
         if region is not None:
             args["region"] = region
-        payload = await self._call_tool("opendata-find-providers", args)
+        payload = await self._call_tool("opendata.providers.find", args)
         providers: list[dict[str, Any]] = payload.get("providers", [])
         breakdowns: dict[str, Any] = payload.get("breakdowns", {})
         return [
@@ -220,18 +220,18 @@ class RemoteClient:
 
     async def list_domains(self) -> list[str]:
         """Return all domain tags from the server's registry."""
-        payload = await self._call_tool("opendata-list-domains", {})
+        payload = await self._call_tool("opendata.domains.list", {})
         return payload.get("domains", [])
 
     async def list_regions(self) -> list[str]:
         """Return all region tags from the server's registry."""
-        payload = await self._call_tool("opendata-list-regions", {})
+        payload = await self._call_tool("opendata.regions.list", {})
         return payload.get("regions", [])
 
     async def describe_provider(self, provider_id: str) -> dict[str, Any] | None:
         """Return the registry entry for *provider_id*, or ``None`` if unknown."""
         payload = await self._call_tool(
-            "opendata-describe-provider", {"provider_id": provider_id}
+            "opendata.providers.describe", {"provider_id": provider_id}
         )
         return payload.get("provider") or None
 
@@ -242,10 +242,10 @@ class RemoteClient:
         ``tools_added``, ``new_tool_names``).
         """
         return await self._call_tool(
-            "opendata-activate-provider", {"provider_id": provider_id}
+            "opendata.providers.activate", {"provider_id": provider_id}
         )
 
     async def health_snapshot(self) -> dict[str, float]:
         """Return a ``{provider_id: health_score}`` snapshot from the server."""
-        payload = await self._call_tool("opendata-health-snapshot", {})
+        payload = await self._call_tool("opendata.health.snapshot", {})
         return payload.get("scores", {})

@@ -47,7 +47,7 @@ async def test_route_sees_dynamically_registered_plugins():
 
     Regression guard: routing.py used to iterate the static REGISTRY tuple
     directly, so plugins added to DYNAMIC_REGISTRY (the in-memory list that
-    `opendata-create-plugin` writes to) were invisible to the routing engine.
+    `opendata.plugins.create` writes to) were invisible to the routing engine.
     Now it iterates `iter_registry()` which yields both lists.
     """
     sentinel_id = "_test_dynamic_route_sentinel"

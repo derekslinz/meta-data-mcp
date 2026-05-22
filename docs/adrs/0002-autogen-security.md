@@ -7,9 +7,9 @@
 
 ## Context
 
-`opendata-create-plugin` lets an LLM author scaffold a brand-new
+`opendata.plugins.create` lets an LLM author scaffold a brand-new
 provider module at runtime: take a YAML spec (produced by
-`opendata-draft-spec` or hand-written), run the generator, import the
+`opendata.plugins.draft` or hand-written), run the generator, import the
 module, register the `ProviderEntry`, and merge its tools into the live
 catalog. This is the "v1.3 agent-driven generation" capability shipped
 in the v1.3 release — currently the meta server's most powerful tool.
@@ -32,7 +32,7 @@ responses — a plugin that returns `text/html` looking like JSON would
 silently pass through serialization.
 
 This ADR codifies the security posture we want before the next major
-bump to `opendata-create-plugin` and before any hosted deployment
+bump to `opendata.plugins.create` and before any hosted deployment
 goes live.
 
 ## Decision
@@ -41,7 +41,7 @@ Four principles, listed in increasing implementation cost:
 
 ### 1. Per-session ephemeral plugins by default
 
-`opendata-create-plugin` creates a plugin that is alive for the
+`opendata.plugins.create` creates a plugin that is alive for the
 **duration of the MCP session only**. The plugin module is loaded
 into `sys.modules` and merged into `TOOLS` / `TOOLS_HANDLERS`, but
 **not** written to `meta_data_mcp/providers/` on disk by default.
@@ -73,7 +73,7 @@ explicitly denied on SSE.
 
 Operators can set `META_DATA_MCP_AUTOGEN_BASE_URL_ALLOWLIST` to a
 comma-separated list of URL prefixes (`https://api.example.com,`
-`https://data.gov`). When set, `opendata-create-plugin` rejects any
+`https://data.gov`). When set, `opendata.plugins.create` rejects any
 spec whose `base_url` doesn't start with one of the allowed prefixes.
 
 Default unset = no allow-list = current behavior (any URL allowed).
@@ -140,7 +140,7 @@ Each step is shippable independently; no big-bang refactor.
 
 ## References
 
-- `meta_data_mcp/providers/meta_data_mcp.py` — `opendata-create-plugin` handler
+- `meta_data_mcp/providers/meta_data_mcp.py` — `opendata.plugins.create` handler
 - `meta_data_mcp/discovery/loader.py` — `_activate_provider`, `_merge_plugin`
 - `tools/generate_provider.py` — the underlying module emitter
 - ADR 0001 (`docs/adrs/0001-no-persistence-v2.md`) — companion: persistence policy

@@ -13,12 +13,12 @@
 User Query
     ↓
 Meta-Data-MCP (Discovery & Routing)
-    ├── opendata-find-providers      [Sophisticated Multi-Criteria Search]
-    ├── opendata-explain-choice      [Ranking Transparency]
-    ├── opendata-list-domains        [Catalog Browsing]
-    ├── opendata-list-regions        [Catalog Browsing]
-    ├── opendata-describe-provider   [Provider Details]
-    └── opendata-list-providers      [Full Registry]
+    ├── opendata.providers.find      [Sophisticated Multi-Criteria Search]
+    ├── opendata.explain.choice      [Ranking Transparency]
+    ├── opendata.domains.list        [Catalog Browsing]
+    ├── opendata.regions.list        [Catalog Browsing]
+    ├── opendata.providers.describe   [Provider Details]
+    └── opendata.providers.list      [Full Registry]
     ↓
 Individual Providers
     ├── us_nasa
@@ -62,7 +62,7 @@ The core innovation is the **RoutingEngine** — a pluggable, multi-criteria sco
 
 ### Explanation Mode
 
-The `opendata-explain-choice` tool provides transparency into ranking:
+The `opendata.explain.choice` tool provides transparency into ranking:
 
 ```json
 {
@@ -143,7 +143,7 @@ This enables parallel scoring in future versions or integration with async frame
 ### v1.2 (Planned)
 - **Hierarchical Discovery**: Browse by domain → subcategory → provider
 - **Hierarchical Tools**:
-  - `opendata-list-domains` → returns domains with descriptions
+  - `opendata.domains.list` → returns domains with descriptions
   - `opendata-list-subcategories` → returns subcategories for a domain
   - `opendata-browse-providers` → returns providers in a subcategory
 - **Hook Points**: Enable future integration with v1.3

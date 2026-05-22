@@ -7,9 +7,9 @@ Working guide for AI agents (Copilot, Claude, etc.) contributing to this repo.
 ## What this repo is
 
 One MCP server (`meta-data-mcp`) that exposes 66 open-data *plugins* under a single tool
-namespace. An LLM calls `opendata-find-providers` to discover which plugin to use, then
+namespace. An LLM calls `opendata.providers.find` to discover which plugin to use, then
 calls that plugin's tool directly. The server can also scaffold and hot-load new plugins
-at runtime via `opendata-draft-spec` + `opendata-create-plugin`.
+at runtime via `opendata.plugins.draft` + `opendata.plugins.create`.
 
 ---
 

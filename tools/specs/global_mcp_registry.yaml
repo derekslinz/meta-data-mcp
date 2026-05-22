@@ -11,7 +11,7 @@ keywords: [mcp, model-context-protocol, servers, registry, discovery, ai-tools]
 requires_env: []
 
 tools:
-  - name: mcp-registry-search
+  - name: mcp.registry.search
     description: "Search the MCP server registry by keyword"
     endpoint: /v0/servers
     response_format: json
@@ -30,7 +30,7 @@ tools:
         required: false
         description: "Pagination cursor from previous response metadata.nextCursor"
 
-  - name: mcp-registry-list
+  - name: mcp.registry.list
     description: "List all servers in the MCP registry, newest first"
     endpoint: /v0/servers
     response_format: json

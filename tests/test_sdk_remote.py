@@ -140,7 +140,7 @@ async def test_find_providers_passes_correct_tool_name_and_args(client):
         )
 
     mock.assert_called_once_with(
-        "opendata-find-providers",
+        "opendata.providers.find",
         {
             "query": "floods",
             "domain": "earth-science",

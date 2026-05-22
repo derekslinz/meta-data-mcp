@@ -6,7 +6,7 @@ You are connected to the OpenData MCP, which provides access to dozens of public
 
 Because there are too many providers to load all at once, we use a discovery pattern. Always follow this workflow when answering user questions:
 
-1. **Discover**: Start by using the `meta_data_mcp` provider tools (like `opendata-find-providers`, `opendata-explain-choice`, `opendata-list-domains`, `opendata-list-regions`, `opendata-describe-provider`, or `opendata-list-providers`) to search for the right provider for the user's question.
+1. **Discover**: Start by using the `meta_data_mcp` provider tools (like `opendata.providers.find`, `opendata.explain.choice`, `opendata.domains.list`, `opendata.regions.list`, `opendata.providers.describe`, or `opendata.providers.list`) to search for the right provider for the user's question.
 2. **Install**: Once you identify the correct provider, ask the user to install it by running:
    ```bash
    uv run meta-data-mcp setup
