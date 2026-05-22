@@ -498,8 +498,9 @@ async def run_server(
                     _add_query_params(session["redirect_uri"], params), status_code=302
                 )
 
+            resource_public_url = os.getenv("META_DATA_MCP_PUBLIC_URL", oauth_issuer)
             protected_resource_routes = create_protected_resource_routes(
-                resource_url=AnyHttpUrl(oauth_issuer),
+                resource_url=AnyHttpUrl(resource_public_url),
                 authorization_servers=[AnyHttpUrl(oauth_issuer)],
                 scopes_supported=["opendata"],
             )
