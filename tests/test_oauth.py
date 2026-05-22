@@ -414,4 +414,9 @@ async def test_protected_resource_endpoint_no_auth_required():
         transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
     ) as client:
         r = await client.get("/.well-known/oauth-protected-resource")
-    assert r.status_code != 401, "discovery endpoint must not require authentication"
+    assert r.status_code == 200, "discovery endpoint must be accessible without authentication"
+    data = r.json()
+    assert "resource" in data
+    assert "authorization_servers" in data
+    auth_servers = data["authorization_servers"]
+    assert any("localhost:8000" in s for s in auth_servers)
