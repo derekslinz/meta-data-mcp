@@ -1,0 +1,46 @@
+name: npm Publish
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        working-directory: packages/typescript-sdk
+        run: npm ci
+
+      - name: Build
+        working-directory: packages/typescript-sdk
+        run: npm run build
+
+      - name: Check package version matches release tag
+        working-directory: packages/typescript-sdk
+        env:
+          TAG_REF: ${{ github.ref }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${TAG_REF#refs/tags/v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Version mismatch: package.json ($PKG_VERSION) vs tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Publish to npm
+        working-directory: packages/typescript-sdk
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
