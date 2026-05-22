@@ -544,10 +544,22 @@ async def run_server(
                     default_scopes=["opendata"],
                 ),
             )
+            from starlette.responses import RedirectResponse as _RedirectResponse
+
+            async def oidc_discovery(_request):
+                return _RedirectResponse(
+                    "/.well-known/oauth-authorization-server", status_code=301
+                )
+
             extra_routes = (
                 protected_resource_routes
                 + oauth_routes
                 + [
+                    Route(
+                        "/.well-known/openid-configuration",
+                        endpoint=oidc_discovery,
+                        methods=["GET"],
+                    ),
                     Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
                     Route(
                         "/oauth/consent/approve",
