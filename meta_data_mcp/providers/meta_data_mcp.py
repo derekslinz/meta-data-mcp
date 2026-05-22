@@ -1894,6 +1894,85 @@ TOOLS.append(
 TOOLS_HANDLERS["opendata.health.snapshot"] = handle_health_snapshot
 
 
+###################
+# tool.call — proxy
+###################
+
+
+class CallToolParams(BaseModel):
+    """Parameters for opendata.tool.call."""
+
+    tool_name: str = Field(
+        ...,
+        description=(
+            "Exact name of an activated plugin tool to call "
+            "(e.g. 'nvd-search-cves'). Use opendata.providers.activate first, "
+            "then pass the tool name from its 'tools' list."
+        ),
+    )
+    arguments: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments to pass to the tool, matching its inputSchema.",
+    )
+
+
+async def handle_call_tool(
+    arguments: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Proxy any activated plugin tool by name — workaround for environments
+    that don't surface dynamically registered tools as callable.
+
+    After calling opendata.providers.activate, use this tool to invoke
+    any of the newly registered tools by passing their exact name and
+    arguments instead of calling them directly.
+    """
+    params = CallToolParams(**(arguments or {}))
+    handler = TOOLS_HANDLERS.get(params.tool_name)
+    if handler is None:
+        available = [
+            name for name in TOOLS_HANDLERS if name not in {t.name for t in TOOLS}
+        ]
+        return {
+            "error": f"Tool '{params.tool_name}' not found or not activated.",
+            "hint": "Call opendata.providers.activate first.",
+            "activated_tools": sorted(available),
+        }
+    try:
+        result = await handler(params.arguments or {})
+        if isinstance(result, dict):
+            return result
+        # list[TextContent] from plugin handlers — unwrap
+        if result and hasattr(result[0], "text"):
+            import json as _json
+
+            try:
+                return _json.loads(result[0].text)
+            except Exception:
+                return {"result": result[0].text}
+        return {"result": str(result)}
+    except Exception as exc:
+        log.error("opendata.tool.call(%s) failed: %s", params.tool_name, exc)
+        return {"error": str(exc), "tool_name": params.tool_name}
+
+
+TOOLS.append(
+    types.Tool(
+        name="opendata.tool.call",
+        title="Call Activated Tool",
+        description=(
+            "Proxy any activated plugin tool by name. Use this when dynamically "
+            "activated tools aren't directly callable in your environment. "
+            "First activate the provider with opendata.providers.activate, "
+            "then call this tool with the tool name and arguments from the "
+            "activation response's tool_schemas field."
+        ),
+        inputSchema=CallToolParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+    )
+)
+TOOLS_HANDLERS["opendata.tool.call"] = handle_call_tool
+
+
 # ---------------------------------------------------------------------------
 # Plugin loading
 # ---------------------------------------------------------------------------
