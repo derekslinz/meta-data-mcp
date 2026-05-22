@@ -315,6 +315,21 @@ async def test_dispatcher_skips_provenance_when_disabled(
 
 
 @pytest.mark.anyio
+async def test_dispatcher_attaches_provenance_to_structured_tool_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(provenance._ENV_VAR, "1")
+    server = _server_with_structured_echo()
+    result = await _call_tool(server, "structured-echo", {"text": "ping"})
+    assert result.root.structuredContent == {"text": "ping"}
+    contents = result.root.content
+    assert len(contents) == 1
+    assert json.loads(contents[0].text) == {"text": "ping"}
+    assert contents[0].meta is not None
+    assert provenance.PROVENANCE_META_KEY in contents[0].meta
+
+
+@pytest.mark.anyio
 async def test_dispatcher_digest_binds_to_call_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -384,10 +399,31 @@ def _server_with_echo():
     )
 
 
+def _server_with_structured_echo():
+    tools = [
+        types.Tool(
+            name="structured-echo", description="", inputSchema={"type": "object"}
+        )
+    ]
+
+    async def structured_echo(args: dict[str, Any] | None):
+        return {"text": (args or {}).get("text", "default")}
+
+    return create_mcp_server(
+        "test-provenance-structured",
+        tools=tools,
+        tools_handlers={"structured-echo": structured_echo},
+    )
+
+
 async def _call_echo(server, text: str):
+    return await _call_tool(server, "echo", {"text": text})
+
+
+async def _call_tool(server, name: str, arguments: dict[str, Any]):
     handler = server.request_handlers[types.CallToolRequest]
     req = types.CallToolRequest(
         method="tools/call",
-        params=types.CallToolRequestParams(name="echo", arguments={"text": text}),
+        params=types.CallToolRequestParams(name=name, arguments=arguments),
     )
     return await handler(req)

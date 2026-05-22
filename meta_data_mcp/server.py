@@ -14,6 +14,7 @@ existing call sites continue to import the same names.
 
 from __future__ import annotations
 
+import json
 import hmac
 import logging
 import os
@@ -236,7 +237,21 @@ def create_mcp_server(
             raise
 
         if provenance.is_enabled():
-            result = provenance.attach(result, tool_name=name, arguments=arguments)
+            if isinstance(result, dict):
+                result = (
+                    provenance.attach(
+                        [
+                            types.TextContent(
+                                type="text", text=json.dumps(result, indent=2)
+                            )
+                        ],
+                        tool_name=name,
+                        arguments=arguments,
+                    ),
+                    result,
+                )
+            else:
+                result = provenance.attach(result, tool_name=name, arguments=arguments)
         return result
 
     # register the prompts

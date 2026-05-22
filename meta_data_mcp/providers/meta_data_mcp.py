@@ -1259,7 +1259,7 @@ class ListDomainsParams(BaseModel):
 
 async def handle_list_domains(
     arguments: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Sequence[types.TextContent]:
     """Handle the opendata.domains.list tool call."""
     try:
         return [
@@ -1301,7 +1301,7 @@ class ListRegionsParams(BaseModel):
 
 async def handle_list_regions(
     arguments: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Sequence[types.TextContent]:
     """Handle the opendata.regions.list tool call."""
     try:
         return [
