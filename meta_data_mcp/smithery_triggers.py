@@ -17,7 +17,6 @@ registered webhook URL, signed with Standard Webhooks HMAC (sha256).
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -118,6 +117,10 @@ class SubscriptionStore:
         return self._subs.pop(sub_id, None) is not None
 
     def for_event(self, event_name: str) -> list[Subscription]:
+        now = time.time()
+        expired = [sid for sid, s in self._subs.items() if now >= s.refresh_before]
+        for sid in expired:
+            self._subs.pop(sid, None)
         return [s for s in self._subs.values() if s.event_name == event_name]
 
 
@@ -295,8 +298,6 @@ class SmitheryTriggersMiddleware:
             if not body_sent:
                 body_sent = True
                 return {"type": "http.request", "body": body_bytes, "more_body": False}
-            # Block until disconnect (ASGI convention after body is consumed).
-            await asyncio.sleep(3600)
             return {"type": "http.disconnect"}
 
         await self.app(scope, replay_receive, send)
