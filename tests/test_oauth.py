@@ -400,9 +400,8 @@ async def test_protected_resource_metadata_endpoint():
     data = r.json()
     assert "resource" in data
     assert "authorization_servers" in data
-    assert any(
-        "localhost:8000" in s for s in data["authorization_servers"]
-    ), "authorization_servers should include the issuer URL"
+    auth_servers = data["authorization_servers"]
+    assert any("localhost:8000" in s for s in auth_servers)
 
 
 @pytest.mark.anyio
