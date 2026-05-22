@@ -576,7 +576,6 @@ async def run_server(
                     default_scopes=["opendata"],
                 ),
             )
-
             # The MCP SDK hardcodes token_endpoint_auth_methods_supported to
             # ["client_secret_post", "client_secret_basic"], omitting "none".
             # Claude's OAuth client checks this list and refuses to proceed for
