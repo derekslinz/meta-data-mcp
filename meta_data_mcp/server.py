@@ -18,7 +18,7 @@ import json
 import hmac
 import logging
 import os
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from mcp import types
 from mcp.server import Server
@@ -28,6 +28,14 @@ from pydantic import AnyUrl
 from meta_data_mcp import provenance
 
 log = logging.getLogger(__name__)
+
+ToolUnstructuredContent = Iterable[types.ContentBlock]
+ToolStructuredContent = dict[str, Any]
+ToolCallResult = (
+    ToolUnstructuredContent
+    | ToolStructuredContent
+    | tuple[ToolUnstructuredContent, ToolStructuredContent]
+)
 
 
 def register_ui_resource(
@@ -225,7 +233,7 @@ def create_mcp_server(
     @server.call_tool()
     async def handle_call_tool(
         name: str, arguments: dict[str, Any] | None = None
-    ) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+    ) -> ToolCallResult:
         if name not in _tools_handlers:
             log.error(f"Tool {name} not found")
             raise AttributeError(f"Tool {name} not found")

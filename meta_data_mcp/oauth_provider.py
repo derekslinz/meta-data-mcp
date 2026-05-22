@@ -218,7 +218,7 @@ class InMemoryOAuthProvider(
             token=new_access,
             client_id=client_id,
             scopes=effective_scopes,
-            expires_at=int(time.time()) + 3600,
+            expires_at=int(time.time()) + 1_209_600,  # 2-week access token
         )
         self._refresh_tokens[new_refresh] = RefreshToken(
             token=new_refresh,
