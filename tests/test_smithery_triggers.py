@@ -10,14 +10,15 @@ async def test_oversized_request_replays_buffered_prefix_without_draining(monkey
         {"type": "http.request", "body": b"ef", "more_body": False},
     ]
     state = {"receive_calls": 0, "calls_before_app_read": None}
+    sent_events = []
 
     async def receive():
         index = state["receive_calls"]
         state["receive_calls"] += 1
         return events[index]
 
-    async def send(_event):
-        return None
+    async def send(event):
+        sent_events.append(event)
 
     async def app(_scope, downstream_receive, downstream_send):
         state["calls_before_app_read"] = state["receive_calls"]
@@ -34,6 +35,10 @@ async def test_oversized_request_replays_buffered_prefix_without_draining(monkey
     await middleware({"type": "http", "method": "POST"}, receive, send)
 
     assert state["calls_before_app_read"] == 1
+    assert [event["type"] for event in sent_events] == [
+        "http.response.start",
+        "http.response.body",
+    ]
 
 
 @pytest.mark.anyio
@@ -43,14 +48,15 @@ async def test_oversized_request_preserves_disconnect(monkeypatch):
         {"type": "http.disconnect"},
     ]
     state = {"receive_calls": 0}
+    sent_events = []
 
     async def receive():
         index = state["receive_calls"]
         state["receive_calls"] += 1
         return events[index]
 
-    async def send(_event):
-        return None
+    async def send(event):
+        sent_events.append(event)
 
     async def app(_scope, downstream_receive, _downstream_send):
         assert await downstream_receive() == events[0]
@@ -60,3 +66,5 @@ async def test_oversized_request_preserves_disconnect(monkeypatch):
     monkeypatch.setattr(middleware, "_MAX_INSPECT_BYTES", 4)
 
     await middleware({"type": "http", "method": "POST"}, receive, send)
+
+    assert sent_events == []

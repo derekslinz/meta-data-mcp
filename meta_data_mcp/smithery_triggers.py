@@ -280,6 +280,8 @@ class SmitheryTriggersMiddleware:
             if remaining:
                 inspect_chunks.append(chunk[:remaining])
                 inspected += min(len(chunk), remaining)
+            # Stop inspection once the current chunk crosses the cap or the
+            # cap is exactly reached and the client indicates more body remains.
             if len(chunk) > remaining or (
                 inspected >= self._MAX_INSPECT_BYTES and more_body
             ):
@@ -314,8 +316,8 @@ class SmitheryTriggersMiddleware:
 
         # Not a Smithery call — replay captured events and, for oversized bodies,
         # continue reading directly from the original receive channel.
-        # Use an Event to detect when the response is fully sent so replay_receive
-        # returns http.disconnect promptly rather than sleeping arbitrarily long.
+        # Use an Event so replay_receive can return http.disconnect promptly
+        # after the downstream handler finishes sending the response.
         replay_index = 0
         upstream_body_complete = False
         response_done = asyncio.Event()
