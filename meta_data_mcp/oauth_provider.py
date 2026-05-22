@@ -83,7 +83,7 @@ class InMemoryOAuthProvider(
             "redirect_uri_provided_explicitly": params.redirect_uri_provided_explicitly,
             "scopes": params.scopes or [],
             "state": params.state,
-            "expires_at": time.time() + 1800,  # 30-minute consent window
+            "expires_at": time.time() + 43200,  # 12-hour consent window
         }
         return f"{self.issuer_url}/oauth/consent?session={session_token}"
 
