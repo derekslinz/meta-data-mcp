@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -32,6 +33,13 @@ EXPECTED_PROVIDER_FIELDS = {
     "license_note",
     "requires_env",
 }
+
+
+def _parse(result: Any) -> dict:
+    """Parse a handler result regardless of return type (dict or list[TextContent])."""
+    if isinstance(result, dict):
+        return result
+    return json.loads(result[0].text)
 
 
 @pytest.fixture
@@ -91,7 +99,7 @@ async def test_draft_spec_emits_valid_yaml_for_simple_api():
             ],
         }
     )
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload.get("status") == "ok", payload
     yaml_str = payload["spec_yaml"]
     assert "title: Draft Test API" in yaml_str
@@ -139,7 +147,7 @@ async def test_draft_spec_rejects_path_placeholder_without_required_param():
             ],
         }
     )
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "error" in payload
     assert "missing_id" in payload["error"]
 
@@ -165,7 +173,7 @@ async def test_draft_spec_rejects_bad_id_casing():
             ],
         }
     )
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "error" in payload
     assert "snake_case" in payload["error"].lower()
 
@@ -173,14 +181,13 @@ async def test_draft_spec_rejects_bad_id_casing():
 @pytest.mark.anyio
 async def test_find_providers_by_query():
     result = await handle_find_providers({"query": "earthquake"})
-    assert len(result) == 1
-    assert "us_usgs_earthquake" in result[0].text
+    assert "us_usgs_earthquake" in json.dumps(result, default=str)
 
 
 @pytest.mark.anyio
 async def test_find_providers_by_domain():
     result = await handle_find_providers({"domain": "health"})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert (
         "us_cdc_socrata" in text or "us_fda_openfda" in text or "global_who_gho" in text
     )
@@ -189,28 +196,28 @@ async def test_find_providers_by_domain():
 @pytest.mark.anyio
 async def test_find_providers_by_region():
     result = await handle_find_providers({"region": "uk"})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert "uk_gov" in text or "uk_ons" in text
 
 
 @pytest.mark.anyio
 async def test_find_providers_by_region_case_insensitive():
     result = await handle_find_providers({"region": "UK"})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["count"] > 0
 
 
 @pytest.mark.anyio
 async def test_find_providers_without_query_uses_filters_only():
     result = await handle_find_providers({"domain": "health", "limit": 5})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["count"] > 0
 
 
 @pytest.mark.anyio
 async def test_explain_choice_includes_breakdown():
     result = await handle_explain_choice({"query": "earthquake", "limit": 1})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["results"]
     assert payload["results"][0]["scoring_breakdown"] is not None
 
@@ -220,14 +227,14 @@ async def test_find_providers_combined_filters():
     result = await handle_find_providers(
         {"query": "exchange rates", "domain": "finance", "limit": 5}
     )
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert "frankfurter" in text.lower() or "ecb" in text.lower()
 
 
 @pytest.mark.anyio
 async def test_find_providers_no_match_returns_empty():
     result = await handle_find_providers({"query": "zzzzzzzz_no_such_topic"})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert '"count": 0' in text
     # The no-match response must steer the LLM toward autonomous creation.
     payload = json.loads(text)
@@ -282,7 +289,7 @@ tools:
                 "keywords": ["test", "autonomous"],
             }
         )
-        payload = json.loads(result[0].text)
+        payload = _parse(result)
         assert payload.get("status") == "ok", payload
         assert payload["plugin_id"] == pid
         assert "autotest-fetch-thing" in payload["new_tool_names"]
@@ -316,7 +323,7 @@ async def test_create_plugin_rejects_invalid_yaml():
     from meta_data_mcp.providers.meta_data_mcp import handle_create_plugin
 
     result = await handle_create_plugin({"spec_yaml": "::not valid yaml :::"})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "error" in payload
 
 
@@ -325,7 +332,7 @@ async def test_create_plugin_rejects_missing_required_keys():
     from meta_data_mcp.providers.meta_data_mcp import handle_create_plugin
 
     result = await handle_create_plugin({"spec_yaml": "id: only_id\n"})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "error" in payload
     assert "missing required keys" in payload["error"].lower()
 
@@ -409,7 +416,7 @@ async def test_create_plugin_rejects_path_traversal_id():
     from meta_data_mcp.providers.meta_data_mcp import handle_create_plugin
 
     result = await handle_create_plugin({"spec_yaml": _MALICIOUS_ID_SPEC})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "error" in payload
     assert "snake_case" in payload["error"] or "must match" in payload["error"]
     assert not _P("/tmp/pwn.yaml").exists()
@@ -429,7 +436,7 @@ async def test_create_plugin_rejects_param_name_injection():
     _cleanup_artifacts(artifacts)
     try:
         result = await handle_create_plugin({"spec_yaml": _MALICIOUS_PARAM_NAME_SPEC})
-        payload = json.loads(result[0].text)
+        payload = _parse(result)
         assert "error" in payload
         # Both must hold independently — a leaked file with the wrong error
         # message would have slipped past the original `or`-joined assertion.
@@ -454,7 +461,7 @@ async def test_create_plugin_rejects_endpoint_injection():
     artifacts = _create_plugin_artifacts("secrgntest_endpoint")
     try:
         result = await handle_create_plugin({"spec_yaml": _MALICIOUS_ENDPOINT_SPEC})
-        payload = json.loads(result[0].text)
+        payload = _parse(result)
         assert "error" in payload
         assert not artifacts[1].exists()
     finally:
@@ -469,7 +476,7 @@ async def test_create_plugin_rejects_server_name_injection():
     artifacts = _create_plugin_artifacts("secrgntest_srvname")
     try:
         result = await handle_create_plugin({"spec_yaml": _MALICIOUS_SERVER_NAME_SPEC})
-        payload = json.loads(result[0].text)
+        payload = _parse(result)
         assert "error" in payload
         assert not artifacts[1].exists()
     finally:
@@ -691,7 +698,7 @@ def test_validate_generated_provider_ast_rejects_getattr_indirect_call():
 @pytest.mark.anyio
 async def test_list_domains_returns_known_domains():
     result = await handle_list_domains({})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert "health" in text
     assert "earth-science" in text
     assert "finance" in text
@@ -700,7 +707,7 @@ async def test_list_domains_returns_known_domains():
 @pytest.mark.anyio
 async def test_list_regions_returns_known_regions():
     result = await handle_list_regions({})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert "us" in text
     assert "eu" in text
     assert "global" in text
@@ -709,7 +716,7 @@ async def test_list_regions_returns_known_regions():
 @pytest.mark.anyio
 async def test_describe_provider_known_id():
     result = await handle_describe_provider({"provider_id": "us_nasa"})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert "us_nasa" in text
     assert "NASA" in text
 
@@ -717,7 +724,7 @@ async def test_describe_provider_known_id():
 @pytest.mark.anyio
 async def test_describe_provider_unknown_id_returns_error_payload():
     result = await handle_describe_provider({"provider_id": "not_a_real_provider"})
-    assert "not found" in result[0].text
+    assert "not found" in json.dumps(result, default=str)
 
 
 @pytest.mark.anyio
@@ -729,7 +736,7 @@ async def test_describe_provider_requires_id():
 @pytest.mark.anyio
 async def test_list_providers_pagination():
     result = await handle_list_providers({"limit": 3, "offset": 0})
-    text = result[0].text
+    text = json.dumps(result, default=str)
     assert '"total"' in text
     assert '"limit": 3' in text
 
@@ -927,7 +934,7 @@ async def test_explain_choice_with_domain_filter():
     result = await handle_explain_choice(
         {"query": "epidemic", "domain": "health", "limit": 3}
     )
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["domain_filter"] == "health"
     assert payload["results"]
 
@@ -938,7 +945,7 @@ async def test_explain_choice_with_region_filter():
     result = await handle_explain_choice(
         {"query": "open data", "region": "us", "limit": 3}
     )
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["region_filter"] == "us"
     assert payload["results"]
 
@@ -947,7 +954,7 @@ async def test_explain_choice_with_region_filter():
 async def test_explain_choice_without_query():
     """Test explain_choice with just domain filter, no query."""
     result = await handle_explain_choice({"domain": "finance", "limit": 2})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["domain_filter"] == "finance"
     assert payload["results"]
 
@@ -1027,7 +1034,7 @@ async def test_health_snapshot_default_returns_full_registry():
     from meta_data_mcp.registry import iter_registry
 
     result = await handle_health_snapshot({})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "snapshot" in payload
     # Two clock fields are intentional: ``generated_at`` is wall-clock for
     # display, ``generated_at_monotonic`` is the reference clock for
@@ -1055,7 +1062,7 @@ async def test_health_snapshot_with_explicit_ids_filters_response():
     result = await handle_health_snapshot(
         {"provider_ids": ["us_nasa", "global_frankfurter"]}
     )
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     snap = payload["snapshot"]
     assert set(snap.keys()) == {"us_nasa", "global_frankfurter"}
 
@@ -1069,7 +1076,7 @@ async def test_health_snapshot_unknown_provider_returns_baseline():
     from meta_data_mcp.providers.meta_data_mcp import handle_health_snapshot
 
     result = await handle_health_snapshot({"provider_ids": ["zzz_never_seen"]})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert payload["snapshot"]["zzz_never_seen"] == {
         "score": 1.0,
         "failure_mass": 0.0,
@@ -1083,7 +1090,7 @@ async def test_find_providers_includes_breakdowns_per_provider():
     routing engine and surfaces ``breakdowns`` in the payload so the
     discovery app can render per-strategy bars."""
     result = await handle_find_providers({"query": "weather", "limit": 5})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "breakdowns" in payload
     # At least one provider's breakdown must contain the canonical scorers.
     if payload["providers"]:
@@ -1107,14 +1114,14 @@ async def test_find_providers_omits_breakdowns_when_no_query():
     entirely. The discovery app's row renderer treats absence as 'no
     per-strategy data' rather than drawing zero-height bars."""
     result = await handle_find_providers({"limit": 3})
-    payload = json.loads(result[0].text)
+    payload = _parse(result)
     assert "breakdowns" not in payload, (
         "breakdowns must be absent when no query was supplied; got "
         f"{payload.get('breakdowns')!r}"
     )
     # Empty string query / whitespace-only query should be treated the same.
     result_blank = await handle_find_providers({"query": "   ", "limit": 3})
-    payload_blank = json.loads(result_blank.__getitem__(0).text)
+    payload_blank = _parse(result_blank)
     assert "breakdowns" not in payload_blank
 
 

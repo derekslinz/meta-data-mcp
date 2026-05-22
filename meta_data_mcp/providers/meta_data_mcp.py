@@ -223,7 +223,7 @@ async def handle_find_providers(
                     "activation step for the top-N results."
                 )
 
-        return [types.TextContent(type="text", text=serialize_for_llm(payload))]
+        return payload
     except Exception as e:
         log.error(f"Error in opendata.providers.find: {e}")
         raise
@@ -232,6 +232,15 @@ async def handle_find_providers(
 TOOLS.append(
     types.Tool(
         name="opendata.providers.find",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer"},
+                "providers": {"type": "array", "items": {"type": "object"}},
+                "next_step": {"type": "string"},
+                "no_match": {"type": "boolean"},
+            },
+        },
         title="Find Providers",
         description=(
             "Search the meta-data-mcp plugin registry. Returns plugins that "
@@ -1218,7 +1227,7 @@ async def handle_explain_choice(
             "results": explanations,
         }
 
-        return [types.TextContent(type="text", text=serialize_for_llm(payload))]
+        return payload
     except Exception as e:
         log.error(f"Error in opendata.explain.choice: {e}")
         raise
@@ -1227,6 +1236,13 @@ async def handle_explain_choice(
 TOOLS.append(
     types.Tool(
         name="opendata.explain.choice",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": ["string", "null"]},
+                "results": {"type": "array", "items": {"type": "object"}},
+            },
+        },
         title="Explain Choice",
         description="Explain the scoring breakdown for a provider search. Shows how each provider was ranked using token matching, fuzzy matching, semantic similarity, and metadata filters.",
         inputSchema=ExplainChoiceParams.model_json_schema(),
@@ -1264,6 +1280,10 @@ async def handle_list_domains(
 TOOLS.append(
     types.Tool(
         name="opendata.domains.list",
+        outputSchema={
+            "type": "object",
+            "properties": {"domains": {"type": "array", "items": {"type": "string"}}},
+        },
         title="List Domains",
         description="List the controlled domain vocabulary used by the provider registry (e.g. 'health', 'legal', 'finance', 'earth-science').",
         inputSchema=ListDomainsParams.model_json_schema(),
@@ -1302,6 +1322,10 @@ async def handle_list_regions(
 TOOLS.append(
     types.Tool(
         name="opendata.regions.list",
+        outputSchema={
+            "type": "object",
+            "properties": {"regions": {"type": "array", "items": {"type": "string"}}},
+        },
         title="List Regions",
         description="List the controlled region vocabulary used by the provider registry (e.g. 'us', 'eu', 'uk', 'global').",
         inputSchema=ListRegionsParams.model_json_schema(),
@@ -1339,7 +1363,7 @@ async def handle_describe_provider(
             payload = {"error": f"Provider '{params.provider_id}' not found"}
         else:
             payload = entry.to_dict()
-        return [types.TextContent(type="text", text=serialize_for_llm(payload))]
+        return payload
     except Exception as e:
         log.error(f"Error in opendata.providers.describe: {e}")
         raise
@@ -1348,6 +1372,17 @@ async def handle_describe_provider(
 TOOLS.append(
     types.Tool(
         name="opendata.providers.describe",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+                "domains": {"type": "array", "items": {"type": "string"}},
+                "regions": {"type": "array", "items": {"type": "string"}},
+                "homepage": {"type": "string"},
+            },
+        },
         title="Describe Provider",
         description="Fetch the full registry entry for a single provider id — title, description, domains, regions, keywords, homepage, license note, required environment variables.",
         inputSchema=DescribeProviderParams.model_json_schema(),
@@ -1401,7 +1436,7 @@ async def handle_list_providers(
                 for entry in slice_
             ],
         }
-        return [types.TextContent(type="text", text=serialize_for_llm(payload))]
+        return payload
     except Exception as e:
         log.error(f"Error in opendata.providers.list: {e}")
         raise
@@ -1410,6 +1445,15 @@ async def handle_list_providers(
 TOOLS.append(
     types.Tool(
         name="opendata.providers.list",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "total": {"type": "integer"},
+                "offset": {"type": "integer"},
+                "limit": {"type": "integer"},
+                "providers": {"type": "array", "items": {"type": "object"}},
+            },
+        },
         title="List Providers",
         description="Enumerate all providers in the opendata-mcp registry (paginated, terse). Returns id, title, domains, regions, and any required env vars per provider.",
         inputSchema=ListProvidersParams.model_json_schema(),
@@ -1586,12 +1630,20 @@ async def handle_activate_provider(
                 "new_tool_names": report.get("new_tool_names", []),
             },
         )
-    return [types.TextContent(type="text", text=serialize_for_llm(report))]
+    return report
 
 
 TOOLS.append(
     types.Tool(
         name="opendata.providers.activate",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "status": {"type": "string"},
+                "provider_id": {"type": "string"},
+                "tools_added": {"type": "integer"},
+            },
+        },
         title="Activate Provider",
         description=(
             "Activate a registered provider so its tools become callable in this "
@@ -1641,12 +1693,20 @@ async def handle_deactivate_provider(
                 "tools_removed": report.get("tools_removed", 0),
             },
         )
-    return [types.TextContent(type="text", text=serialize_for_llm(report))]
+    return report
 
 
 TOOLS.append(
     types.Tool(
         name="opendata.providers.deactivate",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "status": {"type": "string"},
+                "provider_id": {"type": "string"},
+                "tools_removed": {"type": "integer"},
+            },
+        },
         title="Deactivate Provider",
         description=(
             "Remove a previously-activated provider's tools from the session's "
@@ -1691,12 +1751,21 @@ async def handle_list_active_providers(
         "meta_tool_count": len(meta_tools),
         "plugin_tool_count": len(plugin_tools),
     }
-    return [types.TextContent(type="text", text=serialize_for_llm(payload))]
+    return payload
 
 
 TOOLS.append(
     types.Tool(
         name="opendata.providers.list_active",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer"},
+                "active_providers": {"type": "array", "items": {"type": "string"}},
+                "meta_tool_count": {"type": "integer"},
+                "plugin_tool_count": {"type": "integer"},
+            },
+        },
         title="List Active Providers",
         description=(
             "List the providers currently activated in this session, along with "
@@ -1783,7 +1852,7 @@ async def handle_health_snapshot(
             "generated_at": time.time(),
             "generated_at_monotonic": time.monotonic(),
         }
-        return [types.TextContent(type="text", text=serialize_for_llm(payload))]
+        return payload
     except Exception as e:
         log.error(f"Error in opendata.health.snapshot: {e}")
         raise
@@ -1792,6 +1861,13 @@ async def handle_health_snapshot(
 TOOLS.append(
     types.Tool(
         name="opendata.health.snapshot",
+        outputSchema={
+            "type": "object",
+            "properties": {
+                "snapshot": {"type": "object"},
+                "generated_at": {"type": "number"},
+            },
+        },
         title="Health Snapshot",
         description=(
             "Snapshot the in-memory provider health registry. Returns a "

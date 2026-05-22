@@ -33,6 +33,8 @@ def _isolate_meta_state():
 
 
 def _payload(result) -> dict[str, Any]:
+    if isinstance(result, dict):
+        return result
     return json.loads(result[0].text)
 
 
