@@ -83,7 +83,7 @@ class InMemoryOAuthProvider(
             "redirect_uri_provided_explicitly": params.redirect_uri_provided_explicitly,
             "scopes": params.scopes or [],
             "state": params.state,
-            "expires_at": time.time() + 600,  # 10-minute consent window
+            "expires_at": time.time() + 1800,  # 30-minute consent window
         }
         return f"{self.issuer_url}/oauth/consent?session={session_token}"
 
@@ -118,7 +118,7 @@ class InMemoryOAuthProvider(
         self._auth_codes[code] = AuthorizationCode(
             code=code,
             scopes=session["scopes"],
-            expires_at=time.time() + 300,  # 5-minute code lifetime
+            expires_at=time.time() + 600,  # 10-minute code lifetime
             client_id=session["client_id"],
             code_challenge=session["code_challenge"],
             redirect_uri=session["redirect_uri"],  # type: ignore[arg-type]
