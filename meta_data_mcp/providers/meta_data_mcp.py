@@ -135,7 +135,7 @@ class FindProvidersParams(BaseModel):
 
 async def handle_find_providers(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.providers.find tool call.
 
     Uses sophisticated multi-criteria routing for intelligent provider ranking.
@@ -762,9 +762,16 @@ async def handle_create_plugin(
         new_tool_names = [t.name for t in (getattr(new_module, "TOOLS", None) or [])]
 
         from meta_data_mcp.smithery_triggers import fire_event
-        import asyncio
 
-        result = [
+        await fire_event(
+            "plugin.created",
+            {
+                "plugin_id": plugin_id,
+                "tools_added": added,
+                "new_tool_names": new_tool_names,
+            },
+        )
+        return [
             types.TextContent(
                 type="text",
                 text=serialize_for_llm(
@@ -783,17 +790,6 @@ async def handle_create_plugin(
                 ),
             )
         ]
-        asyncio.create_task(
-            fire_event(
-                "plugin.created",
-                {
-                    "plugin_id": plugin_id,
-                    "tools_added": added,
-                    "new_tool_names": new_tool_names,
-                },
-            )
-        )
-        return result
     except Exception as e:
         log.error(f"Error in opendata.plugins.create: {e}")
         return [
@@ -1191,7 +1187,7 @@ class ExplainChoiceParams(BaseModel):
 
 async def handle_explain_choice(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Explain the scoring breakdown for a provider search query.
 
     Shows how each provider was ranked, including the contribution of
@@ -1263,7 +1259,7 @@ class ListDomainsParams(BaseModel):
 
 async def handle_list_domains(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.domains.list tool call."""
     try:
         return [
@@ -1305,7 +1301,7 @@ class ListRegionsParams(BaseModel):
 
 async def handle_list_regions(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.regions.list tool call."""
     try:
         return [
@@ -1352,7 +1348,7 @@ class DescribeProviderParams(BaseModel):
 
 async def handle_describe_provider(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.providers.describe tool call."""
     try:
         if not arguments or "provider_id" not in arguments:
@@ -1415,7 +1411,7 @@ class ListProvidersParams(BaseModel):
 
 async def handle_list_providers(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.providers.list tool call."""
     try:
         params = ListProvidersParams(**(arguments or {}))
@@ -1611,7 +1607,7 @@ class ActivateProviderParams(BaseModel):
 
 async def handle_activate_provider(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.providers.activate tool call."""
     from meta_data_mcp.smithery_triggers import fire_event
 
@@ -1678,7 +1674,7 @@ class DeactivateProviderParams(BaseModel):
 
 async def handle_deactivate_provider(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.providers.deactivate tool call."""
     from meta_data_mcp.smithery_triggers import fire_event
 
@@ -1732,7 +1728,7 @@ class ListActiveProvidersParams(BaseModel):
 
 async def handle_list_active_providers(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.providers.list_active tool call."""
     ListActiveProvidersParams(**(arguments or {}))
     # Plugin-owned tools are anything _owner_by_tool maps to a non-meta value.
@@ -1801,7 +1797,7 @@ class HealthSnapshotParams(BaseModel):
 
 async def handle_health_snapshot(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.health.snapshot tool call.
 
     Returns a per-provider health snapshot for the discovery app's live
