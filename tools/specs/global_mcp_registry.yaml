@@ -1,0 +1,46 @@
+id: global_mcp_registry
+server_name: global-mcp-registry
+base_url: https://registry.modelcontextprotocol.io
+description: |
+  Official MCP Server Registry — discover, search, and inspect servers published
+  to the Model Context Protocol registry. No API key required.
+homepage: https://registry.modelcontextprotocol.io
+domains: [developer-tools, infrastructure]
+regions: [global]
+keywords: [mcp, model-context-protocol, servers, registry, discovery, ai-tools]
+requires_env: []
+
+tools:
+  - name: mcp-registry-search
+    description: "Search the MCP server registry by keyword"
+    endpoint: /v0/servers
+    response_format: json
+    params:
+      - name: q
+        type: str
+        required: false
+        description: "Keyword search query (e.g. 'weather', 'database', 'github')"
+      - name: limit
+        type: int
+        required: false
+        default: 20
+        description: "Max results to return"
+      - name: cursor
+        type: str
+        required: false
+        description: "Pagination cursor from previous response metadata.nextCursor"
+
+  - name: mcp-registry-list
+    description: "List all servers in the MCP registry, newest first"
+    endpoint: /v0/servers
+    response_format: json
+    params:
+      - name: limit
+        type: int
+        required: false
+        default: 50
+        description: "Max results to return"
+      - name: cursor
+        type: str
+        required: false
+        description: "Pagination cursor from previous response metadata.nextCursor"
