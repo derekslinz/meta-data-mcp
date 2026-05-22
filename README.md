@@ -2,9 +2,9 @@
 
 <!-- mcp-name: io.github.derekslinz/meta-data-mcp -->
 
-> A single MCP server that transparently routes user requests to 66 open-data sources.
+> A single MCP server that transparently routes user requests to 76 open-data sources.
 
-`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 66 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server, one set of tools, and one place to ask "where can I find data about X?"
+`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 76 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server, one set of tools, and one place to ask "where can I find data about X?"
 
 You install one server. You get all the data, discoverable through built-in routing tools.
 
@@ -99,7 +99,7 @@ The `list` command exists for transparency about what's bundled — **plugins ar
 Once `meta-data-mcp` is running, the LLM has access to two layers of tools — and you don't need to mention either to the user:
 
 1. **Meta tools** — the eight server-level tools below. They make routing transparent: the LLM uses them to find (or create) the right plugin without you telling it which tool to call.
-2. **Plugin tools** — ~330 tools coming from the 66 bundled plugins. They are merged into the same namespace at startup. The LLM picks one after consulting the meta tools.
+2. **Plugin tools** — ~330 tools coming from the 76 bundled plugins. They are merged into the same namespace at startup. The LLM picks one after consulting the meta tools.
 
 ### Meta tools
 
@@ -180,7 +180,7 @@ tools:
 
 See [`tools/specs/README.md`](tools/specs/README.md) for the full reference. Bundle-size budgets are enforced in CI (warn ≥ 100 KB, error ≥ 1 MB); the v2.0 bundles range from 14 KB (timeseries primitive) to 34 KB (vulnerability app), all comfortably inside the budget.
 
-## Bundled plugins (66)
+## Bundled plugins (76)
 
 This is what's inside the one server. You don't install these individually — they all come along.
 
