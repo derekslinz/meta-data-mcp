@@ -241,6 +241,7 @@ TOOLS.append(
             "`opendata-create-plugin`."
         ),
         inputSchema=FindProvidersParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         # Phase 3: bind to the discovery app so MCP Apps hosts render the
         # result in the faceted panel. Use the alias keyword (``_meta=``) —
         # ``meta=`` silently drops into extras; see
@@ -792,6 +793,7 @@ TOOLS.append(
             "tools become available immediately."
         ),
         inputSchema=CreatePluginParams.model_json_schema(),
+        annotations=types.ToolAnnotations(destructiveHint=False),
     )
 )
 TOOLS_HANDLERS["opendata-create-plugin"] = handle_create_plugin
@@ -1127,6 +1129,7 @@ TOOLS.append(
             "`opendata-create-plugin`."
         ),
         inputSchema=DraftSpecParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
 TOOLS_HANDLERS["opendata-draft-spec"] = handle_draft_spec
@@ -1209,6 +1212,7 @@ TOOLS.append(
         name="opendata-explain-choice",
         description="Explain the scoring breakdown for a provider search. Shows how each provider was ranked using token matching, fuzzy matching, semantic similarity, and metadata filters.",
         inputSchema=ExplainChoiceParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
 TOOLS_HANDLERS["opendata-explain-choice"] = handle_explain_choice
@@ -1244,6 +1248,7 @@ TOOLS.append(
         name="opendata-list-domains",
         description="List the controlled domain vocabulary used by the provider registry (e.g. 'health', 'legal', 'finance', 'earth-science').",
         inputSchema=ListDomainsParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
@@ -1280,6 +1285,7 @@ TOOLS.append(
         name="opendata-list-regions",
         description="List the controlled region vocabulary used by the provider registry (e.g. 'us', 'eu', 'uk', 'global').",
         inputSchema=ListRegionsParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
@@ -1324,6 +1330,7 @@ TOOLS.append(
         name="opendata-describe-provider",
         description="Fetch the full registry entry for a single provider id — title, description, domains, regions, keywords, homepage, license note, required environment variables.",
         inputSchema=DescribeProviderParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
 TOOLS_HANDLERS["opendata-describe-provider"] = handle_describe_provider
@@ -1384,6 +1391,7 @@ TOOLS.append(
         name="opendata-list-providers",
         description="Enumerate all providers in the opendata-mcp registry (paginated, terse). Returns id, title, domains, regions, and any required env vars per provider.",
         inputSchema=ListProvidersParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
 TOOLS_HANDLERS["opendata-list-providers"] = handle_list_providers
@@ -1561,6 +1569,7 @@ TOOLS.append(
             "client refetches its catalog. Idempotent."
         ),
         inputSchema=ActivateProviderParams.model_json_schema(),
+        annotations=types.ToolAnnotations(idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
@@ -1603,6 +1612,7 @@ TOOLS.append(
             "tools/list_changed notification is sent so the client refetches."
         ),
         inputSchema=DeactivateProviderParams.model_json_schema(),
+        annotations=types.ToolAnnotations(idempotentHint=True),
     )
 )
 TOOLS_HANDLERS["opendata-deactivate-provider"] = handle_deactivate_provider
@@ -1650,6 +1660,7 @@ TOOLS.append(
             "particular tool is (or isn't) advertised."
         ),
         inputSchema=ListActiveProvidersParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
@@ -1747,6 +1758,7 @@ TOOLS.append(
             "health badges next to each search result."
         ),
         inputSchema=HealthSnapshotParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
