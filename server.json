@@ -43,11 +43,23 @@
         "tools": [
           {
             "name": "opendata-find-providers",
-            "description": "Semantic search across 100+ providers — returns ranked matches with health scores and domain tags."
+            "description": "Semantic search across 100+ providers — ranked matches with health scores and domain tags."
           },
           {
             "name": "opendata-activate-provider",
             "description": "Lazily activate a provider to expose its domain-specific tools without restarting the server."
+          },
+          {
+            "name": "opendata-deactivate-provider",
+            "description": "Deactivate a provider and remove its tools from the active surface."
+          },
+          {
+            "name": "opendata-list-providers",
+            "description": "List all available providers with metadata and health scores."
+          },
+          {
+            "name": "opendata-list-active-providers",
+            "description": "List currently activated providers and their exposed tools."
           },
           {
             "name": "opendata-list-domains",
@@ -62,8 +74,28 @@
             "description": "Full metadata for a provider: tools, endpoints, auth requirements, health score."
           },
           {
+            "name": "opendata-health-snapshot",
+            "description": "Real-time health scores for all providers — uptime, latency, error rates."
+          },
+          {
+            "name": "opendata-explain-choice",
+            "description": "Explain why a specific provider was ranked or selected for a query."
+          },
+          {
+            "name": "opendata-draft-spec",
+            "description": "Generate a provider spec scaffold for a new open data API."
+          },
+          {
+            "name": "opendata-create-plugin",
+            "description": "Create and register a new provider plugin from a spec."
+          },
+          {
             "name": "mcp-registry-search",
             "description": "Search the official MCP server registry — meta-data-mcp can discover other MCP servers."
+          },
+          {
+            "name": "mcp-registry-list",
+            "description": "List all servers in the MCP registry, with pagination."
           }
         ]
       }
