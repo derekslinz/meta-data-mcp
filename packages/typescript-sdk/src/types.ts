@@ -65,8 +65,17 @@ export interface RemoteClientOptions {
    * Bearer token for the server's auth middleware.
    * Falls back to the `META_DATA_MCP_AUTH_TOKEN` environment variable.
    * Pass `token: ""` to disable auth on open servers.
+   * Mutually exclusive with `authProvider`.
    */
   token?: string;
+  /**
+   * OAuth client provider for authorization-code + PKCE flows.
+   * When set, the MCP SSE transport uses this provider for authentication
+   * instead of the static bearer token.
+   * Mutually exclusive with `token`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  authProvider?: any;
   /** Connection timeout in milliseconds (default: 30_000). */
   timeoutMs?: number;
 }

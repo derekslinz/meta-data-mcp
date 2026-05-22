@@ -73,11 +73,15 @@ class RemoteClient:
         base_url: str,
         token: str | None = None,
         timeout: float = 30.0,
+        auth: Any = None,
     ) -> None:
+        if token is not None and auth is not None:
+            raise ValueError("token and auth are mutually exclusive — use one or the other")
         self._base_url = base_url.rstrip("/")
         self._token = (
             token if token is not None else os.getenv("META_DATA_MCP_AUTH_TOKEN")
         )
+        self._auth = auth  # mcp-compatible OAuthClientProvider, or None
         self._timeout = timeout
         self._session: Any = None  # mcp.client.session.ClientSession when active
         self._exit_stack: AsyncExitStack | None = None
@@ -91,12 +95,16 @@ class RemoteClient:
         from mcp.client.sse import sse_client
 
         self._exit_stack = AsyncExitStack()
+        sse_kwargs: dict[str, Any] = {
+            "url": f"{self._base_url}/sse",
+            "timeout": self._timeout,
+        }
+        if self._auth is not None:
+            sse_kwargs["auth"] = self._auth
+        else:
+            sse_kwargs["headers"] = self._headers()
         streams = await self._exit_stack.enter_async_context(
-            sse_client(
-                url=f"{self._base_url}/sse",
-                headers=self._headers(),
-                timeout=self._timeout,
-            )
+            sse_client(**sse_kwargs)
         )
         self._session = await self._exit_stack.enter_async_context(
             ClientSession(*streams)
@@ -131,11 +139,15 @@ class RemoteClient:
             from mcp.client.session import ClientSession
             from mcp.client.sse import sse_client
 
-            async with sse_client(
-                url=f"{self._base_url}/sse",
-                headers=self._headers(),
-                timeout=self._timeout,
-            ) as streams:
+            one_shot_kwargs: dict[str, Any] = {
+                "url": f"{self._base_url}/sse",
+                "timeout": self._timeout,
+            }
+            if self._auth is not None:
+                one_shot_kwargs["auth"] = self._auth
+            else:
+                one_shot_kwargs["headers"] = self._headers()
+            async with sse_client(**one_shot_kwargs) as streams:
                 async with ClientSession(*streams) as session:
                     await session.initialize()
                     result = await session.call_tool(name, arguments)

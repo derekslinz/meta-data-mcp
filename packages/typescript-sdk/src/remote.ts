@@ -51,17 +51,26 @@ export class RemoteClient {
   private readonly baseUrl: string;
   private readonly token: string | undefined;
   private readonly timeoutMs: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly authProvider: any | undefined;
   private client: Client | null = null;
 
   /**
    * @param baseUrl Root URL of the server (e.g. `"https://mcp.example.com"`).
    *                The `/sse` path is appended automatically.
-   * @param options Auth token and timeout options.
+   * @param options Auth token, OAuth provider, and timeout options.
+   *                `token` and `authProvider` are mutually exclusive.
    */
   constructor(baseUrl: string, options: RemoteClientOptions = {}) {
+    if (options.token !== undefined && options.authProvider !== undefined) {
+      throw new Error(
+        "RemoteClient: token and authProvider are mutually exclusive — use one or the other",
+      );
+    }
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.token =
       options.token !== undefined ? options.token || undefined : getEnvToken();
+    this.authProvider = options.authProvider;
     this.timeoutMs = options.timeoutMs ?? 30_000;
   }
 
@@ -98,12 +107,22 @@ export class RemoteClient {
    * opens a fresh session for this call and closes it immediately after.
    */
   private _makeTransport(): SSEClientTransport {
+    const signal = AbortSignal.timeout(this.timeoutMs);
+
+    if (this.authProvider) {
+      // OAuth flow — pass the provider directly; the MCP SDK handles the
+      // authorization redirect and token exchange.
+      return new SSEClientTransport(new URL(`${this.baseUrl}/sse`), {
+        authProvider: this.authProvider,
+        requestInit: { signal },
+      });
+    }
+
     const headers: Record<string, string> = {};
     if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
     // AbortSignal.timeout is available in Node ≥ 17.3 / modern browsers.
     // We use it for the connect handshake; individual tool-call timeouts
     // follow the server's own per-request timeout.
-    const signal = AbortSignal.timeout(this.timeoutMs);
     return new SSEClientTransport(
       new URL(`${this.baseUrl}/sse`),
       {
