@@ -375,7 +375,15 @@
     }
 
     function safeUrl(url) {
-      return url && /^https?:\/\//i.test(url) ? url : null;
+      if (!url) return null;
+      try {
+        var parsed = new URL(String(url), window.location.href);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+        if (parsed.origin !== window.location.origin) return null;
+        return parsed.href;
+      } catch (e) {
+        return null;
+      }
     }
 
     function sortByDate(arr) {
