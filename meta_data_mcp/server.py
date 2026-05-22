@@ -157,7 +157,9 @@ def create_mcp_server(
     _resource_templates = resource_templates or []
 
     # instantiate the server
-    server = Server(server_name)
+    from meta_data_mcp import __version__
+
+    server = Server(server_name, version=__version__)
 
     # register resources
     @server.list_resources()
