@@ -169,7 +169,7 @@ class InMemoryOAuthProvider(
             token=access_token_str,
             client_id=client_id,
             scopes=authorization_code.scopes,
-            expires_at=int(time.time()) + 3600,  # 1-hour access token
+            expires_at=int(time.time()) + 1_209_600,  # 2-week access token
         )
         self._refresh_tokens[refresh_token_str] = RefreshToken(
             token=refresh_token_str,
@@ -180,7 +180,7 @@ class InMemoryOAuthProvider(
         return OAuthToken(
             access_token=access_token_str,
             token_type="Bearer",
-            expires_in=3600,
+            expires_in=1_209_600,
             refresh_token=refresh_token_str,
             scope=" ".join(authorization_code.scopes),
         )
@@ -229,7 +229,7 @@ class InMemoryOAuthProvider(
         return OAuthToken(
             access_token=new_access,
             token_type="Bearer",
-            expires_in=3600,
+            expires_in=1_209_600,
             refresh_token=new_refresh,
             scope=" ".join(effective_scopes),
         )

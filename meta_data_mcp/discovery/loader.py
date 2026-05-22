@@ -181,12 +181,23 @@ def _activate_provider(provider_id: str) -> dict[str, Any]:
             "error": "plugin imported but exposed no usable tools",
         }
     _active_providers.add(canonical)
+    tool_names = sorted(
+        name for name, owner in _owner_by_tool.items() if owner == canonical
+    )
+    tool_schemas = [
+        {"name": t.name, "description": t.description, "inputSchema": t.inputSchema}
+        for t in TOOLS
+        if t.name in tool_names
+    ]
     return {
         "status": "activated",
         "provider_id": canonical,
         "tools_added": added,
-        "tools": sorted(
-            name for name, owner in _owner_by_tool.items() if owner == canonical
+        "tools": tool_names,
+        "tool_schemas": tool_schemas,
+        "note": (
+            "These tools are now registered. Call them directly by name in "
+            "your next response — the client will have refreshed the tool list."
         ),
     }
 
