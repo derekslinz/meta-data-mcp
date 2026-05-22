@@ -363,24 +363,38 @@ async def run_server(
         from starlette.responses import JSONResponse
         from starlette.routing import Mount, Route
 
+        from contextlib import asynccontextmanager
+
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
         sse = SseServerTransport("/messages")
+        streamable_manager = StreamableHTTPSessionManager(server, stateless=True)
 
         class SseApp:
             async def __call__(self, scope, receive, send):
-                log.info(f"New SSE connection request from {scope.get('client')}")
-                try:
-                    async with sse.connect_sse(scope, receive, send) as streams:
-                        log.info("SSE connection established, running server...")
-                        await server.run(
-                            streams[0],
-                            streams[1],
-                            server.create_initialization_options(),
-                        )
-                except Exception as e:
-                    # Connection closed by client is common and can be ignored or logged at debug
-                    log.debug(f"SSE connection error: {e}")
-                finally:
-                    log.info("SSE connection closed")
+                method = scope.get("method", "").upper()
+                if method == "POST":
+                    # StreamableHTTP transport — used by Claude.ai and newer clients.
+                    await streamable_manager.handle_request(scope, receive, send)
+                else:
+                    # Traditional SSE transport — GET /sse → long-lived event stream.
+                    log.info(f"New SSE connection from {scope.get('client')}")
+                    try:
+                        async with sse.connect_sse(scope, receive, send) as streams:
+                            await server.run(
+                                streams[0],
+                                streams[1],
+                                server.create_initialization_options(),
+                            )
+                    except Exception as e:
+                        log.debug(f"SSE connection error: {e}")
+                    finally:
+                        log.info("SSE connection closed")
+
+        @asynccontextmanager
+        async def lifespan(_app):
+            async with streamable_manager.run():
+                yield
 
         async def root(request):
             return JSONResponse(
@@ -637,6 +651,7 @@ async def run_server(
 
         app = Starlette(
             debug=False,
+            lifespan=lifespan,
             routes=[
                 Route("/", endpoint=root),
                 Route("/sse", endpoint=SseApp()),
