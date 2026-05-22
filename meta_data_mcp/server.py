@@ -504,12 +504,18 @@ async def run_server(
                     default_scopes=["opendata"],
                 ),
             )
-            extra_routes = protected_resource_routes + oauth_routes + [
-                Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
-                Route(
-                    "/oauth/consent/approve", endpoint=consent_post, methods=["POST"]
-                ),
-            ]
+            extra_routes = (
+                protected_resource_routes
+                + oauth_routes
+                + [
+                    Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
+                    Route(
+                        "/oauth/consent/approve",
+                        endpoint=consent_post,
+                        methods=["POST"],
+                    ),
+                ]
+            )
             log.info(f"OAuth 2.0 enabled — issuer: {oauth_issuer}")
 
         app = Starlette(
