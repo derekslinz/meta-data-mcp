@@ -17,6 +17,7 @@ registered webhook URL, signed with Standard Webhooks HMAC (sha256).
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -298,6 +299,11 @@ class SmitheryTriggersMiddleware:
             if not body_sent:
                 body_sent = True
                 return {"type": "http.request", "body": body_bytes, "more_body": False}
+            # Keep the channel open until the downstream handler finishes
+            # streaming the response — returning http.disconnect here tells
+            # the StreamableHTTP transport the client disconnected and it
+            # aborts the response mid-stream (ASGI callable incomplete error).
+            await asyncio.sleep(300)
             return {"type": "http.disconnect"}
 
         await self.app(scope, replay_receive, send)
