@@ -269,7 +269,7 @@ class SmitheryTriggersMiddleware:
         too_large = False
         while True:
             event = await receive()
-            if event["type"] == "http.disconnect":
+            if event.get("type") == "http.disconnect":
                 return
             chunk = event.get("body", b"")
             more_body = event.get("more_body", False)
@@ -351,4 +351,7 @@ class SmitheryTriggersMiddleware:
             ):
                 response_done.set()
 
-        await self.app(scope, replay_receive, send_wrapper)
+        try:
+            await self.app(scope, replay_receive, send_wrapper)
+        finally:
+            response_done.set()

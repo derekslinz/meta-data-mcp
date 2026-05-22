@@ -319,6 +319,15 @@ sudo systemctl restart meta-data-mcp
 | `Could not find session for ID: …` after `systemctl restart` | Session state is in-memory; restart wipes every active session | The client must re-handshake (re-open `/sse`, capture the new `endpoint` event, re-send `initialize`). For Claude Code this means running `/mcp` once; if a tool call after that fails with `Invalid request parameters` or `Received request before initialization was complete`, run `/mcp` again — the first reconnect re-opens SSE but Claude Code does not always replay `initialize` automatically. See [Behaviour on restart](#behaviour-on-restart). |
 | `Could not write spec file: Read-only file system` from `opendata.plugins.create` | `ProtectSystem=strict` makes the source tree read-only at runtime | The install script ([scripts/install-systemd-service.sh](../scripts/install-systemd-service.sh)) now adds `tools/specs/`, `meta_data_mcp/providers/`, and `tests/providers/` to `ReadWritePaths`. For an existing deployment, edit `/etc/systemd/system/meta-data-mcp.service` to add those three paths, `systemctl daemon-reload`, then restart. |
 
+## Single-worker constraint
+
+**Always run meta-data-mcp with a single uvicorn worker** (the default). The server uses process-level mutable state for:
+
+- **Plugin activation** — `TOOLS`, `TOOLS_HANDLERS`, `_active_providers` are in-memory lists/dicts. A provider activated in worker A is invisible to worker B.
+- **OAuth tokens** — `InMemoryOAuthProvider` stores tokens in the Python process. A token issued by worker A cannot be verified by worker B.
+
+If you need horizontal scale, put multiple single-worker instances behind a load balancer with sticky sessions (route by `session_id` cookie or a custom header). The `/` health endpoint is stateless and can be load-balanced freely.
+
 ## Behaviour on restart
 
 MCP-over-SSE sessions are **process-local in-memory state**. `SseServerTransport` allocates a fresh `session_id` for every SSE handshake and remembers it only in the running Python process. When the systemd service restarts (or crashes and is restarted), every active session is forgotten.
