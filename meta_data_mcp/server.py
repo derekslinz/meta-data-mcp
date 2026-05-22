@@ -281,11 +281,13 @@ class BearerAuthMiddleware:
         token: str | None = None,
         protected_prefixes: Sequence[str] = ("/sse", "/messages"),
         oauth_provider: Any = None,
+        resource_metadata_url: str | None = None,
     ) -> None:
         self.app = app
         self.token = token
         self.protected_prefixes = tuple(protected_prefixes)
         self.oauth_provider = oauth_provider
+        self.resource_metadata_url = resource_metadata_url
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope.get("type") != "http" or not any(
@@ -320,10 +322,18 @@ class BearerAuthMiddleware:
 
         from starlette.responses import JSONResponse
 
+        if self.resource_metadata_url:
+            www_auth = (
+                f'Bearer realm="meta-data-mcp",'
+                f' resource_metadata="{self.resource_metadata_url}"'
+            )
+        else:
+            www_auth = 'Bearer realm="meta-data-mcp"'
+
         response = JSONResponse(
             {"error": "unauthorized"},
             status_code=401,
-            headers={"WWW-Authenticate": 'Bearer realm="meta-data-mcp"'},
+            headers={"WWW-Authenticate": www_auth},
         )
         await response(scope, receive, send)
 
@@ -552,6 +562,44 @@ async def run_server(
                     default_scopes=["opendata"],
                 ),
             )
+
+            # The MCP SDK hardcodes token_endpoint_auth_methods_supported to
+            # ["client_secret_post", "client_secret_basic"], omitting "none".
+            # Claude's OAuth client checks this list and refuses to proceed for
+            # public clients (PKCE-only, no secret) when "none" is missing.
+            # Override the well-known endpoint with a corrected copy before
+            # the SDK's route so Starlette's first-match wins.
+            _issuer_base = str(validated_oauth_issuer).rstrip("/")
+
+            async def patched_oauth_metadata(request: Request) -> JSONResponse:
+                payload = {
+                    "issuer": str(validated_oauth_issuer),
+                    "authorization_endpoint": f"{_issuer_base}/authorize",
+                    "token_endpoint": f"{_issuer_base}/token",
+                    "registration_endpoint": f"{_issuer_base}/register",
+                    "scopes_supported": ["opendata"],
+                    "response_types_supported": ["code"],
+                    "grant_types_supported": [
+                        "authorization_code",
+                        "refresh_token",
+                    ],
+                    "token_endpoint_auth_methods_supported": [
+                        "client_secret_post",
+                        "client_secret_basic",
+                        "none",
+                    ],
+                    "code_challenge_methods_supported": ["S256"],
+                }
+                return JSONResponse(
+                    payload,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                        "Cache-Control": "no-store",
+                    },
+                )
+
             from starlette.responses import RedirectResponse as _RedirectResponse
 
             async def oidc_discovery(_request):
@@ -560,7 +608,16 @@ async def run_server(
                 )
 
             extra_routes = (
-                protected_resource_routes
+                [
+                    # Must precede oauth_routes so Starlette's first-match wins:
+                    # the SDK hardcodes "none" out of token_endpoint_auth_methods_supported.
+                    Route(
+                        "/.well-known/oauth-authorization-server",
+                        endpoint=patched_oauth_metadata,
+                        methods=["GET", "OPTIONS"],
+                    ),
+                ]
+                + protected_resource_routes
                 + oauth_routes
                 + [
                     Route(

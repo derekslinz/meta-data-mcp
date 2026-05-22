@@ -293,6 +293,7 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     from starlette.responses import HTMLResponse, RedirectResponse
 
     p = InMemoryOAuthProvider(issuer_url=issuer)
+    issuer_base = issuer.rstrip("/")
 
     async def consent_get(request: Request):
         return HTMLResponse("<form>consent</form>")
@@ -303,6 +304,27 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     async def oidc_discovery(_request):
         return RedirectResponse(
             "/.well-known/oauth-authorization-server", status_code=301
+        )
+
+    async def patched_oauth_metadata(request: Request):
+        from starlette.responses import JSONResponse
+
+        return JSONResponse(
+            {
+                "issuer": issuer,
+                "authorization_endpoint": f"{issuer_base}/authorize",
+                "token_endpoint": f"{issuer_base}/token",
+                "registration_endpoint": f"{issuer_base}/register",
+                "scopes_supported": ["opendata"],
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_methods_supported": [
+                    "client_secret_post",
+                    "client_secret_basic",
+                    "none",
+                ],
+                "code_challenge_methods_supported": ["S256"],
+            }
         )
 
     protected_resource_routes = create_protected_resource_routes(
@@ -325,7 +347,14 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     )
 
     all_routes = (
-        protected_resource_routes
+        [
+            Route(
+                "/.well-known/oauth-authorization-server",
+                endpoint=patched_oauth_metadata,
+                methods=["GET", "OPTIONS"],
+            ),
+        ]
+        + protected_resource_routes
         + oauth_routes
         + [
             Route(
@@ -357,6 +386,7 @@ async def test_oauth_metadata_endpoint():
     assert data["issuer"].rstrip("/") == "http://localhost:8000"
     assert "token_endpoint" in data
     assert "registration_endpoint" in data
+    assert "none" in data.get("token_endpoint_auth_methods_supported", [])
 
 
 @pytest.mark.anyio
