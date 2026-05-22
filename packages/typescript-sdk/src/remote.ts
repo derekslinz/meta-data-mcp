@@ -51,8 +51,7 @@ export class RemoteClient {
   private readonly baseUrl: string;
   private readonly token: string | undefined;
   private readonly timeoutMs: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly authProvider: any | undefined;
+  private readonly authProvider: import("@modelcontextprotocol/sdk/client/auth.js").OAuthClientProvider | undefined;
   private client: Client | null = null;
 
   /**

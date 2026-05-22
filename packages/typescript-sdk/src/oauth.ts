@@ -2,37 +2,36 @@
  * NodeOAuthClientProvider — OAuth 2.0 client for Node.js CLI/server use.
  *
  * Implements the MCP `OAuthClientProvider` interface so it can be passed
- * directly to `SSEClientTransport` in the `RemoteClient`.
+ * directly to `SSEClientTransport` via `RemoteClient`'s `authProvider` option.
  *
- * Usage:
  * ```ts
  * import { RemoteClient, NodeOAuthClientProvider } from '@meta-data-mcp/sdk';
  *
  * const auth = new NodeOAuthClientProvider({
- *   serverUrl:   'https://mcp.example.com',
  *   clientName:  'My App',
  *   callbackPort: 3333,
  * });
  *
- * await client.connect(auth);
+ * const client = new RemoteClient('https://mcp.example.com', { authProvider: auth });
+ * await client.connect();
  * // → prints the auth URL to stderr; opens callbackPort to receive the code
  * ```
  *
  * Flow:
  *  1. `RemoteClient.connect()` passes the provider to `SSEClientTransport`.
  *  2. The MCP SDK calls `redirectToAuthorization(url)` when auth is needed.
- *  3. `NodeOAuthClientProvider` starts a local HTTP server on `callbackPort`
- *     and prints the authorization URL to stderr.
+ *  3. `NodeOAuthClientProvider` prints the URL to stderr and starts a local
+ *     HTTP server on `callbackPort` in the background.
  *  4. The user opens the URL in their browser, approves, and the server
  *     redirects to `http://localhost:<callbackPort>/callback?code=…`.
- *  5. The provider exchanges the code and stores the tokens in memory.
+ *  5. The provider logs receipt of the code; the MCP SDK handles the exchange.
  *
- * Tokens are in-memory only (lost on process restart). For persistent tokens,
- * subclass and override `tokens()` / `saveTokens()` to persist to disk.
+ * Note: `redirectToAuthorization` returns void (required by the interface).
+ * The callback server runs fire-and-forget in the background; errors are
+ * logged to stderr. Tokens are in-memory only (lost on process restart).
  */
 
 import * as http from "node:http";
-import * as crypto from "node:crypto";
 import * as url from "node:url";
 
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
@@ -43,8 +42,6 @@ import type {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
 export interface NodeOAuthClientProviderOptions {
-  /** Root URL of the MCP server (used to derive redirect URI + registration). */
-  serverUrl: string;
   /** Human-readable name for this client (shown on the consent page). */
   clientName?: string;
   /** Local port for the OAuth callback server (default: 3000). */
@@ -52,7 +49,6 @@ export interface NodeOAuthClientProviderOptions {
 }
 
 export class NodeOAuthClientProvider implements OAuthClientProvider {
-  private readonly _serverUrl: string;
   private readonly _callbackPort: number;
   private readonly _clientName: string;
 
@@ -60,8 +56,7 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
   private _clientInfo: OAuthClientInformationMixed | undefined = undefined;
   private _codeVerifier: string = "";
 
-  constructor(options: NodeOAuthClientProviderOptions) {
-    this._serverUrl = options.serverUrl.replace(/\/$/, "");
+  constructor(options: NodeOAuthClientProviderOptions = {}) {
     this._callbackPort = options.callbackPort ?? 3000;
     this._clientName = options.clientName ?? "meta-data-mcp client";
   }
@@ -111,22 +106,17 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
   /**
    * Called by the MCP SDK when the server requires authorization.
    *
-   * Starts a local HTTP server on `callbackPort` to receive the OAuth
-   * redirect, then prints the authorization URL to stderr so the user
-   * can open it in their browser.
-   *
-   * Returns a Promise that resolves when the callback has been received
-   * and the auth code extracted, or rejects on timeout (2 min).
+   * Prints the authorization URL to stderr and starts a local HTTP server
+   * on `callbackPort` in the background to receive the OAuth redirect.
+   * Returns void (required by the `OAuthClientProvider` interface); the
+   * callback server runs fire-and-forget and logs errors to stderr.
    */
   redirectToAuthorization(authorizationUrl: URL): void {
-    // Print the URL — the caller (user) must open it in a browser.
     process.stderr.write(
       `\n[meta-data-mcp] Authorization required.\n` +
         `Open this URL in your browser:\n\n  ${authorizationUrl.toString()}\n\n`,
     );
-
-    // Start a one-shot callback server to receive the code.
-    // The server closes itself after the first request.
+    // Fire-and-forget: start the callback server; errors are logged, not thrown.
     this._startCallbackServer().catch((err) => {
       process.stderr.write(`[meta-data-mcp] OAuth callback error: ${err}\n`);
     });
@@ -138,13 +128,17 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
 
   private _startCallbackServer(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // Declare server before setTimeout so the closure can reference it
+      // without a temporal-dead-zone error under strict TypeScript.
+      let server: http.Server;
       const timeoutMs = 2 * 60 * 1000; // 2 minutes
+
       const timer = setTimeout(() => {
-        server.close();
+        server?.close();
         reject(new Error("OAuth callback timed out after 2 minutes"));
       }, timeoutMs);
 
-      const server = http.createServer((req, res) => {
+      server = http.createServer((req, res) => {
         if (!req.url?.startsWith("/callback")) {
           res.writeHead(404).end("Not found");
           return;
@@ -179,8 +173,6 @@ export class NodeOAuthClientProvider implements OAuthClientProvider {
         );
         clearTimeout(timer);
         server.close();
-        // The MCP SDK's SSEClientTransport handles the actual token exchange
-        // via the code verifier; we just need the callback to land.
         process.stderr.write("[meta-data-mcp] Authorization code received.\n");
         resolve();
       });

@@ -87,6 +87,22 @@ class InMemoryOAuthProvider(
         }
         return f"{self.issuer_url}/oauth/consent?session={session_token}"
 
+    def peek_session(self, session_token: str) -> dict[str, Any] | None:
+        """Return a shallow copy of a pending consent session without consuming it.
+
+        Used by the GET consent page to display session details while leaving
+        the session intact for the POST approval step. Returns a shallow copy
+        so callers cannot accidentally mutate internal provider state.
+        Returns None for unknown or expired sessions.
+        """
+        session = self._auth_sessions.get(session_token)
+        if session is None:
+            return None
+        if time.time() > session["expires_at"]:
+            self._auth_sessions.pop(session_token, None)
+            return None
+        return dict(session)  # shallow copy — callers cannot mutate stored state
+
     def consume_session(self, session_token: str) -> dict[str, Any] | None:
         """Retrieve and remove a pending consent session (one-shot)."""
         session = self._auth_sessions.pop(session_token, None)
@@ -136,7 +152,12 @@ class InMemoryOAuthProvider(
         client: OAuthClientInformationFull,
         authorization_code: AuthorizationCode,
     ) -> OAuthToken:
-        """Validate PKCE, consume the code, and issue access + refresh tokens."""
+        """Consume the authorization code and issue access + refresh tokens.
+
+        PKCE validation (code_verifier vs code_challenge) is performed by the
+        MCP SDK's ``TokenHandler`` before calling this method — this provider
+        does not repeat that check.
+        """
         # Remove the used code (one-shot).
         self._auth_codes.pop(authorization_code.code, None)
 
