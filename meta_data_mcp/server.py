@@ -724,6 +724,12 @@ async def run_server(
             expose_headers=["*"],
         )
 
+        # CRITICAL: meta-data-mcp uses process-level mutable state for plugin
+        # activation (TOOLS list, TOOLS_HANDLERS dict, _active_providers set).
+        # Multiple uvicorn workers share nothing — activation in one worker is
+        # invisible to others, and OAuth tokens issued by one worker cannot be
+        # verified by another. Always run with a single worker (the default).
+        # See docs/hosting.md for the single-node deployment model.
         config = uvicorn.Config(
             app,
             host=host,

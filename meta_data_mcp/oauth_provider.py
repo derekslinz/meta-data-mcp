@@ -43,6 +43,11 @@ class InMemoryOAuthProvider(
     All state is local to the process — tokens are lost on restart.
     Thread-safe for asyncio (single-threaded event loop) but not safe for
     multi-process deployments; use a shared cache (Redis/Postgres) for HA.
+
+    Operational note: every server restart (deploy, crash, OOM) invalidates
+    all active tokens regardless of the configured token lifetime. Users must
+    re-authorize after restarts. For zero-interruption deployments, persist
+    token state between restarts or use a rolling-restart strategy.
     """
 
     def __init__(self, issuer_url: str) -> None:
