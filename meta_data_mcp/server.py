@@ -648,6 +648,8 @@ async def run_server(
             )
             log.info(f"OAuth 2.0 enabled — issuer: {oauth_issuer}")
 
+        from meta_data_mcp.smithery_triggers import SmitheryTriggersMiddleware
+
         app = Starlette(
             debug=False,
             lifespan=lifespan,
@@ -658,6 +660,7 @@ async def run_server(
             ]
             + extra_routes,
         )
+        app.add_middleware(SmitheryTriggersMiddleware)
 
         auth_token = os.getenv("META_DATA_MCP_AUTH_TOKEN")
         auth_enabled = bool(auth_token or oauth_provider)

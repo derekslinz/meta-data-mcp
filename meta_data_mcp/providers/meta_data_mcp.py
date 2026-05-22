@@ -233,16 +233,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-find-providers",
         title="Find Providers",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "count": {"type": "integer"},
-                "providers": {"type": "array", "items": {"type": "object"}},
-                "next_step": {"type": "string"},
-                "no_match": {"type": "boolean"},
-                "auto_activated": {"type": "array", "items": {"type": "string"}},
-            },
-        },
         description=(
             "Search the meta-data-mcp plugin registry. Returns plugins that "
             "match a free-text query and/or domain/region filters. Use this "
@@ -762,7 +752,10 @@ async def handle_create_plugin(
 
         new_tool_names = [t.name for t in (getattr(new_module, "TOOLS", None) or [])]
 
-        return [
+        from meta_data_mcp.smithery_triggers import fire_event
+        import asyncio
+
+        result = [
             types.TextContent(
                 type="text",
                 text=serialize_for_llm(
@@ -781,6 +774,17 @@ async def handle_create_plugin(
                 ),
             )
         ]
+        asyncio.create_task(
+            fire_event(
+                "plugin.created",
+                {
+                    "plugin_id": plugin_id,
+                    "tools_added": added,
+                    "new_tool_names": new_tool_names,
+                },
+            )
+        )
+        return result
     except Exception as e:
         log.error(f"Error in opendata-create-plugin: {e}")
         return [
@@ -795,17 +799,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-create-plugin",
         title="Create Plugin",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "status": {"type": "string"},
-                "plugin_id": {"type": "string"},
-                "tools_added": {"type": "integer"},
-                "new_tool_names": {"type": "array", "items": {"type": "string"}},
-                "message": {"type": "string"},
-                "error": {"type": "string"},
-            },
-        },
         description=(
             "Autonomously create a new plugin for this meta-data-mcp server "
             "from a YAML spec. Use this when `opendata-find-providers` "
@@ -1144,15 +1137,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-draft-spec",
         title="Draft Spec",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "status": {"type": "string"},
-                "spec_yaml": {"type": "string"},
-                "next_step": {"type": "string"},
-                "error": {"type": "string"},
-            },
-        },
         description=(
             "Build a validated YAML plugin spec from structured inputs. "
             "Use this BEFORE `opendata-create-plugin` to avoid hand-writing "
@@ -1244,15 +1228,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-explain-choice",
         title="Explain Choice",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "query": {"type": ["string", "null"]},
-                "domain_filter": {"type": ["string", "null"]},
-                "region_filter": {"type": ["string", "null"]},
-                "results": {"type": "array", "items": {"type": "object"}},
-            },
-        },
         description="Explain the scoring breakdown for a provider search. Shows how each provider was ranked using token matching, fuzzy matching, semantic similarity, and metadata filters.",
         inputSchema=ExplainChoiceParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
@@ -1290,10 +1265,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-list-domains",
         title="List Domains",
-        outputSchema={
-            "type": "object",
-            "properties": {"domains": {"type": "array", "items": {"type": "string"}}},
-        },
         description="List the controlled domain vocabulary used by the provider registry (e.g. 'health', 'legal', 'finance', 'earth-science').",
         inputSchema=ListDomainsParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
@@ -1332,10 +1303,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-list-regions",
         title="List Regions",
-        outputSchema={
-            "type": "object",
-            "properties": {"regions": {"type": "array", "items": {"type": "string"}}},
-        },
         description="List the controlled region vocabulary used by the provider registry (e.g. 'us', 'eu', 'uk', 'global').",
         inputSchema=ListRegionsParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
@@ -1382,19 +1349,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-describe-provider",
         title="Describe Provider",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "title": {"type": "string"},
-                "description": {"type": "string"},
-                "domains": {"type": "array", "items": {"type": "string"}},
-                "regions": {"type": "array", "items": {"type": "string"}},
-                "keywords": {"type": "array", "items": {"type": "string"}},
-                "homepage": {"type": "string"},
-                "error": {"type": "string"},
-            },
-        },
         description="Fetch the full registry entry for a single provider id — title, description, domains, regions, keywords, homepage, license note, required environment variables.",
         inputSchema=DescribeProviderParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
@@ -1457,15 +1411,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-list-providers",
         title="List Providers",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "total": {"type": "integer"},
-                "offset": {"type": "integer"},
-                "limit": {"type": "integer"},
-                "providers": {"type": "array", "items": {"type": "object"}},
-            },
-        },
         description="Enumerate all providers in the opendata-mcp registry (paginated, terse). Returns id, title, domains, regions, and any required env vars per provider.",
         inputSchema=ListProvidersParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
@@ -1624,6 +1569,8 @@ async def handle_activate_provider(
     arguments: dict[str, Any] | None = None,
 ) -> Sequence[types.TextContent]:
     """Handle the opendata-activate-provider tool call."""
+    from meta_data_mcp.smithery_triggers import fire_event
+
     params = ActivateProviderParams(**(arguments or {}))
     report = _activate_provider(params.provider_id)
     # Only fire tools/list_changed when the catalog actually changed.
@@ -1631,6 +1578,14 @@ async def handle_activate_provider(
     # client to refetch tools/list for no semantic reason.
     if report.get("status") == "activated":
         await _notify_tools_changed()
+        await fire_event(
+            "provider.activated",
+            {
+                "provider_id": params.provider_id,
+                "tools_added": report.get("tools_added", 0),
+                "new_tool_names": report.get("new_tool_names", []),
+            },
+        )
     return [types.TextContent(type="text", text=serialize_for_llm(report))]
 
 
@@ -1638,15 +1593,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-activate-provider",
         title="Activate Provider",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "status": {"type": "string"},
-                "provider_id": {"type": "string"},
-                "tools_added": {"type": "integer"},
-                "message": {"type": "string"},
-            },
-        },
         description=(
             "Activate a registered provider so its tools become callable in this "
             "session. By default the server starts in discovery-only mode — only "
@@ -1682,10 +1628,19 @@ async def handle_deactivate_provider(
     arguments: dict[str, Any] | None = None,
 ) -> Sequence[types.TextContent]:
     """Handle the opendata-deactivate-provider tool call."""
+    from meta_data_mcp.smithery_triggers import fire_event
+
     params = DeactivateProviderParams(**(arguments or {}))
     report = _deactivate_provider(params.provider_id)
     if report.get("status") == "deactivated":
         await _notify_tools_changed()
+        await fire_event(
+            "provider.deactivated",
+            {
+                "provider_id": params.provider_id,
+                "tools_removed": report.get("tools_removed", 0),
+            },
+        )
     return [types.TextContent(type="text", text=serialize_for_llm(report))]
 
 
@@ -1693,15 +1648,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-deactivate-provider",
         title="Deactivate Provider",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "status": {"type": "string"},
-                "provider_id": {"type": "string"},
-                "tools_removed": {"type": "integer"},
-                "message": {"type": "string"},
-            },
-        },
         description=(
             "Remove a previously-activated provider's tools from the session's "
             "advertised list. The Python module remains imported (Python caches "
@@ -1752,16 +1698,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-list-active-providers",
         title="List Active Providers",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "count": {"type": "integer"},
-                "active_providers": {"type": "array", "items": {"type": "string"}},
-                "tools_per_provider": {"type": "object"},
-                "meta_tool_count": {"type": "integer"},
-                "plugin_tool_count": {"type": "integer"},
-            },
-        },
         description=(
             "List the providers currently activated in this session, along with "
             "the tool names each contributes. Useful for inspecting why a "
@@ -1857,13 +1793,6 @@ TOOLS.append(
     types.Tool(
         name="opendata-health-snapshot",
         title="Health Snapshot",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "snapshot": {"type": "object"},
-                "generated_at": {"type": "number"},
-            },
-        },
         description=(
             "Snapshot the in-memory provider health registry. Returns a "
             "score in [0.0, 1.0] for each requested provider (or every "
