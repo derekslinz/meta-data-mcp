@@ -266,17 +266,26 @@ class BearerAuthMiddleware:
     Pure ASGI middleware (not BaseHTTPMiddleware) so it does not buffer
     streaming SSE responses. The health check at ``/`` is left open so
     uptime probes work without credentials.
+
+    Accepts two token sources (either is sufficient):
+    - Static token via ``token`` parameter (``META_DATA_MCP_AUTH_TOKEN``).
+    - OAuth-issued access token via ``oauth_provider`` — verified by calling
+      ``provider.verify_access_token(presented)`` asynchronously.
+
+    Both sources may be active simultaneously (coexistence mode).
     """
 
     def __init__(
         self,
         app: Any,
-        token: str,
+        token: str | None = None,
         protected_prefixes: Sequence[str] = ("/sse", "/messages"),
+        oauth_provider: Any = None,
     ) -> None:
         self.app = app
         self.token = token
         self.protected_prefixes = tuple(protected_prefixes)
+        self.oauth_provider = oauth_provider
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope.get("type") != "http" or not any(
@@ -296,22 +305,27 @@ class BearerAuthMiddleware:
         parts = auth_header.split(" ", 1)
         if len(parts) == 2:
             scheme, presented = parts
-        if (
-            scheme.casefold() != "bearer"
-            or not presented
-            or not hmac.compare_digest(presented, self.token)
-        ):
-            from starlette.responses import JSONResponse
 
-            response = JSONResponse(
-                {"error": "unauthorized"},
-                status_code=401,
-                headers={"WWW-Authenticate": 'Bearer realm="meta-data-mcp"'},
-            )
-            await response(scope, receive, send)
-            return
+        if scheme.casefold() == "bearer" and presented:
+            # Check static token first (constant-time compare).
+            if self.token and hmac.compare_digest(presented, self.token):
+                await self.app(scope, receive, send)
+                return
+            # Fall back to OAuth access token verification.
+            if self.oauth_provider is not None:
+                access_token = await self.oauth_provider.verify_access_token(presented)
+                if access_token is not None:
+                    await self.app(scope, receive, send)
+                    return
 
-        await self.app(scope, receive, send)
+        from starlette.responses import JSONResponse
+
+        response = JSONResponse(
+            {"error": "unauthorized"},
+            status_code=401,
+            headers={"WWW-Authenticate": 'Bearer realm="meta-data-mcp"'},
+        )
+        await response(scope, receive, send)
 
 
 async def run_server(
@@ -368,26 +382,133 @@ async def run_server(
                 }
             )
 
+        # ----------------------------------------------------------------
+        # OAuth 2.0 (optional — enabled by META_DATA_MCP_OAUTH_ISSUER)
+        # ----------------------------------------------------------------
+        oauth_provider = None
+        extra_routes: list = []
+
+        oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
+        if oauth_issuer:
+            from mcp.server.auth.routes import create_auth_routes
+            from mcp.server.auth.settings import ClientRegistrationOptions
+            from pydantic import AnyHttpUrl
+            from starlette.responses import HTMLResponse
+            from starlette.requests import Request
+
+            from meta_data_mcp.oauth_provider import InMemoryOAuthProvider
+
+            oauth_provider = InMemoryOAuthProvider(issuer_url=oauth_issuer)
+
+            # Consent page — GET /oauth/consent?session=<token>
+            async def consent_get(request: Request) -> HTMLResponse:
+                session_token = request.query_params.get("session", "")
+                session = oauth_provider._auth_sessions.get(session_token)
+                if session is None:
+                    return HTMLResponse(
+                        "<h1>Session expired or invalid.</h1>", status_code=400
+                    )
+                client_name = session.get("client_name", session.get("client_id", "?"))
+                scopes_html = ", ".join(session.get("scopes", [])) or "(default)"
+                return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Authorize — meta-data-mcp</title>
+<style>body{{font-family:sans-serif;max-width:480px;margin:3rem auto;padding:0 1rem}}
+  .card{{border:1px solid #ddd;border-radius:8px;padding:1.5rem}}
+  h2{{margin-top:0}} .scope{{color:#555;font-size:.9rem}}
+  button{{padding:.6rem 1.4rem;border:none;border-radius:4px;cursor:pointer;font-size:1rem}}
+  .approve{{background:#2563eb;color:#fff}} .deny{{background:#e5e7eb;color:#111;margin-left:.5rem}}
+</style></head><body>
+<div class="card">
+  <h2>Authorize access</h2>
+  <p><strong>{client_name}</strong> is requesting access to your meta-data-mcp server.</p>
+  <p class="scope">Requested scopes: {scopes_html}</p>
+  <form method="POST" action="/oauth/consent/approve">
+    <input type="hidden" name="session" value="{session_token}">
+    <button type="submit" class="approve">Approve</button>
+    <button type="submit" name="deny" value="1" class="deny">Deny</button>
+  </form>
+</div></body></html>""")
+
+            # Consent approval — POST /oauth/consent/approve
+            async def consent_post(request: Request) -> HTMLResponse:
+                from starlette.responses import RedirectResponse
+                from urllib.parse import urlencode
+
+                form = await request.form()
+                session_token = str(form.get("session", ""))
+                session = oauth_provider.consume_session(session_token)
+                if session is None:
+                    return HTMLResponse(
+                        "<h1>Session expired or invalid.</h1>", status_code=400
+                    )
+                if form.get("deny"):
+                    redirect_uri = session["redirect_uri"]
+                    params = {"error": "access_denied"}
+                    if session.get("state"):
+                        params["state"] = session["state"]
+                    return RedirectResponse(
+                        f"{redirect_uri}?{urlencode(params)}", status_code=302
+                    )
+                code = oauth_provider.create_authorization_code(session)
+                params = {"code": code}
+                if session.get("state"):
+                    params["state"] = session["state"]
+                return RedirectResponse(
+                    f"{session['redirect_uri']}?{urlencode(params)}", status_code=302
+                )
+
+            oauth_routes = create_auth_routes(
+                provider=oauth_provider,
+                issuer_url=AnyHttpUrl(oauth_issuer),
+                client_registration_options=ClientRegistrationOptions(
+                    enabled=True,
+                    valid_scopes=["opendata"],
+                    default_scopes=["opendata"],
+                ),
+            )
+            extra_routes = oauth_routes + [
+                Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
+                Route(
+                    "/oauth/consent/approve", endpoint=consent_post, methods=["POST"]
+                ),
+            ]
+            log.info(f"OAuth 2.0 enabled — issuer: {oauth_issuer}")
+
         app = Starlette(
             debug=False,
             routes=[
                 Route("/", endpoint=root),
                 Route("/sse", endpoint=SseApp()),
                 Mount("/messages", app=sse.handle_post_message),
-            ],
+            ]
+            + extra_routes,
         )
 
         auth_token = os.getenv("META_DATA_MCP_AUTH_TOKEN")
-        if auth_token:
-            app.add_middleware(BearerAuthMiddleware, token=auth_token)
+        auth_enabled = bool(auth_token or oauth_provider)
+        if auth_enabled:
+            app.add_middleware(
+                BearerAuthMiddleware,
+                token=auth_token,
+                oauth_provider=oauth_provider,
+            )
             log.info(
-                "SSE bearer auth enabled (META_DATA_MCP_AUTH_TOKEN set; "
-                "protecting /sse and /messages)"
+                "SSE auth enabled — %s",
+                " + ".join(
+                    filter(
+                        None,
+                        [
+                            "bearer token" if auth_token else None,
+                            "OAuth 2.0" if oauth_provider else None,
+                        ],
+                    )
+                ),
             )
         else:
             log.warning(
-                "SSE bearer auth DISABLED — set META_DATA_MCP_AUTH_TOKEN to "
-                "require Authorization: Bearer <token> on /sse and /messages"
+                "SSE auth DISABLED — set META_DATA_MCP_AUTH_TOKEN or "
+                "META_DATA_MCP_OAUTH_ISSUER to protect /sse and /messages"
             )
 
         # CORSMiddleware must be added last so it is outermost; this ensures

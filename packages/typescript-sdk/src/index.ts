@@ -11,6 +11,10 @@
  */
 
 export { RemoteClient } from "./remote.js";
+export { NodeOAuthClientProvider } from "./oauth.js";
+export type {
+  NodeOAuthClientProviderOptions,
+} from "./oauth.js";
 export type {
   ActivateProviderResult,
   FindProvidersOptions,

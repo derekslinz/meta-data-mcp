@@ -1,6 +1,6 @@
 {
   "name": "@meta-data-mcp/sdk",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "TypeScript/JavaScript client for meta-data-mcp discovery tools",
   "type": "module",
   "main": "./dist/index.js",

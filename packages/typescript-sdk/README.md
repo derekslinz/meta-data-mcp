@@ -33,7 +33,8 @@ try {
 
 | Option | Default | Description |
 |---|---|---|
-| `token` | `META_DATA_MCP_AUTH_TOKEN` env | Bearer token for server auth. Pass `token: ""` to disable auth on open servers. |
+| `token` | `META_DATA_MCP_AUTH_TOKEN` env | Bearer token for server auth. Pass `token: ""` to disable auth on open servers. Mutually exclusive with `authProvider`. |
+| `authProvider` | — | OAuth 2.0 client provider (e.g. `NodeOAuthClientProvider`). Mutually exclusive with `token`. |
 | `timeoutMs` | `30_000` | Connection timeout in ms. |
 
 ### Methods
@@ -74,7 +75,39 @@ try {
 
 ## Auth
 
+### Bearer token (simple)
+
 Pass `token: "your-token"` in the constructor options, or set the `META_DATA_MCP_AUTH_TOKEN` environment variable. On unauthenticated servers, omit the token or pass `token: ""`.
+
+### OAuth 2.0 (Authorization Code + PKCE)
+
+When the server has `META_DATA_MCP_OAUTH_ISSUER` configured, use `NodeOAuthClientProvider` for full OAuth:
+
+```ts
+import { RemoteClient, NodeOAuthClientProvider } from '@meta-data-mcp/sdk';
+
+const auth = new NodeOAuthClientProvider({
+  serverUrl:    'https://mcp.example.com',
+  clientName:   'My CLI',
+  callbackPort: 3333,   // local port for the redirect (default 3000)
+});
+
+const client = new RemoteClient('https://mcp.example.com', { authProvider: auth });
+await client.connect();
+// → prints the authorization URL to stderr
+// → starts a local HTTP server on port 3333 to receive the callback
+// → user opens URL in browser, approves, and the session is established
+const results = await client.findProviders({ query: 'earthquake' });
+await client.disconnect();
+```
+
+`NodeOAuthClientProvider` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `serverUrl` | required | Root URL of the MCP server |
+| `clientName` | `"meta-data-mcp client"` | Name shown on the consent page |
+| `callbackPort` | `3000` | Local port for the OAuth redirect |
 
 ## Requirements
 
