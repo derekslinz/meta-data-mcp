@@ -108,10 +108,10 @@ def rendered(generator, spec):
 
 def test_rendered_provider_contains_key_identifiers(rendered):
     src = rendered["provider"]
-    # BASE_URL line — lgtm[py/incomplete-url-substring-sanitization]
-    assert "BASE_URL = " in src and "api.weather.gov" in src  # noqa: S506
-    # Module docstring mentions the homepage — lgtm[py/incomplete-url-substring-sanitization]
-    assert "https://www.weather.gov/" in src  # noqa: S506
+    # lgtm[py/incomplete-url-substring-sanitization] — test assertions, not sanitization
+    assert "BASE_URL = " in src and "api.weather.gov" in src
+    # lgtm[py/incomplete-url-substring-sanitization] — test assertions, not sanitization
+    assert "https://www.weather.gov/" in src
     # All tool names appear in TOOLS.append registration lines
     for tool_name in (
         "nws-list-alerts",

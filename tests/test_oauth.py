@@ -283,7 +283,10 @@ async def test_invalid_token_rejected(provider):
 
 def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     """Build a minimal Starlette app with OAuth routes mounted."""
-    from mcp.server.auth.routes import create_auth_routes
+    from mcp.server.auth.routes import (
+        create_auth_routes,
+        create_protected_resource_routes,
+    )
     from mcp.server.auth.settings import ClientRegistrationOptions
     from pydantic import AnyHttpUrl
     from starlette.responses import HTMLResponse
@@ -297,6 +300,11 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     async def consent_post(request: Request):
         return HTMLResponse("approved")
 
+    protected_resource_routes = create_protected_resource_routes(
+        resource_url=AnyHttpUrl(issuer),
+        authorization_servers=[AnyHttpUrl(issuer)],
+        scopes_supported=["opendata"],
+    )
     oauth_routes = create_auth_routes(
         provider=p,
         issuer_url=AnyHttpUrl(issuer),
@@ -307,11 +315,15 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
         ),
     )
 
-    all_routes = oauth_routes + [
-        Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
-        Route("/oauth/consent/approve", endpoint=consent_post, methods=["POST"]),
-        Route("/sse", endpoint=lambda r: HTMLResponse("sse-ok"), methods=["GET"]),
-    ]
+    all_routes = (
+        protected_resource_routes
+        + oauth_routes
+        + [
+            Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
+            Route("/oauth/consent/approve", endpoint=consent_post, methods=["POST"]),
+            Route("/sse", endpoint=lambda r: HTMLResponse("sse-ok"), methods=["GET"]),
+        ]
+    )
 
     app = Starlette(routes=all_routes)
     app.add_middleware(BearerAuthMiddleware, token="static-token", oauth_provider=p)
@@ -374,3 +386,31 @@ async def test_oauth_routes_exempt_from_bearer_middleware():
         # /sse without auth → 401 (protected)
         r3 = await client.get("/sse")
         assert r3.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_protected_resource_metadata_endpoint():
+    """/.well-known/oauth-protected-resource returns 200 + required RFC 9728 fields."""
+    app, _ = _build_oauth_starlette_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+    ) as client:
+        r = await client.get("/.well-known/oauth-protected-resource")
+    assert r.status_code == 200
+    data = r.json()
+    assert "resource" in data
+    assert "authorization_servers" in data
+    assert any(
+        "localhost:8000" in s for s in data["authorization_servers"]
+    ), "authorization_servers should include the issuer URL"
+
+
+@pytest.mark.anyio
+async def test_protected_resource_endpoint_no_auth_required():
+    """/.well-known/oauth-protected-resource is accessible without Bearer auth."""
+    app, _ = _build_oauth_starlette_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+    ) as client:
+        r = await client.get("/.well-known/oauth-protected-resource")
+    assert r.status_code != 401, "discovery endpoint must not require authentication"
