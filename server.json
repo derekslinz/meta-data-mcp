@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.derekslinz/meta-data-mcp",
+  "description": "Query 100+ open data APIs — government, science, finance, environment, and more.",
+  "version": "2.3.4",
+  "repository": {
+    "url": "https://github.com/derekslinz/meta-data-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "meta-data-mcp",
+      "version": "2.3.4",
+      "runtimeHint": "python",
+      "transport": {
+        "type": "sse",
+        "url": "https://mcp.linzalytics.com/sse"
+      }
+    }
+  ]
+}

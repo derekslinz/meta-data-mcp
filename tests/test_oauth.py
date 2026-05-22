@@ -289,10 +289,11 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     )
     from mcp.server.auth.settings import ClientRegistrationOptions
     from pydantic import AnyHttpUrl
-    from starlette.responses import HTMLResponse
     from starlette.requests import Request
+    from starlette.responses import HTMLResponse, RedirectResponse
 
     p = InMemoryOAuthProvider(issuer_url=issuer)
+    issuer_base = issuer.rstrip("/")
 
     async def consent_get(request: Request):
         return HTMLResponse("<form>consent</form>")
@@ -300,8 +301,38 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     async def consent_post(request: Request):
         return HTMLResponse("approved")
 
+    async def oidc_discovery(_request):
+        return RedirectResponse(
+            "/.well-known/oauth-authorization-server", status_code=301
+        )
+
+    async def patched_oauth_metadata(request: Request):
+        from starlette.responses import JSONResponse
+
+        return JSONResponse(
+            {
+                "issuer": issuer,
+                "authorization_endpoint": f"{issuer_base}/authorize",
+                "token_endpoint": f"{issuer_base}/token",
+                "registration_endpoint": f"{issuer_base}/register",
+                "scopes_supported": ["opendata"],
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_methods_supported": [
+                    "client_secret_post",
+                    "client_secret_basic",
+                    "none",
+                ],
+                "code_challenge_methods_supported": ["S256"],
+            }
+        )
+
     protected_resource_routes = create_protected_resource_routes(
         resource_url=AnyHttpUrl(issuer),
+        authorization_servers=[AnyHttpUrl(issuer)],
+        scopes_supported=["opendata"],
+    ) + create_protected_resource_routes(
+        resource_url=AnyHttpUrl(issuer.rstrip("/") + "/sse"),
         authorization_servers=[AnyHttpUrl(issuer)],
         scopes_supported=["opendata"],
     )
@@ -316,9 +347,21 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
     )
 
     all_routes = (
-        protected_resource_routes
+        [
+            Route(
+                "/.well-known/oauth-authorization-server",
+                endpoint=patched_oauth_metadata,
+                methods=["GET", "OPTIONS"],
+            ),
+        ]
+        + protected_resource_routes
         + oauth_routes
         + [
+            Route(
+                "/.well-known/openid-configuration",
+                endpoint=oidc_discovery,
+                methods=["GET"],
+            ),
             Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
             Route("/oauth/consent/approve", endpoint=consent_post, methods=["POST"]),
             Route("/sse", endpoint=lambda r: HTMLResponse("sse-ok"), methods=["GET"]),
@@ -343,6 +386,7 @@ async def test_oauth_metadata_endpoint():
     assert data["issuer"].rstrip("/") == "http://localhost:8000"
     assert "token_endpoint" in data
     assert "registration_endpoint" in data
+    assert "none" in data.get("token_endpoint_auth_methods_supported", [])
 
 
 @pytest.mark.anyio
@@ -398,9 +442,9 @@ async def test_protected_resource_metadata_endpoint():
         r = await client.get("/.well-known/oauth-protected-resource")
     assert r.status_code == 200
     data = r.json()
-    assert "localhost:8000" in data.get(
-        "resource", ""
-    ), "resource must be the protected resource URL"
+    assert "localhost:8000" in data.get("resource", ""), (
+        "resource must be the protected resource URL"
+    )
     assert "authorization_servers" in data
     auth_servers = data["authorization_servers"]
     assert any("localhost:8000" in s for s in auth_servers)
@@ -414,11 +458,25 @@ async def test_protected_resource_endpoint_no_auth_required():
         transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
     ) as client:
         r = await client.get("/.well-known/oauth-protected-resource")
-    assert r.status_code == 200, "discovery endpoint must be accessible without authentication"
+    assert r.status_code == 200, (
+        "discovery endpoint must be accessible without authentication"
+    )
     data = r.json()
-    assert "localhost:8000" in data.get(
-        "resource", ""
-    ), "resource must be the protected resource URL"
+    assert "resource" in data
     assert "authorization_servers" in data
     auth_servers = data["authorization_servers"]
     assert any("localhost:8000" in s for s in auth_servers)
+
+
+@pytest.mark.anyio
+async def test_oidc_discovery_redirects_to_oauth_metadata():
+    """/.well-known/openid-configuration redirects (301) to the OAuth metadata endpoint."""
+    app, _ = _build_oauth_starlette_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
+        follow_redirects=False,
+    ) as client:
+        r = await client.get("/.well-known/openid-configuration")
+    assert r.status_code == 301
+    assert r.headers["location"] == "/.well-known/oauth-authorization-server"
