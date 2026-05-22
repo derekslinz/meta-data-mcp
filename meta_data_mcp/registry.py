@@ -1101,6 +1101,23 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         keywords=("usgs", "earthquake", "seismic", "magnitude", "geojson"),
         homepage="https://earthquake.usgs.gov/",
     ),
+    ProviderEntry(
+        id="global_mcp_registry",
+        server_name="global-mcp-registry",
+        title="MCP Server Registry",
+        description="Official Model Context Protocol server registry — search and list published MCP servers.",
+        domains=("knowledge",),
+        regions=("global",),
+        keywords=(
+            "mcp",
+            "model-context-protocol",
+            "registry",
+            "servers",
+            "discovery",
+            "ai-tools",
+        ),
+        homepage="https://registry.modelcontextprotocol.io",
+    ),
 )
 
 
