@@ -1929,9 +1929,9 @@ async def handle_call_tool(
     params = CallToolParams(**(arguments or {}))
     handler = TOOLS_HANDLERS.get(params.tool_name)
     if handler is None:
-        available = [
-            name for name in TOOLS_HANDLERS if name not in {t.name for t in TOOLS}
-        ]
+        available = sorted(
+            tool_name for tool_name, owner in _owner_by_tool.items() if owner != "meta"
+        )
         return {
             "error": f"Tool '{params.tool_name}' not found or not activated.",
             "hint": "Call opendata.providers.activate first.",

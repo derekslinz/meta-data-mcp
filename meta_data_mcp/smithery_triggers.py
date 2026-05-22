@@ -253,57 +253,102 @@ class SmitheryTriggersMiddleware:
     def __init__(self, app: Any) -> None:
         self.app = app
 
+    # Smithery JSON-RPC messages are tiny; inspect at most 64 KB and
+    # avoid buffering arbitrarily large request bodies in memory.
+    _MAX_INSPECT_BYTES = 65_536
+
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
         if scope.get("type") != "http" or scope.get("method") != "POST":
             await self.app(scope, receive, send)
             return
 
-        # Buffer the full request body.
-        chunks: list[bytes] = []
+        # Buffer only enough body to inspect for ai.smithery/* methods.
+        replay_events: list[dict[str, Any]] = []
+        inspect_chunks: list[bytes] = []
+        inspected = 0
+        too_large = False
         while True:
             event = await receive()
             if event["type"] == "http.disconnect":
                 return
-            chunks.append(event.get("body", b""))
-            if not event.get("more_body", False):
+            chunk = event.get("body", b"")
+            more_body = event.get("more_body", False)
+            replay_events.append(
+                {"type": "http.request", "body": chunk, "more_body": more_body}
+            )
+            remaining = max(self._MAX_INSPECT_BYTES - inspected, 0)
+            if remaining:
+                inspect_chunks.append(chunk[:remaining])
+                inspected += min(len(chunk), remaining)
+            # Stop inspection once the current chunk crosses the cap or the
+            # cap is exactly reached and the client indicates more body remains.
+            if len(chunk) > remaining or (
+                inspected >= self._MAX_INSPECT_BYTES and more_body
+            ):
+                too_large = True
                 break
-        body_bytes = b"".join(chunks)
+            if not more_body:
+                break
 
-        # Check if it's a Smithery method.
-        try:
-            data = json.loads(body_bytes)
-            method = data.get("method", "")
-            if isinstance(method, str) and method.startswith("ai.smithery/"):
-                result = await handle_smithery_rpc(data)
-                response_body = json.dumps(result).encode()
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": 200,
-                        "headers": [
-                            [b"content-type", b"application/json"],
-                            [b"content-length", str(len(response_body)).encode()],
-                        ],
-                    }
-                )
-                await send({"type": "http.response.body", "body": response_body})
-                return
-        except (json.JSONDecodeError, AttributeError):
-            pass
+        # Check if it's a Smithery method (only when body is small enough).
+        if not too_large:
+            body_bytes = b"".join(inspect_chunks)
+            try:
+                data = json.loads(body_bytes)
+                method = data.get("method", "")
+                if isinstance(method, str) and method.startswith("ai.smithery/"):
+                    result = await handle_smithery_rpc(data)
+                    response_body = json.dumps(result).encode()
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": 200,
+                            "headers": [
+                                [b"content-type", b"application/json"],
+                                [b"content-length", str(len(response_body)).encode()],
+                            ],
+                        }
+                    )
+                    await send({"type": "http.response.body", "body": response_body})
+                    return
+            except (json.JSONDecodeError, AttributeError):
+                pass
 
-        # Not a Smithery call — rebuild a receive channel from the buffered body.
-        body_sent = False
+        # Not a Smithery call — replay captured events and, for oversized bodies,
+        # continue reading directly from the original receive channel.
+        # Use an Event so replay_receive can return http.disconnect promptly
+        # after the downstream handler finishes sending the response.
+        replay_index = 0
+        upstream_body_complete = False
+        response_done = asyncio.Event()
 
         async def replay_receive() -> dict:
-            nonlocal body_sent
-            if not body_sent:
-                body_sent = True
-                return {"type": "http.request", "body": body_bytes, "more_body": False}
-            # Keep the channel open until the downstream handler finishes
-            # streaming the response — returning http.disconnect here tells
-            # the StreamableHTTP transport the client disconnected and it
-            # aborts the response mid-stream (ASGI callable incomplete error).
-            await asyncio.sleep(300)
+            nonlocal replay_index, upstream_body_complete
+            if replay_index < len(replay_events):
+                event = replay_events[replay_index]
+                replay_index += 1
+                if event.get("type") == "http.request" and not event.get(
+                    "more_body", False
+                ):
+                    upstream_body_complete = True
+                return event
+            if too_large and not upstream_body_complete:
+                event = await receive()
+                if event.get("type") == "http.request" and not event.get(
+                    "more_body", False
+                ):
+                    upstream_body_complete = True
+                return event
+            # Wait until the downstream handler finishes streaming the response
+            # before signalling disconnect — prevents premature ASGI termination.
+            await response_done.wait()
             return {"type": "http.disconnect"}
 
-        await self.app(scope, replay_receive, send)
+        async def send_wrapper(event: dict) -> None:
+            await send(event)
+            if event.get("type") == "http.response.body" and not event.get(
+                "more_body", False
+            ):
+                response_done.set()
+
+        await self.app(scope, replay_receive, send_wrapper)
