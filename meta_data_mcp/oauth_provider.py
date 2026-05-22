@@ -88,10 +88,11 @@ class InMemoryOAuthProvider(
         return f"{self.issuer_url}/oauth/consent?session={session_token}"
 
     def peek_session(self, session_token: str) -> dict[str, Any] | None:
-        """Return a pending consent session without consuming it.
+        """Return a shallow copy of a pending consent session without consuming it.
 
-        Used by the GET consent page to display session details while
-        leaving the session intact for the POST approval step.
+        Used by the GET consent page to display session details while leaving
+        the session intact for the POST approval step. Returns a shallow copy
+        so callers cannot accidentally mutate internal provider state.
         Returns None for unknown or expired sessions.
         """
         session = self._auth_sessions.get(session_token)
@@ -100,7 +101,7 @@ class InMemoryOAuthProvider(
         if time.time() > session["expires_at"]:
             self._auth_sessions.pop(session_token, None)
             return None
-        return session
+        return dict(session)  # shallow copy — callers cannot mutate stored state
 
     def consume_session(self, session_token: str) -> dict[str, Any] | None:
         """Retrieve and remove a pending consent session (one-shot)."""

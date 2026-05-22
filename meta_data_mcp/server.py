@@ -404,11 +404,22 @@ async def run_server(
             from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
 
             def _add_query_params(base_url: str, params: dict[str, str]) -> str:
-                """Merge params into base_url without clobbering an existing query string."""
+                """Append params to base_url, preserving any existing query string.
+
+                Uses list-of-tuples rather than a dict so that existing duplicate
+                or blank-value query params are never silently dropped. Only the
+                keys explicitly provided in ``params`` are added/overwritten.
+                """
                 parts = urlsplit(base_url)
-                existing = dict(parse_qsl(parts.query))
-                existing.update(params)
-                return urlunsplit(parts._replace(query=urlencode(existing)))
+                # Keep all existing params except any that we're explicitly setting,
+                # then append the new ones. This preserves duplicate keys and blanks.
+                existing = [
+                    (k, v)
+                    for k, v in parse_qsl(parts.query, keep_blank_values=True)
+                    if k not in params
+                ]
+                merged = existing + list(params.items())
+                return urlunsplit(parts._replace(query=urlencode(merged)))
 
             # Consent page — GET /oauth/consent?session=<token>
             async def consent_get(request: Request) -> HTMLResponse:
