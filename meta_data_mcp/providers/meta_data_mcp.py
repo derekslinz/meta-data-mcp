@@ -1271,15 +1271,10 @@ class ListDomainsParams(BaseModel):
 
 async def handle_list_domains(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.domains.list tool call."""
     try:
-        return [
-            types.TextContent(
-                type="text",
-                text=serialize_for_llm({"domains": list_domains()}),
-            )
-        ]
+        return {"domains": list_domains()}
     except Exception as e:
         log.error(f"Error in opendata.domains.list: {e}")
         raise
@@ -1313,15 +1308,10 @@ class ListRegionsParams(BaseModel):
 
 async def handle_list_regions(
     arguments: dict[str, Any] | None = None,
-) -> Sequence[types.TextContent]:
+) -> dict[str, Any]:
     """Handle the opendata.regions.list tool call."""
     try:
-        return [
-            types.TextContent(
-                type="text",
-                text=serialize_for_llm({"regions": list_regions()}),
-            )
-        ]
+        return {"regions": list_regions()}
     except Exception as e:
         log.error(f"Error in opendata.regions.list: {e}")
         raise
@@ -1929,9 +1919,9 @@ async def handle_call_tool(
     params = CallToolParams(**(arguments or {}))
     handler = TOOLS_HANDLERS.get(params.tool_name)
     if handler is None:
-        # _owner_by_tool only contains plugin tools (set in _merge_plugin);
-        # meta tools are never added there, so this list is plugin-only.
-        available = sorted(_owner_by_tool.keys())
+        # _owner_by_tool contains all tools; meta tools have owner "meta"
+        # (_load_all_plugins seeds them via setdefault). Plugin-only = owner != "meta".
+        available = sorted(n for n, o in _owner_by_tool.items() if o != "meta")
         return {
             "error": f"Tool '{params.tool_name}' not found or not activated.",
             "hint": "Call opendata.providers.activate first.",

@@ -263,23 +263,23 @@ class SmitheryTriggersMiddleware:
             return
 
         # Buffer the request body up to the inspection cap.
+        # Once the cap is exceeded we stop accumulating — additional chunks
+        # are drained (to satisfy the ASGI receive contract) but discarded
+        # so we never buffer more than _MAX_INSPECT_BYTES in memory.
         chunks: list[bytes] = []
         total = 0
         too_large = False
         while True:
             event = await receive()
-            if event["type"] == "http.disconnect":
+            if event.get("type") == "http.disconnect":
                 return
             chunk = event.get("body", b"")
-            chunks.append(chunk)
-            total += len(chunk)
-            if total > self._MAX_INSPECT_BYTES:
-                too_large = True
-                # Drain remaining chunks so the channel is fully consumed.
-                while event.get("more_body", False):
-                    event = await receive()
-                    chunks.append(event.get("body", b""))
-                break
+            if not too_large:
+                chunks.append(chunk)
+                total += len(chunk)
+                if total > self._MAX_INSPECT_BYTES:
+                    too_large = True
+            # Drain remaining chunks without storing them.
             if not event.get("more_body", False):
                 break
         body_bytes = b"".join(chunks)
