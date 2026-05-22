@@ -390,7 +390,18 @@ async def run_server(
 
         oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
         if oauth_issuer:
-            from mcp.server.auth.routes import create_auth_routes
+            try:
+                from mcp.server.auth.routes import (
+                    create_auth_routes,
+                    create_protected_resource_routes,
+                )
+            except ImportError as exc:
+                raise RuntimeError(
+                    "OAuth support requires an MCP SDK version that provides "
+                    "`mcp.server.auth.routes.create_protected_resource_routes`. "
+                    "Please upgrade the `mcp` package to a compatible version or "
+                    "unset META_DATA_MCP_OAUTH_ISSUER to disable OAuth."
+                ) from exc
             from mcp.server.auth.settings import ClientRegistrationOptions
             from pydantic import AnyHttpUrl
             from starlette.responses import HTMLResponse
@@ -487,21 +498,64 @@ async def run_server(
                     _add_query_params(session["redirect_uri"], params), status_code=302
                 )
 
+            configured_resource_public_url = (
+                os.getenv("META_DATA_MCP_PUBLIC_URL", "").strip() or None
+            )
+            resource_public_url = configured_resource_public_url or oauth_issuer
+            validated_resource_url = AnyHttpUrl(resource_public_url)
+            validated_oauth_issuer = AnyHttpUrl(oauth_issuer)
+
+            if configured_resource_public_url is None:
+                log.info(
+                    "META_DATA_MCP_PUBLIC_URL is not set; defaulting protected "
+                    "resource URL to META_DATA_MCP_OAUTH_ISSUER (%s)",
+                    oauth_issuer,
+                )
+            elif hmac.compare_digest(
+                resource_public_url.rstrip("/"), oauth_issuer.rstrip("/")
+            ):
+                log.info(
+                    "META_DATA_MCP_PUBLIC_URL matches META_DATA_MCP_OAUTH_ISSUER; "
+                    "using %s for both protected resource URL and issuer",
+                    resource_public_url,
+                )
+            else:
+                log.warning(
+                    "META_DATA_MCP_PUBLIC_URL (%s) differs from "
+                    "META_DATA_MCP_OAUTH_ISSUER (%s); using "
+                    "META_DATA_MCP_PUBLIC_URL for the protected resource URL "
+                    "and META_DATA_MCP_OAUTH_ISSUER for the authorization server "
+                    "issuer",
+                    resource_public_url,
+                    oauth_issuer,
+                )
+
+            protected_resource_routes = create_protected_resource_routes(
+                resource_url=validated_resource_url,
+                authorization_servers=[validated_oauth_issuer],
+                scopes_supported=["opendata"],
+            )
             oauth_routes = create_auth_routes(
                 provider=oauth_provider,
-                issuer_url=AnyHttpUrl(oauth_issuer),
+                issuer_url=validated_oauth_issuer,
                 client_registration_options=ClientRegistrationOptions(
                     enabled=True,
                     valid_scopes=["opendata"],
                     default_scopes=["opendata"],
                 ),
             )
-            extra_routes = oauth_routes + [
-                Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
-                Route(
-                    "/oauth/consent/approve", endpoint=consent_post, methods=["POST"]
-                ),
-            ]
+            extra_routes = (
+                protected_resource_routes
+                + oauth_routes
+                + [
+                    Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
+                    Route(
+                        "/oauth/consent/approve",
+                        endpoint=consent_post,
+                        methods=["POST"],
+                    ),
+                ]
+            )
             log.info(f"OAuth 2.0 enabled — issuer: {oauth_issuer}")
 
         app = Starlette(
