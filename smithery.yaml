@@ -1,0 +1,31 @@
+# Smithery configuration: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: []
+    properties:
+      auth_token:
+        type: string
+        description: "Bearer token to protect the SSE endpoint (optional)."
+      preload:
+        type: string
+        description: "Comma-separated provider IDs to activate on startup (e.g. global_world_bank,us_data_gov)."
+      log_level:
+        type: string
+        default: "WARNING"
+        description: "Logging level: DEBUG, INFO, WARNING, ERROR."
+  commandFunction: |-
+    (config) => ({
+      command: "uvx",
+      args: ["meta-data-mcp", "run", "--transport", "stdio"],
+      env: {
+        ...(config.auth_token ? { META_DATA_MCP_AUTH_TOKEN: config.auth_token } : {}),
+        ...(config.preload ? { META_DATA_MCP_PRELOAD: config.preload } : {}),
+        LOG_LEVEL: config.log_level || "WARNING"
+      }
+    })
+  exampleConfig:
+    preload: "global_world_bank,us_data_gov,global_open_meteo"
+    log_level: "WARNING"
