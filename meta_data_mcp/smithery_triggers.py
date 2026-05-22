@@ -253,8 +253,8 @@ class SmitheryTriggersMiddleware:
     def __init__(self, app: Any) -> None:
         self.app = app
 
-    # Smithery JSON-RPC messages are tiny; anything larger is a real MCP
-    # payload and should never be inspected. Cap at 64 KB to prevent OOM.
+    # Smithery JSON-RPC messages are tiny; inspect at most 64 KB and
+    # avoid buffering arbitrarily large request bodies in memory.
     _MAX_INSPECT_BYTES = 65_536
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
@@ -262,8 +262,10 @@ class SmitheryTriggersMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Buffer the request body up to the inspection cap.
-        chunks: list[bytes] = []
+        # Buffer request events only while attempting Smithery inspection.
+        # If the body exceeds the cap, fall back to pass-through replay.
+        replay_events: list[dict] = []
+        inspect_chunks: list[bytes] = []
         total = 0
         too_large = False
         while True:
@@ -271,23 +273,22 @@ class SmitheryTriggersMiddleware:
             if event["type"] == "http.disconnect":
                 return
             chunk = event.get("body", b"")
-            chunks.append(chunk)
+            replay_events.append(event)
+            if total < self._MAX_INSPECT_BYTES and chunk:
+                remaining = self._MAX_INSPECT_BYTES - total
+                inspect_chunks.append(chunk[:remaining])
             total += len(chunk)
             if total > self._MAX_INSPECT_BYTES:
                 too_large = True
-                # Drain remaining chunks so the channel is fully consumed.
-                while event.get("more_body", False):
-                    event = await receive()
-                    chunks.append(event.get("body", b""))
                 break
             if not event.get("more_body", False):
                 break
-        body_bytes = b"".join(chunks)
+        inspect_bytes = b"".join(inspect_chunks)
 
         # Check if it's a Smithery method (only when body is small enough).
         if not too_large:
             try:
-                data = json.loads(body_bytes)
+                data = json.loads(inspect_bytes)
                 method = data.get("method", "")
                 if isinstance(method, str) and method.startswith("ai.smithery/"):
                     result = await handle_smithery_rpc(data)
@@ -307,17 +308,31 @@ class SmitheryTriggersMiddleware:
             except (json.JSONDecodeError, AttributeError):
                 pass
 
-        # Not a Smithery call — rebuild a receive channel from the buffered body.
+        # Not a Smithery call — replay captured events and, for oversized bodies,
+        # continue reading directly from the original receive channel.
         # Use an Event to detect when the response is fully sent so replay_receive
         # returns http.disconnect promptly rather than sleeping arbitrarily long.
-        body_sent = False
+        replay_index = 0
+        upstream_body_complete = False
         response_done = asyncio.Event()
 
         async def replay_receive() -> dict:
-            nonlocal body_sent
-            if not body_sent:
-                body_sent = True
-                return {"type": "http.request", "body": body_bytes, "more_body": False}
+            nonlocal replay_index, upstream_body_complete
+            if replay_index < len(replay_events):
+                event = replay_events[replay_index]
+                replay_index += 1
+                if event.get("type") == "http.request" and not event.get(
+                    "more_body", False
+                ):
+                    upstream_body_complete = True
+                return event
+            if too_large and not upstream_body_complete:
+                event = await receive()
+                if event.get("type") == "http.request" and not event.get(
+                    "more_body", False
+                ):
+                    upstream_body_complete = True
+                return event
             # Wait until the downstream handler finishes streaming the response
             # before signalling disconnect — prevents premature ASGI termination.
             await response_done.wait()
