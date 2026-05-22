@@ -374,8 +374,25 @@
       return m ? m[1] : '';
     }
 
+    var ALLOWED_ARTICLE_HOSTS = {
+      'gdeltproject.org': true,
+      'www.gdeltproject.org': true
+    };
+
     function safeUrl(url) {
-      return url && /^https?:\/\//i.test(url) ? url : null;
+      if (!url) return null;
+      try {
+        var parsed = new URL(url, window.location.origin);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+        var host = (parsed.hostname || '').toLowerCase();
+        if (!host) return null;
+        if (host === window.location.hostname.toLowerCase() || ALLOWED_ARTICLE_HOSTS[host]) {
+          return parsed.href;
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
     }
 
     function sortByDate(arr) {
