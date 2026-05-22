@@ -343,19 +343,17 @@ uv run meta-data-mcp run --host 0.0.0.0 --port 3001       # SSE bound to all int
 
 ### Shipped
 
-- **Hierarchical discovery (v2.0):** the discovery app (`opendata-find-providers` with ranked scoring + breakdowns rendered inline as a UI panel) replaces the originally-planned `opendata-list-subcategories` / `opendata-browse-providers` tools.
-- **Agent-driven generation (v2.1):** `opendata-draft-spec` + `opendata-create-plugin` let the model close coverage gaps autonomously when the routing engine returns no match. Hardened in v2.1.1 with input allowlists, path containment, and a post-generation AST validator (14 RCE/path-traversal/bypass paths closed).
-- **Self-hosted SSE deployment:** bearer-auth-protected, systemd-managed, behind a reverse proxy. See [`docs/hosting.md`](docs/hosting.md) for the full runbook.
-- **MCP Apps presentation layer (v2.0):** all 77 providers are bound to one of three shape primitives or a custom app. Hosts that speak the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps) render tool results inline as interactive panels instead of raw JSON text:
-  - `ui://meta-data-mcp/shape/timeseries/v1` — line chart + profile panel (Plotly), covers 18 providers
-  - `ui://meta-data-mcp/shape/geofeatures/v1` — Leaflet map + marker cluster, covers 12 providers
-  - `ui://meta-data-mcp/shape/records/v1` — faceted table + column profiler (vanilla JS), covers 27 providers
-  - 8 custom apps for domain-specific shapes: vulnerability radar, entity graph, news tone, trade-flow Sankey, molecular viewer, museum image grid, ASN topology, tide chart — cover the remaining 20 providers
-- **Generator + tooling (v2.0 Phase 6):** `response_shape` field in the spec schema drives shape binding at generate time; `tests/test_ui_bundle_sizes.py` enforces the 100 KB warn / 1 MB error budget in CI; `tests/smoke/test_ui_bundles.py` loads each bundle headlessly via Playwright; `make pr-check N=<pr_number>` wraps the merge-gate checklist.
+- **Hierarchical discovery (v2.0):** `opendata-find-providers` with ranked scoring replaces the originally-planned browse/list tools.
+- **Agent-driven generation (v2.1):** `opendata-draft-spec` + `opendata-create-plugin` let the model close coverage gaps autonomously. Hardened in v2.1.1 with input allowlists, path containment, and a post-generation AST validator (14 RCE/path-traversal/bypass paths closed).
+- **Self-hosted SSE deployment (v2.1):** bearer-auth-protected, systemd-managed, reverse-proxied.
+- **Multi-language SDK (v2.2):** Python embedded client (`meta_data_mcp.sdk`) and TypeScript/Node client (`@meta-data-mcp/sdk`) for discovery over MCP SSE.
+- **OAuth 2.0 (v2.3):** Authorization Code + PKCE + Dynamic Client Registration. Works with Claude.ai (StreamableHTTP) and MCP Inspector. `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, and `/.well-known/openid-configuration` all served.
+- **MCP registry provider (v2.3.4):** `mcp-registry-search` and `mcp-registry-list` — discover other MCP servers from within meta-data-mcp. Listed on the official MCP registry and Smithery.
 
 ### Still ahead
 
-- Multi-language SDK clients for the discovery tools so non-MCP integrations get the same routing benefits.
+- Expand provider coverage beyond the current 76.
+- MCP Apps presentation layer — shape primitives (timeseries, geo, records) for inline data visualization in supporting hosts.
 
 
 ## Credits
