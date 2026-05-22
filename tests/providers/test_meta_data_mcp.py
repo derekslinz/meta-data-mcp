@@ -11,7 +11,9 @@ from meta_data_mcp.providers.meta_data_mcp import (
     RESOURCES_HANDLERS,
     TOOLS,
     TOOLS_HANDLERS,
+    _owner_by_tool,
     handle_describe_provider,
+    handle_call_tool,
     handle_discover_providers,
     handle_explain_choice,
     handle_find_providers,
@@ -205,6 +207,25 @@ async def test_find_providers_by_region_case_insensitive():
     result = await handle_find_providers({"region": "UK"})
     payload = _parse(result)
     assert payload["count"] > 0
+
+
+@pytest.mark.anyio
+async def test_call_tool_reports_only_plugin_tools_when_missing():
+    saved_owner_by_tool = dict(_owner_by_tool)
+    try:
+        _owner_by_tool.clear()
+        _owner_by_tool.update(
+            {
+                "opendata.providers.list": "meta",
+                "example-plugin-tool": "example_provider",
+            }
+        )
+        payload = await handle_call_tool({"tool_name": "missing-tool"})
+    finally:
+        _owner_by_tool.clear()
+        _owner_by_tool.update(saved_owner_by_tool)
+
+    assert payload["activated_tools"] == ["example-plugin-tool"]
 
 
 @pytest.mark.anyio

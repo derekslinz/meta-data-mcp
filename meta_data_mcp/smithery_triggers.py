@@ -262,33 +262,37 @@ class SmitheryTriggersMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Buffer request events only while attempting Smithery inspection.
-        # If the body exceeds the cap, fall back to pass-through replay.
-        replay_events: list[dict] = []
+        # Buffer only enough body to inspect for ai.smithery/* methods.
+        replay_events: list[dict[str, Any]] = []
         inspect_chunks: list[bytes] = []
-        total = 0
+        inspected = 0
         too_large = False
         while True:
             event = await receive()
             if event["type"] == "http.disconnect":
                 return
             chunk = event.get("body", b"")
-            replay_events.append(event)
-            if total < self._MAX_INSPECT_BYTES and chunk:
-                remaining = self._MAX_INSPECT_BYTES - total
+            more_body = event.get("more_body", False)
+            replay_events.append(
+                {"type": "http.request", "body": chunk, "more_body": more_body}
+            )
+            remaining = max(self._MAX_INSPECT_BYTES - inspected, 0)
+            if remaining:
                 inspect_chunks.append(chunk[:remaining])
-            total += len(chunk)
-            if total > self._MAX_INSPECT_BYTES:
+                inspected += min(len(chunk), remaining)
+            if len(chunk) > remaining or (
+                inspected >= self._MAX_INSPECT_BYTES and more_body
+            ):
                 too_large = True
                 break
-            if not event.get("more_body", False):
+            if not more_body:
                 break
-        inspect_bytes = b"".join(inspect_chunks)
 
         # Check if it's a Smithery method (only when body is small enough).
         if not too_large:
+            body_bytes = b"".join(inspect_chunks)
             try:
-                data = json.loads(inspect_bytes)
+                data = json.loads(body_bytes)
                 method = data.get("method", "")
                 if isinstance(method, str) and method.startswith("ai.smithery/"):
                     result = await handle_smithery_rpc(data)
