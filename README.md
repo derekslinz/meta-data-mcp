@@ -1,5 +1,7 @@
 # meta-data-mcp
 
+<!-- mcp-name: io.github.derekslinz/meta-data-mcp -->
+
 > A single MCP server that transparently routes user requests to 66 open-data sources.
 
 `meta-data-mcp` is one MCP server — not many. Under the hood it bundles 66 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server, one set of tools, and one place to ask "where can I find data about X?"
