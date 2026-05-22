@@ -498,15 +498,46 @@ async def run_server(
                     _add_query_params(session["redirect_uri"], params), status_code=302
                 )
 
-            resource_public_url = os.getenv("META_DATA_MCP_PUBLIC_URL", oauth_issuer)
+            configured_resource_public_url = (
+                os.getenv("META_DATA_MCP_PUBLIC_URL", "").strip() or None
+            )
+            resource_public_url = configured_resource_public_url or oauth_issuer
+            validated_resource_url = AnyHttpUrl(resource_public_url)
+            validated_oauth_issuer = AnyHttpUrl(oauth_issuer)
+
+            if configured_resource_public_url is None:
+                log.info(
+                    "META_DATA_MCP_PUBLIC_URL is not set; defaulting protected "
+                    "resource URL to META_DATA_MCP_OAUTH_ISSUER (%s)",
+                    oauth_issuer,
+                )
+            elif hmac.compare_digest(
+                resource_public_url.rstrip("/"), oauth_issuer.rstrip("/")
+            ):
+                log.info(
+                    "META_DATA_MCP_PUBLIC_URL matches META_DATA_MCP_OAUTH_ISSUER; "
+                    "using %s for both protected resource URL and issuer",
+                    resource_public_url,
+                )
+            else:
+                log.warning(
+                    "META_DATA_MCP_PUBLIC_URL (%s) differs from "
+                    "META_DATA_MCP_OAUTH_ISSUER (%s); using "
+                    "META_DATA_MCP_PUBLIC_URL for the protected resource URL "
+                    "and META_DATA_MCP_OAUTH_ISSUER for the authorization server "
+                    "issuer",
+                    resource_public_url,
+                    oauth_issuer,
+                )
+
             protected_resource_routes = create_protected_resource_routes(
-                resource_url=AnyHttpUrl(resource_public_url),
-                authorization_servers=[AnyHttpUrl(oauth_issuer)],
+                resource_url=validated_resource_url,
+                authorization_servers=[validated_oauth_issuer],
                 scopes_supported=["opendata"],
             )
             oauth_routes = create_auth_routes(
                 provider=oauth_provider,
-                issuer_url=AnyHttpUrl(oauth_issuer),
+                issuer_url=validated_oauth_issuer,
                 client_registration_options=ClientRegistrationOptions(
                     enabled=True,
                     valid_scopes=["opendata"],
