@@ -400,16 +400,35 @@ async def run_server(
 
             oauth_provider = InMemoryOAuthProvider(issuer_url=oauth_issuer)
 
+            import html as _html
+            from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
+
+            def _add_query_params(base_url: str, params: dict[str, str]) -> str:
+                """Merge params into base_url without clobbering an existing query string."""
+                parts = urlsplit(base_url)
+                existing = dict(parse_qsl(parts.query))
+                existing.update(params)
+                return urlunsplit(parts._replace(query=urlencode(existing)))
+
             # Consent page — GET /oauth/consent?session=<token>
             async def consent_get(request: Request) -> HTMLResponse:
                 session_token = request.query_params.get("session", "")
-                session = oauth_provider._auth_sessions.get(session_token)
+                # Use the provider's own peek method so expiry is enforced
+                # without consuming the session (POST /approve does that).
+                session = oauth_provider.peek_session(session_token)
                 if session is None:
                     return HTMLResponse(
                         "<h1>Session expired or invalid.</h1>", status_code=400
                     )
-                client_name = session.get("client_name", session.get("client_id", "?"))
-                scopes_html = ", ".join(session.get("scopes", [])) or "(default)"
+                # HTML-escape all values derived from dynamic client registration
+                # to prevent XSS via a maliciously crafted client_name or scope.
+                client_name = _html.escape(
+                    str(session.get("client_name", session.get("client_id", "?")))
+                )
+                scopes_html = _html.escape(
+                    ", ".join(session.get("scopes", [])) or "(default)"
+                )
+                session_token_escaped = _html.escape(session_token)
                 return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <title>Authorize — meta-data-mcp</title>
@@ -424,7 +443,7 @@ async def run_server(
   <p><strong>{client_name}</strong> is requesting access to your meta-data-mcp server.</p>
   <p class="scope">Requested scopes: {scopes_html}</p>
   <form method="POST" action="/oauth/consent/approve">
-    <input type="hidden" name="session" value="{session_token}">
+    <input type="hidden" name="session" value="{session_token_escaped}">
     <button type="submit" class="approve">Approve</button>
     <button type="submit" name="deny" value="1" class="deny">Deny</button>
   </form>
@@ -433,7 +452,6 @@ async def run_server(
             # Consent approval — POST /oauth/consent/approve
             async def consent_post(request: Request) -> HTMLResponse:
                 from starlette.responses import RedirectResponse
-                from urllib.parse import urlencode
 
                 form = await request.form()
                 session_token = str(form.get("session", ""))
@@ -444,18 +462,18 @@ async def run_server(
                     )
                 if form.get("deny"):
                     redirect_uri = session["redirect_uri"]
-                    params = {"error": "access_denied"}
+                    params: dict[str, str] = {"error": "access_denied"}
                     if session.get("state"):
                         params["state"] = session["state"]
                     return RedirectResponse(
-                        f"{redirect_uri}?{urlencode(params)}", status_code=302
+                        _add_query_params(redirect_uri, params), status_code=302
                     )
                 code = oauth_provider.create_authorization_code(session)
                 params = {"code": code}
                 if session.get("state"):
                     params["state"] = session["state"]
                 return RedirectResponse(
-                    f"{session['redirect_uri']}?{urlencode(params)}", status_code=302
+                    _add_query_params(session["redirect_uri"], params), status_code=302
                 )
 
             oauth_routes = create_auth_routes(

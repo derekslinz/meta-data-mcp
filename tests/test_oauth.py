@@ -172,6 +172,7 @@ async def test_refresh_token_rotation(provider):
     )
     url = await provider.authorize(client, params)
     session = provider.consume_session(url.split("session=")[1])
+    assert session is not None
     code_str = provider.create_authorization_code(session)
     auth_code = await provider.load_authorization_code(client, code_str)
     original = await provider.exchange_authorization_code(client, auth_code)
@@ -249,6 +250,7 @@ async def test_oauth_token_accepted_by_middleware(provider):
     )
     url = await provider.authorize(client_info, params)
     session = provider.consume_session(url.split("session=")[1])
+    assert session is not None
     code_str = provider.create_authorization_code(session)
     auth_code = await provider.load_authorization_code(client_info, code_str)
     oauth_token = await provider.exchange_authorization_code(client_info, auth_code)

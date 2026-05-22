@@ -75,6 +75,19 @@ class RemoteClient:
         timeout: float = 30.0,
         auth: Any = None,
     ) -> None:
+        """
+        Args:
+            base_url: Root URL of the server (e.g. ``"https://mcp.example.com"``).
+                The ``/sse`` path is appended automatically.
+            token: Bearer token for the server's auth middleware.
+                Falls back to ``META_DATA_MCP_AUTH_TOKEN`` env var.
+                Mutually exclusive with ``auth``.
+            timeout: Connection timeout in seconds (default 30 s).
+            auth: MCP-compatible OAuth client provider for Authorization Code
+                + PKCE flows.  Accepts any object implementing the
+                ``mcp.client.sse`` ``auth=`` interface (e.g. a custom
+                ``OAuthClientProvider``).  Mutually exclusive with ``token``.
+        """
         if token is not None and auth is not None:
             raise ValueError(
                 "token and auth are mutually exclusive — use one or the other"
