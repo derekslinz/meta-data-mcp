@@ -20,6 +20,7 @@ server.
 """
 
 import importlib
+import asyncio
 import logging
 import re
 import time
@@ -68,6 +69,14 @@ from meta_data_mcp.routing import RoutingEngine
 from meta_data_mcp.ui_resources.app_discovery_v1 import URI as DISCOVERY_APP_URI
 
 log = logging.getLogger(__name__)
+
+
+def _log_background_event_failure(task: asyncio.Task[None]) -> None:
+    try:
+        task.result()
+    except Exception as exc:  # noqa: BLE001
+        log.warning(f"plugin.created event delivery failed: {exc}", exc_info=True)
+
 
 # The set of meta tools bound to the discovery app. Surfaced as a module
 # constant so both the production wiring (each ``TOOLS.append`` below sets
@@ -763,14 +772,17 @@ async def handle_create_plugin(
 
         from meta_data_mcp.smithery_triggers import fire_event
 
-        await fire_event(
-            "plugin.created",
-            {
-                "plugin_id": plugin_id,
-                "tools_added": added,
-                "new_tool_names": new_tool_names,
-            },
+        event_task = asyncio.create_task(
+            fire_event(
+                "plugin.created",
+                {
+                    "plugin_id": plugin_id,
+                    "tools_added": added,
+                    "new_tool_names": new_tool_names,
+                },
+            )
         )
+        event_task.add_done_callback(_log_background_event_failure)
         return [
             types.TextContent(
                 type="text",
