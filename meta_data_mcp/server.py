@@ -390,7 +390,10 @@ async def run_server(
 
         oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
         if oauth_issuer:
-            from mcp.server.auth.routes import create_auth_routes
+            from mcp.server.auth.routes import (
+                create_auth_routes,
+                create_protected_resource_routes,
+            )
             from mcp.server.auth.settings import ClientRegistrationOptions
             from pydantic import AnyHttpUrl
             from starlette.responses import HTMLResponse
@@ -487,6 +490,11 @@ async def run_server(
                     _add_query_params(session["redirect_uri"], params), status_code=302
                 )
 
+            protected_resource_routes = create_protected_resource_routes(
+                resource_url=AnyHttpUrl(oauth_issuer),
+                authorization_servers=[AnyHttpUrl(oauth_issuer)],
+                scopes_supported=["opendata"],
+            )
             oauth_routes = create_auth_routes(
                 provider=oauth_provider,
                 issuer_url=AnyHttpUrl(oauth_issuer),
@@ -496,7 +504,7 @@ async def run_server(
                     default_scopes=["opendata"],
                 ),
             )
-            extra_routes = oauth_routes + [
+            extra_routes = protected_resource_routes + oauth_routes + [
                 Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
                 Route(
                     "/oauth/consent/approve", endpoint=consent_post, methods=["POST"]

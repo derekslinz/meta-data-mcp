@@ -665,7 +665,7 @@
           renderRightPanel();
         });
         g.addEventListener('click', function () {
-          if (ev.url) window.open(ev.url, '_blank', 'noopener,noreferrer');
+          if (ev.url && /^https?:\/\//i.test(ev.url)) window.open(ev.url, '_blank', 'noopener,noreferrer');
         });
         var titleEl = svg('title');
         titleEl.textContent = ev.date + ' - ' + (ev.country || '-') +
@@ -827,7 +827,7 @@
           renderRightPanel();
         });
         tr.addEventListener('click', function () {
-          if (ev.url) window.open(ev.url, '_blank', 'noopener,noreferrer');
+          if (ev.url && /^https?:\/\//i.test(ev.url)) window.open(ev.url, '_blank', 'noopener,noreferrer');
         });
         tbody.appendChild(tr);
       });
