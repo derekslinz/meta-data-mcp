@@ -263,25 +263,34 @@ class SmitheryTriggersMiddleware:
             return
 
         # Buffer the request body up to the inspection cap.
-        # Once the cap is exceeded we stop accumulating — additional chunks
-        # are drained (to satisfy the ASGI receive contract) but discarded
-        # so we never buffer more than _MAX_INSPECT_BYTES in memory.
+        # If a chunk would exceed the cap, only the prefix up to the cap is
+        # stored; the tail is preserved in overflow_tail and the loop exits
+        # immediately (no draining) so that replay_receive can forward the
+        # remaining bytes to the downstream app unchanged.
         chunks: list[bytes] = []
         total = 0
         too_large = False
+        overflow_tail: bytes = b""
+        overflow_more: bool = False
         while True:
             event = await receive()
             if event.get("type") == "http.disconnect":
                 return
             chunk = event.get("body", b"")
-            if not too_large:
+            more = event.get("more_body", False)
+            remaining = self._MAX_INSPECT_BYTES - total
+            if len(chunk) <= remaining:
                 chunks.append(chunk)
                 total += len(chunk)
-                if total > self._MAX_INSPECT_BYTES:
-                    too_large = True
-            # Drain remaining chunks without storing them.
-            if not event.get("more_body", False):
-                break
+                if not more:
+                    break
+            else:
+                # Only store up to the cap; keep the tail for replay.
+                chunks.append(chunk[:remaining])
+                overflow_tail = chunk[remaining:]
+                overflow_more = more
+                too_large = True
+                break  # Stop reading — replay_receive will forward the rest.
         body_bytes = b"".join(chunks)
 
         # Check if it's a Smithery method (only when body is small enough).
@@ -308,8 +317,10 @@ class SmitheryTriggersMiddleware:
                 pass
 
         # Not a Smithery call — rebuild a receive channel from the buffered body.
-        # Use an Event to detect when the response is fully sent so replay_receive
-        # returns http.disconnect promptly rather than sleeping arbitrarily long.
+        # replay_receive first replays the buffered bytes (prefix + overflow tail
+        # as a single event).  If overflow_more is True the body exceeded the cap
+        # and further calls delegate to the original receive() so the downstream
+        # app receives the complete, untruncated body.
         body_sent = False
         response_done = asyncio.Event()
 
@@ -317,7 +328,14 @@ class SmitheryTriggersMiddleware:
             nonlocal body_sent
             if not body_sent:
                 body_sent = True
-                return {"type": "http.request", "body": body_bytes, "more_body": False}
+                return {
+                    "type": "http.request",
+                    "body": body_bytes + overflow_tail,
+                    "more_body": overflow_more,
+                }
+            if overflow_more:
+                # Forward remaining chunks from the original receive().
+                return await receive()
             # Wait until the downstream handler finishes streaming the response
             # before signalling disconnect — prevents premature ASGI termination.
             await response_done.wait()
