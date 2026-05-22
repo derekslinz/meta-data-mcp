@@ -96,9 +96,7 @@ class InMemoryOAuthProvider(
             return None
         return session
 
-    def create_authorization_code(
-        self, session: dict[str, Any]
-    ) -> str:
+    def create_authorization_code(self, session: dict[str, Any]) -> str:
         """Issue an authorization code from an approved consent session."""
         code = secrets.token_urlsafe(32)
         self._auth_codes[code] = AuthorizationCode(
@@ -108,7 +106,9 @@ class InMemoryOAuthProvider(
             client_id=session["client_id"],
             code_challenge=session["code_challenge"],
             redirect_uri=session["redirect_uri"],  # type: ignore[arg-type]
-            redirect_uri_provided_explicitly=session["redirect_uri_provided_explicitly"],
+            redirect_uri_provided_explicitly=session[
+                "redirect_uri_provided_explicitly"
+            ],
         )
         return code
 
@@ -241,6 +241,7 @@ class InMemoryOAuthProvider(
 # ---------------------------------------------------------------------------
 # PKCE helper (used by tests; not part of the Protocol)
 # ---------------------------------------------------------------------------
+
 
 def compute_pkce_challenge(code_verifier: str) -> str:
     """Return the S256 code_challenge for a given verifier."""

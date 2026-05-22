@@ -76,7 +76,9 @@ class RemoteClient:
         auth: Any = None,
     ) -> None:
         if token is not None and auth is not None:
-            raise ValueError("token and auth are mutually exclusive — use one or the other")
+            raise ValueError(
+                "token and auth are mutually exclusive — use one or the other"
+            )
         self._base_url = base_url.rstrip("/")
         self._token = (
             token if token is not None else os.getenv("META_DATA_MCP_AUTH_TOKEN")
@@ -103,9 +105,7 @@ class RemoteClient:
             sse_kwargs["auth"] = self._auth
         else:
             sse_kwargs["headers"] = self._headers()
-        streams = await self._exit_stack.enter_async_context(
-            sse_client(**sse_kwargs)
-        )
+        streams = await self._exit_stack.enter_async_context(sse_client(**sse_kwargs))
         self._session = await self._exit_stack.enter_async_context(
             ClientSession(*streams)
         )

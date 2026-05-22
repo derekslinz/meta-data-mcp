@@ -10,10 +10,7 @@ Covers:
 
 from __future__ import annotations
 
-import hashlib
-import base64
 import secrets
-import time
 
 import httpx
 import pytest
@@ -229,7 +226,9 @@ async def test_static_token_still_accepted_when_oauth_enabled(provider):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        r = await client.get("/sse", headers={"Authorization": "Bearer my-static-token"})
+        r = await client.get(
+            "/sse", headers={"Authorization": "Bearer my-static-token"}
+        )
     assert r.status_code == 200
 
 
@@ -306,14 +305,11 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
         ),
     )
 
-    all_routes = (
-        oauth_routes
-        + [
-            Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
-            Route("/oauth/consent/approve", endpoint=consent_post, methods=["POST"]),
-            Route("/sse", endpoint=lambda r: HTMLResponse("sse-ok"), methods=["GET"]),
-        ]
-    )
+    all_routes = oauth_routes + [
+        Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
+        Route("/oauth/consent/approve", endpoint=consent_post, methods=["POST"]),
+        Route("/sse", endpoint=lambda r: HTMLResponse("sse-ok"), methods=["GET"]),
+    ]
 
     app = Starlette(routes=all_routes)
     app.add_middleware(BearerAuthMiddleware, token="static-token", oauth_provider=p)

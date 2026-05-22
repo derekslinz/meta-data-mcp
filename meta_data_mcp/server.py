@@ -469,7 +469,9 @@ async def run_server(
             )
             extra_routes = oauth_routes + [
                 Route("/oauth/consent", endpoint=consent_get, methods=["GET"]),
-                Route("/oauth/consent/approve", endpoint=consent_post, methods=["POST"]),
+                Route(
+                    "/oauth/consent/approve", endpoint=consent_post, methods=["POST"]
+                ),
             ]
             log.info(f"OAuth 2.0 enabled — issuer: {oauth_issuer}")
 
@@ -494,10 +496,13 @@ async def run_server(
             log.info(
                 "SSE auth enabled — %s",
                 " + ".join(
-                    filter(None, [
-                        "bearer token" if auth_token else None,
-                        "OAuth 2.0" if oauth_provider else None,
-                    ])
+                    filter(
+                        None,
+                        [
+                            "bearer token" if auth_token else None,
+                            "OAuth 2.0" if oauth_provider else None,
+                        ],
+                    )
                 ),
             )
         else:
