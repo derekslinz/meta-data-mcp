@@ -728,8 +728,10 @@ async def run_server(
         # activation (TOOLS list, TOOLS_HANDLERS dict, _active_providers set).
         # Multiple uvicorn workers share nothing — activation in one worker is
         # invisible to others, and OAuth tokens issued by one worker cannot be
-        # verified by another. Always run with a single worker (the default).
-        # See docs/hosting.md for the single-node deployment model.
+        # verified by another. Always run with a single worker (the default)
+        # for SSE deployments; do not use multiple uvicorn workers unless
+        # plugin activation state and token verification are moved to shared
+        # cross-worker storage.
         config = uvicorn.Config(
             app,
             host=host,

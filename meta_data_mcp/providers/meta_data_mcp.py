@@ -1919,9 +1919,9 @@ async def handle_call_tool(
     params = CallToolParams(**(arguments or {}))
     handler = TOOLS_HANDLERS.get(params.tool_name)
     if handler is None:
-        # _owner_by_tool contains all tools; meta tools have owner "meta"
-        # (_load_all_plugins seeds them via setdefault). Plugin-only = owner != "meta".
-        available = sorted(n for n, o in _owner_by_tool.items() if o != "meta")
+        available = sorted(
+            tool_name for tool_name, owner in _owner_by_tool.items() if owner != "meta"
+        )
         return {
             "error": f"Tool '{params.tool_name}' not found or not activated.",
             "hint": "Call opendata.providers.activate first.",

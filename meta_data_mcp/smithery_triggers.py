@@ -253,8 +253,8 @@ class SmitheryTriggersMiddleware:
     def __init__(self, app: Any) -> None:
         self.app = app
 
-    # Smithery JSON-RPC messages are tiny; anything larger is a real MCP
-    # payload and should never be inspected. Cap at 64 KB to prevent OOM.
+    # Smithery JSON-RPC messages are tiny; inspect at most 64 KB and
+    # avoid buffering arbitrarily large request bodies in memory.
     _MAX_INSPECT_BYTES = 65_536
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
@@ -262,39 +262,37 @@ class SmitheryTriggersMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Buffer the request body up to the inspection cap.
-        # If a chunk would exceed the cap, only the prefix up to the cap is
-        # stored; the tail is preserved in overflow_tail and the loop exits
-        # immediately (no draining) so that replay_receive can forward the
-        # remaining bytes to the downstream app unchanged.
-        chunks: list[bytes] = []
-        total = 0
+        # Buffer only enough body to inspect for ai.smithery/* methods.
+        replay_events: list[dict[str, Any]] = []
+        inspect_chunks: list[bytes] = []
+        inspected = 0
         too_large = False
-        overflow_tail: bytes = b""
-        overflow_more: bool = False
         while True:
             event = await receive()
             if event.get("type") == "http.disconnect":
                 return
             chunk = event.get("body", b"")
-            more = event.get("more_body", False)
-            remaining = self._MAX_INSPECT_BYTES - total
-            if len(chunk) <= remaining:
-                chunks.append(chunk)
-                total += len(chunk)
-                if not more:
-                    break
-            else:
-                # Only store up to the cap; keep the tail for replay.
-                chunks.append(chunk[:remaining])
-                overflow_tail = chunk[remaining:]
-                overflow_more = more
+            more_body = event.get("more_body", False)
+            replay_events.append(
+                {"type": "http.request", "body": chunk, "more_body": more_body}
+            )
+            remaining = max(self._MAX_INSPECT_BYTES - inspected, 0)
+            if remaining:
+                inspect_chunks.append(chunk[:remaining])
+                inspected += min(len(chunk), remaining)
+            # Stop inspection once the current chunk crosses the cap or the
+            # cap is exactly reached and the client indicates more body remains.
+            if len(chunk) > remaining or (
+                inspected >= self._MAX_INSPECT_BYTES and more_body
+            ):
                 too_large = True
-                break  # Stop reading — replay_receive will forward the rest.
-        body_bytes = b"".join(chunks)
+                break
+            if not more_body:
+                break
 
         # Check if it's a Smithery method (only when body is small enough).
         if not too_large:
+            body_bytes = b"".join(inspect_chunks)
             try:
                 data = json.loads(body_bytes)
                 method = data.get("method", "")
@@ -316,26 +314,31 @@ class SmitheryTriggersMiddleware:
             except (json.JSONDecodeError, AttributeError):
                 pass
 
-        # Not a Smithery call — rebuild a receive channel from the buffered body.
-        # replay_receive first replays the buffered bytes (prefix + overflow tail
-        # as a single event).  If overflow_more is True the body exceeded the cap
-        # and further calls delegate to the original receive() so the downstream
-        # app receives the complete, untruncated body.
-        body_sent = False
+        # Not a Smithery call — replay captured events and, for oversized bodies,
+        # continue reading directly from the original receive channel.
+        # Use an Event so replay_receive can return http.disconnect promptly
+        # after the downstream handler finishes sending the response.
+        replay_index = 0
+        upstream_body_complete = False
         response_done = asyncio.Event()
 
         async def replay_receive() -> dict:
-            nonlocal body_sent
-            if not body_sent:
-                body_sent = True
-                return {
-                    "type": "http.request",
-                    "body": body_bytes + overflow_tail,
-                    "more_body": overflow_more,
-                }
-            if overflow_more:
-                # Forward remaining chunks from the original receive().
-                return await receive()
+            nonlocal replay_index, upstream_body_complete
+            if replay_index < len(replay_events):
+                event = replay_events[replay_index]
+                replay_index += 1
+                if event.get("type") == "http.request" and not event.get(
+                    "more_body", False
+                ):
+                    upstream_body_complete = True
+                return event
+            if too_large and not upstream_body_complete:
+                event = await receive()
+                if event.get("type") == "http.request" and not event.get(
+                    "more_body", False
+                ):
+                    upstream_body_complete = True
+                return event
             # Wait until the downstream handler finishes streaming the response
             # before signalling disconnect — prevents premature ASGI termination.
             await response_done.wait()
