@@ -309,6 +309,10 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
         resource_url=AnyHttpUrl(issuer),
         authorization_servers=[AnyHttpUrl(issuer)],
         scopes_supported=["opendata"],
+    ) + create_protected_resource_routes(
+        resource_url=AnyHttpUrl(issuer.rstrip("/") + "/sse"),
+        authorization_servers=[AnyHttpUrl(issuer)],
+        scopes_supported=["opendata"],
     )
     oauth_routes = create_auth_routes(
         provider=p,

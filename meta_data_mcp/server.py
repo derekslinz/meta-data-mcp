@@ -530,8 +530,16 @@ async def run_server(
                     oauth_issuer,
                 )
 
+            # Serve both RFC 9728 variants:
+            # - Base: /.well-known/oauth-protected-resource
+            # - Path: /.well-known/oauth-protected-resource/sse
+            # Clients (e.g. Claude Desktop) probe both.
             protected_resource_routes = create_protected_resource_routes(
                 resource_url=validated_resource_url,
+                authorization_servers=[validated_oauth_issuer],
+                scopes_supported=["opendata"],
+            ) + create_protected_resource_routes(
+                resource_url=AnyHttpUrl(resource_public_url.rstrip("/") + "/sse"),
                 authorization_servers=[validated_oauth_issuer],
                 scopes_supported=["opendata"],
             )
