@@ -190,6 +190,5 @@ def test_readme_optional_env_vars_cover_registry() -> None:
     registry_vars = {var for entry in REGISTRY for var in entry.requires_env}
     missing = sorted(registry_vars - documented)
     assert not missing, (
-        "README optional-env table is missing registry-declared variable(s): "
-        f"{missing}"
+        f"README optional-env table is missing registry-declared variable(s): {missing}"
     )
