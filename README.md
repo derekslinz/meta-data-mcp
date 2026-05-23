@@ -205,6 +205,7 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `eu_eurostat` | Eurostat | European Union statistics |
 | `global_imf` | International Monetary Fund | IMF SDMX 2.1 statistical data |
+| `global_faostat` | FAOSTAT | UN food and agriculture statistics — production, prices, trade, land use, emissions |
 | `global_dbnomics` | DBnomics | Global economic data aggregator (IMF, World Bank, etc.) |
 | `global_oecd` | OECD | OECD economic & social statistics (SDMX) |
 | `global_world_bank` | World Bank | Development indicators by country |
@@ -240,6 +241,7 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `eu_copernicus` | Copernicus (EU) | European Earth observation and climate datasets |
 | `global_open_meteo` | Open-Meteo | Weather forecast + historical + air quality |
+| `global_openaq` | OpenAQ | Global air-quality measurements from reference monitors and sensors |
 | `us_ncdeq_gis` | NC DEQ Environmental GIS | NC Dept. of Environmental Quality ArcGIS Hub — permits, air/water quality, hazardous waste |
 | `us_noaa_ncei` | NOAA NCEI | Climate data access services (key-less) |
 | `us_noaa_tides` | NOAA Tides & Currents | Water levels, tides, currents |
@@ -259,6 +261,7 @@ This is what's inside the one server. You don't install these individually — t
 
 | Plugin | Source | Description |
 |---|---|---|
+| `global_mcp_registry` | MCP Server Registry | Official MCP server registry — search and list published MCP servers |
 | `global_osm_nominatim` | OSM Nominatim | Geocoding / reverse-geocoding (1 req/sec) |
 | `global_overpass` | OSM Overpass | Query OpenStreetMap with Overpass QL |
 | `global_wikidata` | Wikidata | Structured knowledge graph + SPARQL |
@@ -266,6 +269,22 @@ This is what's inside the one server. You don't install these individually — t
 | `us_arcgis_item` | ArcGIS REST API | Fetch public ArcGIS item metadata by ID — layers, maps, services, files |
 | `us_census_geocoder` | US Census Geocoder | Address ⇄ coordinates ⇄ geographies |
 | `us_nc_onemap` | NC OneMap | NC's authoritative GIS clearinghouse via ArcGIS REST — statewide geographic layers |
+
+### Agriculture / Trade
+
+| Plugin | Source | Description |
+|---|---|---|
+| `global_un_comtrade` | UN Comtrade | International merchandise and services trade statistics |
+
+### Security / Vulnerability
+
+| Plugin | Source | Description |
+|---|---|---|
+| `global_epss` | FIRST.org EPSS | Exploit prediction scores and percentile ranks for CVEs |
+| `global_nvd_cve` | NVD CVE Database | NIST CVE records, filters, and change history |
+| `global_opensanctions` | OpenSanctions | Sanctions, PEP, debarment, and related risk datasets |
+| `global_osv_dev` | OSV.dev | Open source vulnerability advisories across ecosystems |
+| `us_cisa_kev` | CISA KEV | Known Exploited Vulnerabilities catalog with remediation deadlines |
 
 ### Transit / Aviation
 
@@ -294,6 +313,12 @@ This is what's inside the one server. You don't install these individually — t
 | `global_open_library` | Open Library | Books, authors, works (Internet Archive) |
 | `global_unesco_heritage` | UNESCO World Heritage Sites | Natural, cultural & mixed World Heritage Sites |
 
+### News / Media
+
+| Plugin | Source | Description |
+|---|---|---|
+| `global_gdelt` | GDELT 2.0 | Global news, event, and tone monitoring across 100+ languages |
+
 ### Networking / Internet
 
 | Plugin | Source | Description |
@@ -317,7 +342,11 @@ A few bundled plugins accept optional API keys for higher rate limits. Set these
 | Variable | Plugin | Purpose |
 |---|---|---|
 | `COURTLISTENER_API_TOKEN` | `us_courtlistener` | Anonymous access works at low volumes |
+| `NVD_API_KEY` | `global_nvd_cve` | Raises NVD API rate limits |
 | `META_DATA_MCP_CONTACT` | all | Your email, used in User-Agent for polite-pool APIs (Crossref, OpenAlex, OSM, SEC EDGAR). Defaults to `meta-data-mcp@example.org`. |
+| `OPENAQ_API_KEY` | `global_openaq` | Enables authenticated OpenAQ API access |
+| `OPENSANCTIONS_API_KEY` | `global_opensanctions` | Enables authenticated OpenSanctions API access |
+| `UN_COMTRADE_API_KEY` | `global_un_comtrade` | Enables higher-tier UN Comtrade API access |
 
 ### Server runtime flags
 
