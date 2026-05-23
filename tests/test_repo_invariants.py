@@ -142,7 +142,7 @@ def test_bundle_directory_is_populated() -> None:
 # ---------------------------------------------------------------------------
 
 README_BUNDLED_SECTION_RE = re.compile(
-    r"^## Bundled plugins \(\d+\)\n(?P<body>.*?)(?=^## Optional environment variables$)",
+    r"^## Bundled plugins(?: \(\d+\))?\n(?P<body>.*?)(?=^## Optional environment variables$)",
     re.MULTILINE | re.DOTALL,
 )
 README_OPTIONAL_ENV_SECTION_RE = re.compile(
