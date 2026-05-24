@@ -4,7 +4,7 @@
 
 > A single MCP server that transparently routes user requests to 76 open-data sources.
 
-`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 76 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server, one set of tools, and one place to ask "where can I find data about X?"
+`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 76 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server and one place to ask "where can I find data about X?"
 
 You install one server. You get all the data, discoverable through built-in routing tools.
 
@@ -49,7 +49,7 @@ The command auto-detects which MCP clients you have installed and adds **one** `
 | Gemini CLI | `~/.gemini/settings.json` |
 | LM Studio | `~/.cache/lm-studio/mcp.json` |
 
-Each existing config is backed up to `<file>.bak` before writing. Restart the affected client(s) and you'll see one new server with discovery tools + every plugin's tools available under it.
+Each existing config is backed up to `<file>.bak` before writing. Restart the affected client(s) and you'll see one new server with discovery tools available immediately; plugin tools can then be activated on demand.
 
 Inspect what's detected / configured on your machine:
 
@@ -83,8 +83,8 @@ There is one server, so the CLI takes no "provider" argument. Every command oper
 | Command | What it does |
 |---|---|
 | `uv run meta-data-mcp run` | Run the server (default SSE; pass `--transport stdio` for Claude Desktop). |
-| `uv run meta-data-mcp setup` | Register the server in Claude Desktop's config. |
-| `uv run meta-data-mcp remove` | Unregister the server from Claude Desktop. |
+| `uv run meta-data-mcp setup` | Register the server in detected MCP client configs (or one target via `--client`). |
+| `uv run meta-data-mcp remove` | Unregister the server from detected MCP client configs (or one target via `--client`). |
 | `uv run meta-data-mcp cleanup` | Detect and remove legacy multi-server entries (`--apply` to commit). |
 | `uv run meta-data-mcp inspect` | Launch [mcp-inspector](https://modelcontextprotocol.io/docs/tools/inspector) against the server. |
 | `uv run meta-data-mcp list` | Informational: list the internal plugins bundled in this server. |
@@ -98,8 +98,8 @@ The `list` command exists for transparency about what's bundled — **plugins ar
 
 Once `meta-data-mcp` is running, the LLM has access to two layers of tools — and you don't need to mention either to the user:
 
-1. **Meta tools** — the eight server-level tools below. They make routing transparent: the LLM uses them to find (or create) the right plugin without you telling it which tool to call.
-2. **Plugin tools** — ~330 tools coming from the 76 bundled plugins. They are merged into the same namespace at startup. The LLM picks one after consulting the meta tools.
+1. **Meta tools** — the 13 server-level tools below. They make routing transparent: the LLM uses them to find, activate, and (if needed) create the right plugin without you telling it which tool to call.
+2. **Plugin tools** — ~330 tools coming from the 76 bundled plugins. In the default discovery-only mode they are activated per provider at runtime (or preloaded via `META_DATA_MCP_PRELOAD`). The LLM picks one after consulting the meta tools.
 
 ### Meta tools
 
@@ -111,8 +111,13 @@ Once `meta-data-mcp` is running, the LLM has access to two layers of tools — a
 | `opendata.regions.list` | Enumerate the controlled region vocabulary (`us`, `eu`, `uk`, `global`, …). |
 | `opendata.providers.describe` | Full metadata for one plugin by id — title, description, domains, regions, keywords, homepage, required env vars. |
 | `opendata.providers.list` | Paginated dump of the whole registry. |
+| `opendata.providers.activate` | Activate one provider so its tools become callable in this session. |
+| `opendata.providers.deactivate` | Remove an activated provider's tools from the current session catalog. |
+| `opendata.providers.list_active` | List currently active providers and the tool names each contributes. |
+| `opendata.health.snapshot` | Return per-provider health scores used by discovery health badges and routing context. |
 | `opendata.plugins.draft` | **Build a validated plugin YAML spec from structured inputs.** Takes id, base_url, tool definitions (name, endpoint, params), and registry metadata. Validates id/tool-name casing, path-placeholder/param consistency, and parameter types, then emits a YAML string ready to feed into `opendata.plugins.create`. Use this so the LLM never has to hand-author YAML. |
 | `opendata.plugins.create` | **Autonomously create a new plugin.** Takes a YAML spec (typically produced by `opendata.plugins.draft`), runs the generator, imports the new module, registers it in the live registry, and hot-loads its tools onto the running server. Use this when `opendata.providers.find` returns no match. |
+| `opendata.tool.call` | Proxy-call an activated plugin tool by name for environments that cannot directly invoke dynamically added tools. |
 
 ### The autonomous discovery flow
 
@@ -120,7 +125,7 @@ The reason this server is called "meta" is that it routes data requests on the u
 
 1. **User asks for data**, e.g. "show me the most recent published CVEs."
 2. **LLM calls `opendata.providers.find`** with the query (`cve`, `vulnerability`, …).
-3. **If the registry has a match**: the LLM picks the matching plugin's tool and answers — done.
+3. **If the registry has a match**: the LLM activates the matching provider (`opendata.providers.activate`, or `activate_top` in find) and then calls the plugin tool.
 4. **If the registry has no match**: the response includes `no_match: true` and a `next_step` field that explains the autonomous creation path. The LLM:
    1. Tells the user it's about to add coverage for this data source.
    2. Web-searches for an open API that exposes the requested data (e.g. the NVD or CIRCL CVE API).
@@ -133,7 +138,7 @@ The materialized plugin lives on disk (`meta_data_mcp/providers/{id}.py` + `test
 
 ### Plugin tools
 
-Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata.providers.find` and `opendata.providers.describe`; you don't need to memorize them.
+Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata.providers.find`/`opendata.providers.describe`, activates the provider when needed, and can inspect session state with `opendata.providers.list_active`.
 
 ## Presentation layer (MCP Apps)
 
@@ -382,7 +387,6 @@ uv run meta-data-mcp run --host 0.0.0.0 --port 3001       # SSE bound to all int
 ### Still ahead
 
 - Expand provider coverage beyond the current 76.
-- MCP Apps presentation layer — shape primitives (timeseries, geo, records) for inline data visualization in supporting hosts.
 
 
 ## Credits
