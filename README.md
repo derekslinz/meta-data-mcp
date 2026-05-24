@@ -286,6 +286,7 @@ This is what's inside the one server. You don't install these individually — t
 
 | Plugin | Source | Description |
 |---|---|---|
+| `eu_euvd` | ENISA EUVD | Latest, exploited, critical, and filtered EU vulnerability search |
 | `global_epss` | FIRST.org EPSS | Exploit prediction scores and percentile ranks for CVEs |
 | `global_nvd_cve` | NVD CVE Database | NIST CVE records, filters, and change history |
 | `global_opensanctions` | OpenSanctions | Sanctions, PEP, debarment, and related risk datasets |
