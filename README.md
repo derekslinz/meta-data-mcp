@@ -2,9 +2,9 @@
 
 <!-- mcp-name: io.github.derekslinz/meta-data-mcp -->
 
-> A single MCP server that transparently routes user requests to 78 open-data sources.
+> A single MCP server that transparently routes user requests to 79 open-data sources.
 
-`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 78 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server and one place to ask "where can I find data about X?"
+`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 79 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server and one place to ask "where can I find data about X?"
 
 You install one server. You get all the data, discoverable through built-in routing tools.
 
@@ -99,7 +99,7 @@ The `list` command exists for transparency about what's bundled — **plugins ar
 Once `meta-data-mcp` is running, the LLM has access to two layers of tools — and you don't need to mention either to the user:
 
 1. **Meta tools** — the 13 server-level tools below. They make routing transparent: the LLM uses them to find, activate, and (if needed) create the right plugin without you telling it which tool to call.
-2. **Plugin tools** — ~330 tools coming from the 78 bundled plugins. In the default discovery-only mode they are activated per provider at runtime (or preloaded via `META_DATA_MCP_PRELOAD`). The LLM picks one after consulting the meta tools.
+2. **Plugin tools** — ~330 tools coming from the 79 bundled plugins. In the default discovery-only mode they are activated per provider at runtime (or preloaded via `META_DATA_MCP_PRELOAD`). The LLM picks one after consulting the meta tools.
 
 ### Meta tools
 
@@ -185,7 +185,7 @@ tools:
 
 See [`tools/specs/README.md`](tools/specs/README.md) for the full reference. Bundle-size budgets are enforced in CI (warn ≥ 100 KB, error ≥ 1 MB); the v2.0 bundles range from 14 KB (timeseries primitive) to 34 KB (vulnerability app), all comfortably inside the budget.
 
-## Bundled plugins (78)
+## Bundled plugins (79)
 
 This is what's inside the one server. You don't install these individually — they all come along.
 
@@ -389,7 +389,7 @@ uv run meta-data-mcp run --host 0.0.0.0 --port 3001       # SSE bound to all int
 
 ### Still ahead
 
-- Expand provider coverage beyond the current 78.
+- Expand provider coverage beyond the current 79.
 
 
 ## Credits
