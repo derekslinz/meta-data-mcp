@@ -119,7 +119,7 @@ async def test_ssllabs_analyze_http_error():
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
-            await handle_ssllabs_analyze({'host': 'test'})
+            await handle_ssllabs_analyze({"host": "test"})
 
 
 @pytest.mark.anyio
@@ -138,7 +138,7 @@ async def test_ssllabs_endpoint_data_http_error():
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
-            await handle_ssllabs_endpoint_data({'host': 'test', 'ip': 'test'})
+            await handle_ssllabs_endpoint_data({"host": "test", "ip": "test"})
 
 
 @pytest.mark.anyio

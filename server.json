@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.derekslinz/meta-data-mcp",
-  "description": "Query 79 open data APIs — government, science, finance, environment, and more.",
+  "description": "Query 83 open data APIs — government, science, finance, environment, and more.",
   "version": "2.5.0",
   "repository": {
     "url": "https://github.com/derekslinz/meta-data-mcp",
@@ -33,7 +33,7 @@
           "health",
           "law"
         ],
-        "pitch": "One MCP server, 79 open data sources. Ask about GDP, earthquakes, court records, air quality, drug approvals, satellite imagery, or biodiversity — meta-data-mcp routes the request to the right API and returns structured data. Providers activate lazily so the default tool surface stays small; use opendata.providers.find to discover and opendata.providers.activate to unlock domain-specific tools on demand.",
+        "pitch": "One MCP server, 83 open data sources. Ask about GDP, earthquakes, court records, air quality, drug approvals, satellite imagery, or biodiversity — meta-data-mcp routes the request to the right API and returns structured data. Providers activate lazily so the default tool surface stays small; use opendata.providers.find to discover and opendata.providers.activate to unlock domain-specific tools on demand.",
         "example_calls": [
           "opendata.providers.find({ query: \"climate\" })  ->  ranked list of climate/weather providers",
           "opendata.providers.activate({ provider_id: \"global-world-bank\" })  ->  activates World Bank tools",
@@ -43,7 +43,7 @@
         "tools": [
           {
             "name": "opendata.providers.find",
-            "description": "Semantic search across 79 providers — ranked matches with health scores and domain tags."
+            "description": "Semantic search across 83 providers — ranked matches with health scores and domain tags."
           },
           {
             "name": "opendata.providers.activate",
