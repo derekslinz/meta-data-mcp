@@ -172,6 +172,7 @@ class EuvdSearchVulnerabilitiesParams(BaseModel):
 
     text: Optional[str] = Field(
         None,
+        min_length=1,
         description="Free-text search term.",
     )
 
