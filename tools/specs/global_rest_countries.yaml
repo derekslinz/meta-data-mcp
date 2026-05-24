@@ -1,0 +1,51 @@
+id: global_rest_countries
+server_name: global-rest-countries
+title: REST Countries
+base_url: https://restcountries.com/v3.1
+description: "Country reference data — borders, capitals, currencies, languages, populations, timezones, and regions for 250+ countries."
+homepage: https://restcountries.com/
+domains:
+- geo
+- demographics
+- government
+- knowledge
+regions:
+- global
+keywords:
+- countries
+- iso
+- borders
+- capitals
+- currencies
+- languages
+- populations
+- geography
+- reference
+tools:
+- name: restcountries-search-by-name
+  description: Search countries by full or partial common/official name.
+  endpoint: /name/{name}
+  params:
+  - name: name
+    type: str
+    required: true
+    description: Country name or partial name, such as Germany or united.
+- name: restcountries-get-by-code
+  description: Fetch one country by ISO 3166 alpha-2, alpha-3, or numeric code.
+  endpoint: /alpha/{code}
+  params:
+  - name: code
+    type: str
+    required: true
+    description: Country code such as DE, DEU, 276, or US.
+- name: restcountries-list-by-region
+  description: List countries in a geographic region such as Europe, Asia, or Americas.
+  endpoint: /region/{region}
+  params:
+  - name: region
+    type: str
+    required: true
+    description: Geographic region such as Europe, Asia, Africa, Oceania, or Americas.
+- name: restcountries-list-all
+  description: List all countries with their reference metadata.
+  endpoint: /all

@@ -269,6 +269,7 @@ This is what's inside the one server. You don't install these individually — t
 | `global_mcp_registry` | MCP Server Registry | Official MCP server registry — search and list published MCP servers |
 | `global_osm_nominatim` | OSM Nominatim | Geocoding / reverse-geocoding (1 req/sec) |
 | `global_overpass` | OSM Overpass | Query OpenStreetMap with Overpass QL |
+| `global_rest_countries` | REST Countries | Country reference data — borders, capitals, currencies, languages, populations |
 | `global_wikidata` | Wikidata | Structured knowledge graph + SPARQL |
 | `global_wikipedia` | Wikipedia | Article summaries, related, page views |
 | `us_arcgis_item` | ArcGIS REST API | Fetch public ArcGIS item metadata by ID — layers, maps, services, files |
