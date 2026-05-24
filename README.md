@@ -287,10 +287,14 @@ This is what's inside the one server. You don't install these individually — t
 | Plugin | Source | Description |
 |---|---|---|
 | `eu_euvd` | ENISA EUVD | Latest, exploited, critical, and filtered EU vulnerability search |
+| `global_circl_cve` | CIRCL CVE Search | Recent CVEs, CVE details, and vendor/product browsing |
+| `global_crtsh` | crt.sh | Certificate transparency search for domains and certificates |
 | `global_epss` | FIRST.org EPSS | Exploit prediction scores and percentile ranks for CVEs |
 | `global_nvd_cve` | NVD CVE Database | NIST CVE records, filters, and change history |
 | `global_opensanctions` | OpenSanctions | Sanctions, PEP, debarment, and related risk datasets |
 | `global_osv_dev` | OSV.dev | Open source vulnerability advisories across ecosystems |
+| `global_pwned_passwords` | Pwned Passwords | Anonymous breached-password SHA-1 prefix lookups |
+| `global_ssllabs` | SSL Labs | Public TLS configuration and endpoint analysis |
 | `us_cisa_kev` | CISA KEV | Known Exploited Vulnerabilities catalog with remediation deadlines |
 
 ### Transit / Aviation

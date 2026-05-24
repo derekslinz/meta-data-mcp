@@ -1,0 +1,30 @@
+id: global_crtsh
+server_name: global-crtsh
+title: crt.sh Certificate Transparency
+base_url: https://crt.sh
+description: "Certificate Transparency search via crt.sh for domains and certificate names."
+homepage: https://crt.sh
+domains:
+- security
+- networking
+regions:
+- global
+keywords:
+- crt.sh
+- certificate transparency
+- tls
+- certificate
+- x509
+- security
+tools:
+- name: crtsh-search-certificates
+  description: Search certificate transparency records for a domain or query string.
+  endpoint: /
+  params:
+  - name: q
+    type: str
+    required: true
+    description: Domain or query string such as example.com or %.example.com.
+  - name: exclude
+    type: str
+    description: Optional exclusion flags such as expired or expired,ca.

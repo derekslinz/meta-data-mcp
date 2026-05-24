@@ -1,0 +1,61 @@
+id: global_ssllabs
+server_name: global-ssllabs
+title: SSL Labs
+base_url: https://api.ssllabs.com/api/v3
+description: "Qualys SSL Labs API for public TLS configuration analysis and endpoint details."
+homepage: https://api.ssllabs.com/api/v3
+domains:
+- security
+- networking
+regions:
+- global
+keywords:
+- ssl labs
+- tls
+- ssl
+- certificate
+- https
+- endpoint
+- security
+tools:
+- name: ssllabs-analyze
+  description: Start or retrieve a TLS analysis for a public host.
+  endpoint: /analyze
+  params:
+  - name: host
+    type: str
+    required: true
+    description: Hostname to analyze, such as example.com.
+  - name: publish
+    type: str
+    description: Set to on or off to publish results on SSL Labs.
+  - name: start_new
+    type: str
+    description: Set to on to force a new assessment.
+  - name: from_cache
+    type: str
+    description: Set to on or off to control cache usage.
+  - name: all
+    type: str
+    description: Set to on to include all status messages.
+  - name: ignore_mismatch
+    type: str
+    description: Set to on to continue despite hostname mismatch.
+- name: ssllabs-endpoint-data
+  description: Fetch detailed TLS analysis results for a specific analyzed endpoint IP.
+  endpoint: /getEndpointData
+  params:
+  - name: host
+    type: str
+    required: true
+    description: Hostname used for the analysis.
+  - name: ip
+    type: str
+    required: true
+    description: Endpoint IP address from the analyze response.
+  - name: from_cache
+    type: str
+    description: Set to on or off to control cache usage.
+- name: ssllabs-info
+  description: Fetch SSL Labs API engine metadata and assessment capacity information.
+  endpoint: /info
