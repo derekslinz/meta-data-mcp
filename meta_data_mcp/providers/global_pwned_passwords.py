@@ -14,6 +14,7 @@ import mcp.types as types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.utils import (
+    MAX_RESPONSE_CHARS,
     create_mcp_server,
     http_get,
     run_server,
@@ -52,7 +53,12 @@ def fetch_pwned_passwords_range(params: PwnedPasswordsRangeParams) -> str:
     """Fetch data for the pwned-passwords-range tool."""
     url = f"{BASE_URL}/range/{params.sha1_prefix.upper()}"
     query: dict = {}
-    response = http_get(url, params=query or None, provider=PROVIDER_ID)
+    response = http_get(
+        url,
+        params=query or None,
+        provider=PROVIDER_ID,
+        headers={"Accept": "text/plain"},
+    )
     return response.text
 
 
@@ -63,7 +69,7 @@ async def handle_pwned_passwords_range(
     try:
         params = PwnedPasswordsRangeParams(**(arguments or {}))
         data = fetch_pwned_passwords_range(params)
-        return [types.TextContent(type="text", text=(data or "")[:20000])]
+        return [types.TextContent(type="text", text=(data or "")[:MAX_RESPONSE_CHARS])]
     except Exception as e:
         log.error(f"Error handling pwned-passwords-range: {e}")
         raise

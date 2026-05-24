@@ -14,6 +14,7 @@ from meta_data_mcp.providers.global_pwned_passwords import (
     fetch_pwned_passwords_range,
     handle_pwned_passwords_range,
 )
+from meta_data_mcp.utils import MAX_RESPONSE_CHARS
 
 
 @pytest.fixture
@@ -38,6 +39,7 @@ def test_fetch_pwned_passwords_range_uppercases_prefix():
         )
         assert result == "ABCDEF:42"
         assert mock_get.call_args[0][0].endswith("/range/ABCDE")
+        assert mock_get.call_args.kwargs["headers"]["Accept"] == "text/plain"
 
 
 @pytest.mark.parametrize(
@@ -66,3 +68,11 @@ async def test_pwned_passwords_range_http_error():
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
             await handle_pwned_passwords_range({"sha1_prefix": "ABCDE"})
+
+
+@pytest.mark.anyio
+async def test_pwned_passwords_range_truncates_to_max_response_chars():
+    with patch("httpx.get") as mock_get:
+        mock_get.return_value = _ok("A" * (MAX_RESPONSE_CHARS + 10))
+        result = await handle_pwned_passwords_range({"sha1_prefix": "ABCDE"})
+        assert len(result[0].text) == MAX_RESPONSE_CHARS

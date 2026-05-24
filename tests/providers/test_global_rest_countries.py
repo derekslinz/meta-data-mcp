@@ -47,6 +47,15 @@ def test_fetch_restcountries_search_by_name_uses_name_in_path():
         assert mock_get.call_args[0][0].endswith("/name/Germany")
 
 
+def test_fetch_restcountries_search_by_name_url_encodes_path_segment():
+    with patch("httpx.get") as mock_get:
+        mock_get.return_value = _ok([{"name": {"common": "Côte d'Ivoire"}}])
+        fetch_restcountries_search_by_name(
+            RestcountriesSearchByNameParams(name="Côte d'Ivoire")
+        )
+        assert mock_get.call_args[0][0].endswith("/name/C%C3%B4te%20d%27Ivoire")
+
+
 def test_fetch_restcountries_get_by_code_uses_code_in_path():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"cca2": "DE"}])
@@ -57,6 +66,13 @@ def test_fetch_restcountries_get_by_code_uses_code_in_path():
         assert mock_get.call_args[0][0].endswith("/alpha/DE")
 
 
+def test_fetch_restcountries_get_by_code_url_encodes_path_segment():
+    with patch("httpx.get") as mock_get:
+        mock_get.return_value = _ok([{"cca2": "DE"}])
+        fetch_restcountries_get_by_code(RestcountriesGetByCodeParams(code="D E"))
+        assert mock_get.call_args[0][0].endswith("/alpha/D%20E")
+
+
 def test_fetch_restcountries_list_by_region_uses_region_in_path():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"region": "Europe"}])
@@ -65,6 +81,15 @@ def test_fetch_restcountries_list_by_region_uses_region_in_path():
         )
         assert result[0]["region"] == "Europe"
         assert mock_get.call_args[0][0].endswith("/region/Europe")
+
+
+def test_fetch_restcountries_list_by_region_url_encodes_path_segment():
+    with patch("httpx.get") as mock_get:
+        mock_get.return_value = _ok([{"region": "Middle East"}])
+        fetch_restcountries_list_by_region(
+            RestcountriesListByRegionParams(region="Middle East")
+        )
+        assert mock_get.call_args[0][0].endswith("/region/Middle%20East")
 
 
 @pytest.mark.parametrize(
