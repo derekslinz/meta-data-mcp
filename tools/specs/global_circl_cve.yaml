@@ -1,0 +1,57 @@
+id: global_circl_cve
+server_name: global-circl-cve
+title: CIRCL CVE Search
+base_url: https://cve.circl.lu/api
+description: "CIRCL public CVE search API for recent CVEs, vendor/product browsing, and CVE detail lookups."
+homepage: https://www.circl.lu/services/cve-search/
+domains:
+- security
+regions:
+- global
+keywords:
+- circl
+- cve
+- vulnerability
+- vendor
+- product
+- security
+tools:
+- name: circl-cve-last
+  description: Fetch the most recent CVEs from CIRCL.
+  endpoint: /last/{limit}
+  params:
+  - name: limit
+    type: int
+    required: true
+    description: Number of recent CVEs to return.
+- name: circl-cve-get
+  description: Fetch detailed information for a specific CVE id.
+  endpoint: /cve/{cve_id}
+  params:
+  - name: cve_id
+    type: str
+    required: true
+    description: CVE identifier such as CVE-2024-3094.
+- name: circl-cve-browse-vendors
+  description: List vendors present in CIRCL's CVE database.
+  endpoint: /browse
+- name: circl-cve-browse-products
+  description: List products associated with a given vendor in CIRCL's CVE database.
+  endpoint: /browse/{vendor}
+  params:
+  - name: vendor
+    type: str
+    required: true
+    description: Vendor name such as microsoft or oracle.
+- name: circl-cve-search
+  description: Search CVEs for a vendor and product combination.
+  endpoint: /search
+  params:
+  - name: vendor
+    type: str
+    required: true
+    description: Vendor name such as oracle.
+  - name: product
+    type: str
+    required: true
+    description: Product name such as mysql.

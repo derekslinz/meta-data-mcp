@@ -1,0 +1,74 @@
+id: eu_euvd
+server_name: eu-euvd
+title: ENISA EU Vulnerability Database
+base_url: https://euvdservices.enisa.europa.eu/api
+description: "ENISA EU Vulnerability Database (EUVD) API for latest, exploited, critical, and filtered vulnerability search."
+homepage: https://euvd.enisa.europa.eu/apidoc
+domains:
+- security
+regions:
+- eu
+- global
+keywords:
+- euvd
+- enisa
+- vulnerability
+- cve
+- exploited
+- critical
+- security
+tools:
+- name: euvd-latest-vulnerabilities
+  description: Fetch the latest vulnerability records from EUVD.
+  endpoint: /lastvulnerabilities
+- name: euvd-exploited-vulnerabilities
+  description: Fetch the latest vulnerabilities marked as exploited by EUVD.
+  endpoint: /exploitedvulnerabilities
+- name: euvd-critical-vulnerabilities
+  description: Fetch the latest critical vulnerabilities from EUVD.
+  endpoint: /criticalvulnerabilities
+- name: euvd-search-vulnerabilities
+  description: Search EUVD vulnerabilities by score, exploited flag, vendor, product, text, assigner, and date filters.
+  endpoint: /search
+  params:
+  - name: text
+    type: str
+    description: Free-text search term.
+  - name: vendor
+    type: str
+    description: Vendor filter such as Microsoft.
+  - name: product
+    type: str
+    description: Product filter such as Windows.
+  - name: assigner
+    type: str
+    description: Assigner filter.
+  - name: exploited
+    type: bool
+    description: Filter to exploited or non-exploited vulnerabilities.
+  - name: from_score
+    type: float
+    description: Minimum score filter.
+  - name: to_score
+    type: float
+    description: Maximum score filter.
+  - name: from_date
+    type: str
+    description: Lower published-date bound in YYYY-MM-DD format.
+  - name: to_date
+    type: str
+    description: Upper published-date bound in YYYY-MM-DD format.
+  - name: from_updated_date
+    type: str
+    description: Lower updated-date bound in YYYY-MM-DD format.
+  - name: to_updated_date
+    type: str
+    description: Upper updated-date bound in YYYY-MM-DD format.
+  - name: page
+    type: int
+    default: 0
+    description: Zero-indexed page number.
+  - name: size
+    type: int
+    default: 20
+    description: Number of results to return per page.

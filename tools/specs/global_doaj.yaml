@@ -1,0 +1,50 @@
+id: global_doaj
+server_name: global-doaj
+title: Directory of Open Access Journals
+base_url: https://doaj.org/api/v2/search
+description: "Directory of Open Access Journals (DOAJ) search API for open-access journals and articles."
+homepage: https://doaj.org/
+domains:
+- scholarly
+regions:
+- global
+keywords:
+- doaj
+- open access
+- journals
+- articles
+- scholarly
+- oa
+tools:
+- name: doaj-search-articles
+  description: Search open-access articles indexed by DOAJ.
+  endpoint: /articles/
+  params:
+  - name: q
+    type: str
+    required: true
+    description: Search query, such as cancer, climate, or author:Smith.
+  - name: page
+    type: int
+    default: 1
+    description: 1-indexed page number.
+  - name: page_size
+    type: int
+    default: 20
+    description: Number of results to return per page.
+- name: doaj-search-journals
+  description: Search open-access journals indexed by DOAJ.
+  endpoint: /journals/
+  params:
+  - name: q
+    type: str
+    required: true
+    description: Search query, such as biology, publisher:Springer, or issn:1234-5678.
+  - name: page
+    type: int
+    default: 1
+    description: 1-indexed page number.
+  - name: page_size
+    type: int
+    default: 20
+    description: Number of results to return per page.

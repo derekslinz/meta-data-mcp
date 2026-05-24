@@ -17,6 +17,11 @@ inside the regular ``test`` job rather than a dedicated workflow:
    unreviewed CDN would land silently otherwise (bundle-size budget
    catches inflation, not origin drift).
 
+3. **README registry coverage (M5)** — the bundled-plugin catalog and
+   optional environment-variable table must stay in sync with the
+   source-of-truth provider registry so docs don't silently lose new
+   providers or auth knobs.
+
 Both tests parse with regular expressions because htmls in this repo
 are hand-authored, single-file, and small enough that pulling in
 lxml/beautifulsoup would be more risk than parser-leniency saves.
@@ -28,10 +33,12 @@ import re
 from pathlib import Path
 
 import pytest
+from meta_data_mcp.registry import REGISTRY
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROVIDERS_DIR = REPO_ROOT / "meta_data_mcp" / "providers"
 BUNDLES_DIR = REPO_ROOT / "meta_data_mcp" / "ui_resources"
+README_PATH = REPO_ROOT / "README.md"
 
 
 # ---------------------------------------------------------------------------
@@ -127,4 +134,61 @@ def test_bundle_directory_is_populated() -> None:
     Pin a floor so a refactor that moves the directory fails loudly."""
     assert _bundles(), (
         f"No bundles found in {BUNDLES_DIR} — directory moved or glob is stale."
+    )
+
+
+# ---------------------------------------------------------------------------
+# M5 — README coverage for bundled providers and optional env vars
+# ---------------------------------------------------------------------------
+
+README_BUNDLED_SECTION_RE = re.compile(
+    r"^## Bundled plugins(?: \(\d+\))?\n(?P<body>.*?)(?=^## Optional environment variables$)",
+    re.MULTILINE | re.DOTALL,
+)
+README_OPTIONAL_ENV_SECTION_RE = re.compile(
+    r"^## Optional environment variables\n(?P<body>.*?)(?=^## Transports$)",
+    re.MULTILINE | re.DOTALL,
+)
+README_PROVIDER_ROW_RE = re.compile(r"^\| `([a-z0-9_]+)` \|", re.MULTILINE)
+README_ENV_ROW_RE = re.compile(r"^\| `([A-Z][A-Z0-9_]+)` \|", re.MULTILINE)
+
+
+def _readme_section(pattern: re.Pattern[str], *, section_name: str) -> str:
+    text = README_PATH.read_text(encoding="utf-8")
+    match = pattern.search(text)
+    assert match is not None, f"Could not find README section: {section_name}"
+    return match.group("body")
+
+
+def test_readme_bundled_plugins_cover_registry() -> None:
+    """Every static provider in the registry must be documented in the
+    bundled-plugin catalog so new providers don't ship undocumented.
+    """
+    body = _readme_section(
+        README_BUNDLED_SECTION_RE,
+        section_name="Bundled plugins",
+    )
+    documented = {match.group(1) for match in README_PROVIDER_ROW_RE.finditer(body)}
+    registry_ids = {entry.id for entry in REGISTRY}
+    missing = sorted(registry_ids - documented)
+    extra = sorted(documented - registry_ids)
+    assert not missing and not extra, (
+        "README bundled-plugin catalog drifted from meta_data_mcp.registry: "
+        f"missing={missing}, extra={extra}"
+    )
+
+
+def test_readme_optional_env_vars_cover_registry() -> None:
+    """Every registry-declared provider env var must be documented in the
+    optional-env table so users see the available auth/rate-limit knobs.
+    """
+    body = _readme_section(
+        README_OPTIONAL_ENV_SECTION_RE,
+        section_name="Optional environment variables",
+    )
+    documented = {match.group(1) for match in README_ENV_ROW_RE.finditer(body)}
+    registry_vars = {var for entry in REGISTRY for var in entry.requires_env}
+    missing = sorted(registry_vars - documented)
+    assert not missing, (
+        f"README optional-env table is missing registry-declared variable(s): {missing}"
     )

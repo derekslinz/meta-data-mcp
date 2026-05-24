@@ -2,9 +2,9 @@
 
 <!-- mcp-name: io.github.derekslinz/meta-data-mcp -->
 
-> A single MCP server that transparently routes user requests to 76 open-data sources.
+> A single MCP server that transparently routes user requests to 83 open-data sources.
 
-`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 76 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server, one set of tools, and one place to ask "where can I find data about X?"
+`meta-data-mcp` is one MCP server — not many. Under the hood it bundles 83 *plugins*, each wrapping a different open-data API. The plugins are an implementation detail; from your LLM's perspective there is one server and one place to ask "where can I find data about X?"
 
 You install one server. You get all the data, discoverable through built-in routing tools.
 
@@ -49,7 +49,7 @@ The command auto-detects which MCP clients you have installed and adds **one** `
 | Gemini CLI | `~/.gemini/settings.json` |
 | LM Studio | `~/.cache/lm-studio/mcp.json` |
 
-Each existing config is backed up to `<file>.bak` before writing. Restart the affected client(s) and you'll see one new server with discovery tools + every plugin's tools available under it.
+Each existing config is backed up to `<file>.bak` before writing. Restart the affected client(s) and you'll see one new server with discovery tools available immediately; plugin tools can then be activated on demand.
 
 Inspect what's detected / configured on your machine:
 
@@ -83,8 +83,8 @@ There is one server, so the CLI takes no "provider" argument. Every command oper
 | Command | What it does |
 |---|---|
 | `uv run meta-data-mcp run` | Run the server (default SSE; pass `--transport stdio` for Claude Desktop). |
-| `uv run meta-data-mcp setup` | Register the server in Claude Desktop's config. |
-| `uv run meta-data-mcp remove` | Unregister the server from Claude Desktop. |
+| `uv run meta-data-mcp setup` | Register the server in detected MCP client configs (or one target via `--client`). |
+| `uv run meta-data-mcp remove` | Unregister the server from detected MCP client configs (or one target via `--client`). |
 | `uv run meta-data-mcp cleanup` | Detect and remove legacy multi-server entries (`--apply` to commit). |
 | `uv run meta-data-mcp inspect` | Launch [mcp-inspector](https://modelcontextprotocol.io/docs/tools/inspector) against the server. |
 | `uv run meta-data-mcp list` | Informational: list the internal plugins bundled in this server. |
@@ -98,8 +98,8 @@ The `list` command exists for transparency about what's bundled — **plugins ar
 
 Once `meta-data-mcp` is running, the LLM has access to two layers of tools — and you don't need to mention either to the user:
 
-1. **Meta tools** — the eight server-level tools below. They make routing transparent: the LLM uses them to find (or create) the right plugin without you telling it which tool to call.
-2. **Plugin tools** — ~330 tools coming from the 76 bundled plugins. They are merged into the same namespace at startup. The LLM picks one after consulting the meta tools.
+1. **Meta tools** — the 13 server-level tools below. They make routing transparent: the LLM uses them to find, activate, and (if needed) create the right plugin without you telling it which tool to call.
+2. **Plugin tools** — ~330 tools coming from the 83 bundled plugins. In the default discovery-only mode they are activated per provider at runtime (or preloaded via `META_DATA_MCP_PRELOAD`). The LLM picks one after consulting the meta tools.
 
 ### Meta tools
 
@@ -111,8 +111,13 @@ Once `meta-data-mcp` is running, the LLM has access to two layers of tools — a
 | `opendata.regions.list` | Enumerate the controlled region vocabulary (`us`, `eu`, `uk`, `global`, …). |
 | `opendata.providers.describe` | Full metadata for one plugin by id — title, description, domains, regions, keywords, homepage, required env vars. |
 | `opendata.providers.list` | Paginated dump of the whole registry. |
+| `opendata.providers.activate` | Activate one provider so its tools become callable in this session. |
+| `opendata.providers.deactivate` | Remove an activated provider's tools from the current session catalog. |
+| `opendata.providers.list_active` | List currently active providers and the tool names each contributes. |
+| `opendata.health.snapshot` | Return per-provider health scores used by discovery health badges and routing context. |
 | `opendata.plugins.draft` | **Build a validated plugin YAML spec from structured inputs.** Takes id, base_url, tool definitions (name, endpoint, params), and registry metadata. Validates id/tool-name casing, path-placeholder/param consistency, and parameter types, then emits a YAML string ready to feed into `opendata.plugins.create`. Use this so the LLM never has to hand-author YAML. |
 | `opendata.plugins.create` | **Autonomously create a new plugin.** Takes a YAML spec (typically produced by `opendata.plugins.draft`), runs the generator, imports the new module, registers it in the live registry, and hot-loads its tools onto the running server. Use this when `opendata.providers.find` returns no match. |
+| `opendata.tool.call` | Proxy-call an activated plugin tool by name for environments that cannot directly invoke dynamically added tools. |
 
 ### The autonomous discovery flow
 
@@ -120,7 +125,7 @@ The reason this server is called "meta" is that it routes data requests on the u
 
 1. **User asks for data**, e.g. "show me the most recent published CVEs."
 2. **LLM calls `opendata.providers.find`** with the query (`cve`, `vulnerability`, …).
-3. **If the registry has a match**: the LLM picks the matching plugin's tool and answers — done.
+3. **If the registry has a match**: the LLM activates the matching provider (`opendata.providers.activate`, or `activate_top` in find) and then calls the plugin tool.
 4. **If the registry has no match**: the response includes `no_match: true` and a `next_step` field that explains the autonomous creation path. The LLM:
    1. Tells the user it's about to add coverage for this data source.
    2. Web-searches for an open API that exposes the requested data (e.g. the NVD or CIRCL CVE API).
@@ -133,7 +138,7 @@ The materialized plugin lives on disk (`meta_data_mcp/providers/{id}.py` + `test
 
 ### Plugin tools
 
-Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata.providers.find` and `opendata.providers.describe`; you don't need to memorize them.
+Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata.providers.find`/`opendata.providers.describe`, activates the provider when needed, and can inspect session state with `opendata.providers.list_active`.
 
 ## Presentation layer (MCP Apps)
 
@@ -180,7 +185,7 @@ tools:
 
 See [`tools/specs/README.md`](tools/specs/README.md) for the full reference. Bundle-size budgets are enforced in CI (warn ≥ 100 KB, error ≥ 1 MB); the v2.0 bundles range from 14 KB (timeseries primitive) to 34 KB (vulnerability app), all comfortably inside the budget.
 
-## Bundled plugins (76)
+## Bundled plugins (83)
 
 This is what's inside the one server. You don't install these individually — they all come along.
 
@@ -205,6 +210,7 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `eu_eurostat` | Eurostat | European Union statistics |
 | `global_imf` | International Monetary Fund | IMF SDMX 2.1 statistical data |
+| `global_faostat` | FAOSTAT | UN food and agriculture statistics — production, prices, trade, land use, emissions |
 | `global_dbnomics` | DBnomics | Global economic data aggregator (IMF, World Bank, etc.) |
 | `global_oecd` | OECD | OECD economic & social statistics (SDMX) |
 | `global_world_bank` | World Bank | Development indicators by country |
@@ -240,6 +246,7 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `eu_copernicus` | Copernicus (EU) | European Earth observation and climate datasets |
 | `global_open_meteo` | Open-Meteo | Weather forecast + historical + air quality |
+| `global_openaq` | OpenAQ | Global air-quality measurements from reference monitors and sensors |
 | `us_ncdeq_gis` | NC DEQ Environmental GIS | NC Dept. of Environmental Quality ArcGIS Hub — permits, air/water quality, hazardous waste |
 | `us_noaa_ncei` | NOAA NCEI | Climate data access services (key-less) |
 | `us_noaa_tides` | NOAA Tides & Currents | Water levels, tides, currents |
@@ -259,13 +266,36 @@ This is what's inside the one server. You don't install these individually — t
 
 | Plugin | Source | Description |
 |---|---|---|
+| `global_mcp_registry` | MCP Server Registry | Official MCP server registry — search and list published MCP servers |
 | `global_osm_nominatim` | OSM Nominatim | Geocoding / reverse-geocoding (1 req/sec) |
 | `global_overpass` | OSM Overpass | Query OpenStreetMap with Overpass QL |
+| `global_rest_countries` | REST Countries | Country reference data — borders, capitals, currencies, languages, populations |
 | `global_wikidata` | Wikidata | Structured knowledge graph + SPARQL |
 | `global_wikipedia` | Wikipedia | Article summaries, related, page views |
 | `us_arcgis_item` | ArcGIS REST API | Fetch public ArcGIS item metadata by ID — layers, maps, services, files |
 | `us_census_geocoder` | US Census Geocoder | Address ⇄ coordinates ⇄ geographies |
 | `us_nc_onemap` | NC OneMap | NC's authoritative GIS clearinghouse via ArcGIS REST — statewide geographic layers |
+
+### Agriculture / Trade
+
+| Plugin | Source | Description |
+|---|---|---|
+| `global_un_comtrade` | UN Comtrade | International merchandise and services trade statistics |
+
+### Security / Vulnerability
+
+| Plugin | Source | Description |
+|---|---|---|
+| `eu_euvd` | ENISA EUVD | Latest, exploited, critical, and filtered EU vulnerability search |
+| `global_circl_cve` | CIRCL CVE Search | Recent CVEs, CVE details, and vendor/product browsing |
+| `global_crtsh` | crt.sh | Certificate transparency search for domains and certificates |
+| `global_epss` | FIRST.org EPSS | Exploit prediction scores and percentile ranks for CVEs |
+| `global_nvd_cve` | NVD CVE Database | NIST CVE records, filters, and change history |
+| `global_opensanctions` | OpenSanctions | Sanctions, PEP, debarment, and related risk datasets |
+| `global_osv_dev` | OSV.dev | Open source vulnerability advisories across ecosystems |
+| `global_pwned_passwords` | Pwned Passwords | Anonymous breached-password SHA-1 prefix lookups |
+| `global_ssllabs` | SSL Labs | Public TLS configuration and endpoint analysis |
+| `us_cisa_kev` | CISA KEV | Known Exploited Vulnerabilities catalog with remediation deadlines |
 
 ### Transit / Aviation
 
@@ -283,6 +313,7 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `global_arxiv` | arXiv | Preprint metadata (Atom XML) |
 | `global_crossref` | Crossref | DOI metadata, citations, journals |
+| `global_doaj` | DOAJ | Open-access journal and article search |
 | `global_europepmc` | Europe PMC | Biomedical literature + fulltext XML |
 | `global_openalex` | OpenAlex | Open scholarly metadata |
 
@@ -293,6 +324,12 @@ This is what's inside the one server. You don't install these individually — t
 | `global_met_museum` | Met Museum | Met Museum Open Access (CC0) |
 | `global_open_library` | Open Library | Books, authors, works (Internet Archive) |
 | `global_unesco_heritage` | UNESCO World Heritage Sites | Natural, cultural & mixed World Heritage Sites |
+
+### News / Media
+
+| Plugin | Source | Description |
+|---|---|---|
+| `global_gdelt` | GDELT 2.0 | Global news, event, and tone monitoring across 100+ languages |
 
 ### Networking / Internet
 
@@ -317,7 +354,11 @@ A few bundled plugins accept optional API keys for higher rate limits. Set these
 | Variable | Plugin | Purpose |
 |---|---|---|
 | `COURTLISTENER_API_TOKEN` | `us_courtlistener` | Anonymous access works at low volumes |
+| `NVD_API_KEY` | `global_nvd_cve` | Raises NVD API rate limits |
 | `META_DATA_MCP_CONTACT` | all | Your email, used in User-Agent for polite-pool APIs (Crossref, OpenAlex, OSM, SEC EDGAR). Defaults to `meta-data-mcp@example.org`. |
+| `OPENAQ_API_KEY` | `global_openaq` | Enables authenticated OpenAQ API access |
+| `OPENSANCTIONS_API_KEY` | `global_opensanctions` | Enables authenticated OpenSanctions API access |
+| `UN_COMTRADE_API_KEY` | `global_un_comtrade` | Enables higher-tier UN Comtrade API access |
 
 ### Server runtime flags
 
@@ -352,8 +393,7 @@ uv run meta-data-mcp run --host 0.0.0.0 --port 3001       # SSE bound to all int
 
 ### Still ahead
 
-- Expand provider coverage beyond the current 76.
-- MCP Apps presentation layer — shape primitives (timeseries, geo, records) for inline data visualization in supporting hosts.
+- Expand provider coverage beyond the current 83.
 
 
 ## Credits
