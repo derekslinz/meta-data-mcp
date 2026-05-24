@@ -274,6 +274,23 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         homepage="https://disease.sh/",
     ),
     ProviderEntry(
+        id="global_doaj",
+        server_name="global-doaj",
+        title="Directory of Open Access Journals (DOAJ)",
+        description="Open-access journal and article search across the DOAJ index.",
+        domains=("scholarly",),
+        regions=("global",),
+        keywords=(
+            "doaj",
+            "open access",
+            "journals",
+            "articles",
+            "scholarly",
+            "oa",
+        ),
+        homepage="https://doaj.org/",
+    ),
+    ProviderEntry(
         id="global_epss",
         server_name="global-epss",
         title="FIRST.org EPSS",

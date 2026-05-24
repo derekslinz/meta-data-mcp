@@ -308,6 +308,7 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `global_arxiv` | arXiv | Preprint metadata (Atom XML) |
 | `global_crossref` | Crossref | DOI metadata, citations, journals |
+| `global_doaj` | DOAJ | Open-access journal and article search |
 | `global_europepmc` | Europe PMC | Biomedical literature + fulltext XML |
 | `global_openalex` | OpenAlex | Open scholarly metadata |
 
