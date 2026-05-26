@@ -1986,7 +1986,12 @@ TOOLS_HANDLERS["opendata.tool.call"] = handle_call_tool
 
 
 async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"):
+    from meta_data_mcp.logging_config import configure_logging
+    from meta_data_mcp.telemetry import configure_otel
     from meta_data_mcp.utils import create_mcp_server, run_server
+
+    configure_logging()
+    configure_otel()
 
     plugins_loaded, plugin_tools_added = _load_all_plugins()
     log.info(
