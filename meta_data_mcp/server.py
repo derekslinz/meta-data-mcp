@@ -736,7 +736,7 @@ async def run_server(
             app,
             host=host,
             port=port,
-            log_level="debug",
+            log_level=os.environ.get("LOG_LEVEL", "info").lower(),
             timeout_keep_alive=65,
             timeout_notify=60,
         )

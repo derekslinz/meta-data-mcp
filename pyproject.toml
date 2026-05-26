@@ -42,6 +42,13 @@ dependencies = [
     "uvicorn>=0.42.0",
 ]
 
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-instrumentation-httpx>=0.41b0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+]
+
 [project.urls]
 Homepage = "https://github.com/derekslinz/meta-data-mcp"
 Repository = "https://github.com/derekslinz/meta-data-mcp"
