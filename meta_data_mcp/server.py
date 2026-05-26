@@ -733,7 +733,7 @@ async def run_server(
         # plugin activation state and token verification are moved to shared
         # cross-worker storage.
         _UVICORN_LEVELS = frozenset(
-            {"critical", "error", "warning", "warn", "info", "debug", "trace"}
+            {"critical", "error", "warning", "warn", "info", "debug"}
         )
         _requested = os.environ.get("LOG_LEVEL", "info").lower()
         _uvicorn_level = _requested if _requested in _UVICORN_LEVELS else "info"
