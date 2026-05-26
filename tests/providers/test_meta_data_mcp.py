@@ -986,28 +986,32 @@ async def test_main_function_creates_server():
     """Test that main function creates MCP server with all resources/tools/prompts."""
     from meta_data_mcp.providers.meta_data_mcp import main
 
-    with patch("meta_data_mcp.utils.create_mcp_server") as mock_create:
-        with patch("meta_data_mcp.utils.run_server") as mock_run:
-            mock_server = object()
-            mock_create.return_value = mock_server
+    with (
+        patch("meta_data_mcp.utils.create_mcp_server") as mock_create,
+        patch("meta_data_mcp.utils.run_server") as mock_run,
+        patch("meta_data_mcp.logging_config.configure_logging"),
+        patch("meta_data_mcp.telemetry.configure_otel"),
+    ):
+        mock_server = object()
+        mock_create.return_value = mock_server
 
-            # Call main with mocked functions
-            await main(transport="stdio", port=8000, host="127.0.0.1")
+        # Call main with mocked functions
+        await main(transport="stdio", port=8000, host="127.0.0.1")
 
-            # Verify the server was created with the unified server name
-            # and that the merged TOOLS/HANDLERS were passed through.
-            mock_create.assert_called_once()
-            call_kwargs = mock_create.call_args.kwargs
-            assert mock_create.call_args.args[0] == "meta-data-mcp"
-            assert call_kwargs["resources"] is RESOURCES
-            assert call_kwargs["resources_handlers"] is RESOURCES_HANDLERS
-            assert call_kwargs["tools"] is TOOLS
-            assert call_kwargs["tools_handlers"] is TOOLS_HANDLERS
-            assert call_kwargs["prompts"] is PROMPTS
-            assert call_kwargs["prompts_handlers"] is PROMPTS_HANDLERS
+        # Verify the server was created with the unified server name
+        # and that the merged TOOLS/HANDLERS were passed through.
+        mock_create.assert_called_once()
+        call_kwargs = mock_create.call_args.kwargs
+        assert mock_create.call_args.args[0] == "meta-data-mcp"
+        assert call_kwargs["resources"] is RESOURCES
+        assert call_kwargs["resources_handlers"] is RESOURCES_HANDLERS
+        assert call_kwargs["tools"] is TOOLS
+        assert call_kwargs["tools_handlers"] is TOOLS_HANDLERS
+        assert call_kwargs["prompts"] is PROMPTS
+        assert call_kwargs["prompts_handlers"] is PROMPTS_HANDLERS
 
-            # Verify run_server was called
-            mock_run.assert_awaited_once_with(mock_server, "stdio", 8000, "127.0.0.1")
+        # Verify run_server was called
+        mock_run.assert_awaited_once_with(mock_server, "stdio", 8000, "127.0.0.1")
 
 
 # ---------------------------------------------------------------------------

@@ -732,11 +732,16 @@ async def run_server(
         # for SSE deployments; do not use multiple uvicorn workers unless
         # plugin activation state and token verification are moved to shared
         # cross-worker storage.
+        _UVICORN_LEVELS = frozenset(
+            {"critical", "error", "warning", "warn", "info", "debug", "trace"}
+        )
+        _requested = os.environ.get("LOG_LEVEL", "info").lower()
+        _uvicorn_level = _requested if _requested in _UVICORN_LEVELS else "info"
         config = uvicorn.Config(
             app,
             host=host,
             port=port,
-            log_level=os.environ.get("LOG_LEVEL", "info").lower(),
+            log_level=_uvicorn_level,
             timeout_keep_alive=65,
             timeout_notify=60,
         )
