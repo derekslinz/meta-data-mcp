@@ -104,13 +104,15 @@ def test_configure_logging_preserves_foreign_handlers(monkeypatch):
     """configure_logging() removes only its own previously-installed handler."""
     import meta_data_mcp.logging_config as lc
 
-    lc._installed_handler = None  # start clean
+    root = logging.getLogger()
+    if lc._installed_handler is not None:
+        root.removeHandler(lc._installed_handler)
+        lc._installed_handler = None  # start clean
     monkeypatch.delenv("LOG_FORMAT", raising=False)
     monkeypatch.delenv("LOG_LEVEL", raising=False)
 
     # Simulate a foreign handler (e.g. pytest caplog) already on the root logger.
     foreign = logging.StreamHandler()
-    root = logging.getLogger()
     root.addHandler(foreign)
     handler_count_before = len(root.handlers)
 
