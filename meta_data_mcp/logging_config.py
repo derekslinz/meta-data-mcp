@@ -17,6 +17,17 @@ import os
 import sys
 import time
 
+# Valid Python logging level names. Anything else falls back to INFO.
+_PYTHON_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL"})
+
+_TEXT_FMT = "%(asctime)s %(levelname)-8s %(name)s — %(message)s"
+_DATE_FMT = "%Y-%m-%dT%H:%M:%S"
+
+# Handler installed by the most recent configure_logging() call.
+# We remove only our own handler on re-configuration, leaving any handlers
+# installed by pytest (caplog), uvicorn, or third-party code intact.
+_installed_handler: logging.Handler | None = None
+
 
 class _JsonFormatter(logging.Formatter):
     """One JSON object per log record, written to a single line."""
@@ -28,21 +39,23 @@ class _JsonFormatter(logging.Formatter):
             "logger": record.name,
             "msg": record.getMessage(),
         }
-        if record.exc_info:
+        # exc_info=(None, None, None) is a truthy tuple — guard on the type explicitly.
+        if record.exc_info and record.exc_info[0] is not None:
             obj["exc"] = self.formatException(record.exc_info)
         if record.stack_info:
             obj["stack"] = self.formatStack(record.stack_info)
         return json.dumps(obj, ensure_ascii=False)
 
 
-_TEXT_FMT = "%(asctime)s %(levelname)-8s %(name)s — %(message)s"
-_DATE_FMT = "%Y-%m-%dT%H:%M:%S"
-
-
 def configure_logging() -> None:
     """Configure root logger from LOG_LEVEL / LOG_FORMAT env vars."""
+    global _installed_handler
+
     level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
+    if level_name not in _PYTHON_LEVELS:
+        # Unknown level — fall back silently so startup never fails.
+        level_name = "INFO"
+    level = getattr(logging, level_name)
 
     log_format = os.environ.get("LOG_FORMAT", "text").lower()
 
@@ -54,5 +67,11 @@ def configure_logging() -> None:
 
     root = logging.getLogger()
     root.setLevel(level)
-    root.handlers.clear()
+
+    # Remove only the handler we previously installed — do not touch handlers
+    # added by pytest (caplog), uvicorn, or other libraries.
+    if _installed_handler is not None:
+        root.removeHandler(_installed_handler)
+
     root.addHandler(handler)
+    _installed_handler = handler

@@ -100,6 +100,92 @@ def test_json_formatter_includes_exception():
     assert "ValueError" in obj["exc"]
 
 
+def test_configure_logging_preserves_foreign_handlers(monkeypatch):
+    """configure_logging() removes only its own previously-installed handler."""
+    import meta_data_mcp.logging_config as lc
+
+    root = logging.getLogger()
+    if lc._installed_handler is not None:
+        root.removeHandler(lc._installed_handler)
+        lc._installed_handler = None  # start clean
+    monkeypatch.delenv("LOG_FORMAT", raising=False)
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+
+    # Simulate a foreign handler (e.g. pytest caplog) already on the root logger.
+    foreign = logging.StreamHandler()
+    root.addHandler(foreign)
+    handler_count_before = len(root.handlers)
+
+    configure_logging()
+
+    # Foreign handler must still be present; our new handler was added too.
+    assert foreign in root.handlers, "foreign handler was incorrectly removed"
+    assert len(root.handlers) == handler_count_before + 1
+
+    # Second call must remove our previously-installed handler but keep the foreign one.
+    configure_logging()
+    assert foreign in root.handlers, (
+        "foreign handler removed on second configure_logging()"
+    )
+    # net count stays the same: removed ours, added new ours
+    assert len(root.handlers) == handler_count_before + 1
+
+    # Cleanup
+    root.removeHandler(foreign)
+    root.removeHandler(lc._installed_handler)
+    lc._installed_handler = None
+
+
+def test_json_formatter_no_exc_for_none_exc_info():
+    """exc_info=(None, None, None) must NOT produce an 'exc' key in JSON output."""
+    formatter = _JsonFormatter()
+    record = logging.LogRecord(
+        name="test",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="plain message",
+        args=(),
+        exc_info=(None, None, None),  # truthy tuple but no real exception
+    )
+    obj = json.loads(formatter.format(record))
+    assert "exc" not in obj, "spurious 'exc' key when exc_info=(None, None, None)"
+
+
+def test_uvicorn_log_level_validation(monkeypatch):
+    """Invalid LOG_LEVEL falls back to 'info' for uvicorn rather than crashing."""
+    from unittest.mock import MagicMock
+
+    from meta_data_mcp.utils import create_mcp_server, run_server
+
+    monkeypatch.setenv("LOG_LEVEL", "INVALID_LEVEL")
+    server = create_mcp_server("test-uvicorn-level")
+
+    class FakeUvicornServer:
+        def __init__(self, config):
+            pass
+
+        async def serve(self):
+            pass
+
+    with (
+        patch("uvicorn.Config") as mock_config,
+        patch("uvicorn.Server", FakeUvicornServer),
+    ):
+        mock_config.return_value = MagicMock()
+        import anyio
+
+        anyio.from_thread.run_sync  # just ensure anyio imported
+        import asyncio
+
+        asyncio.run(run_server(server, transport="sse", port=9456))
+
+    _, kwargs = mock_config.call_args
+    assert kwargs["log_level"] == "info", (
+        f"expected fallback to 'info', got {kwargs['log_level']!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # telemetry
 # ---------------------------------------------------------------------------
