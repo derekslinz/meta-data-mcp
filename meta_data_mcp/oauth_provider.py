@@ -276,7 +276,7 @@ class InMemoryOAuthProvider(
         # Use constant-time comparison to avoid timing side-channels.
         # We scan all stored tokens and return the match (or None).
         matched: AccessToken | None = None
-        for stored_token, at in list(self._access_tokens.items()):
+        for stored_token, at in self._access_tokens.items():
             if hmac.compare_digest(stored_token, token):
                 matched = at
                 break
