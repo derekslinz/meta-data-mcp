@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
+import os
 import secrets
 import time
 from typing import Any
@@ -48,10 +50,28 @@ class InMemoryOAuthProvider(
     all active tokens regardless of the configured token lifetime. Users must
     re-authorize after restarts. For zero-interruption deployments, persist
     token state between restarts or use a rolling-restart strategy.
+
+    Configuration (environment variables):
+        META_DATA_MCP_OAUTH_MAX_CLIENTS: Maximum number of registered clients
+            (default 1000). Prevents unbounded memory growth in long-running
+            deployments. Returns HTTP 400 when the limit is reached.
+        META_DATA_MCP_OAUTH_TOKEN_TTL: Access-token lifetime in seconds
+            (default 3600 / 1 hour). Keep small to limit exposure if a token
+            leaks.
     """
+
+    # Defaults; can be overridden via environment variables.
+    _DEFAULT_MAX_CLIENTS: int = 1000
+    _DEFAULT_TOKEN_TTL: int = 3600  # 1 hour
 
     def __init__(self, issuer_url: str) -> None:
         self.issuer_url = issuer_url.rstrip("/")
+        self._max_clients = int(
+            os.getenv("META_DATA_MCP_OAUTH_MAX_CLIENTS", str(self._DEFAULT_MAX_CLIENTS))
+        )
+        self._token_ttl = int(
+            os.getenv("META_DATA_MCP_OAUTH_TOKEN_TTL", str(self._DEFAULT_TOKEN_TTL))
+        )
         # Storage maps: key → object
         self._clients: dict[str, OAuthClientInformationFull] = {}
         self._auth_sessions: dict[str, dict[str, Any]] = {}  # consent-page sessions
@@ -69,6 +89,15 @@ class InMemoryOAuthProvider(
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         if client_info.client_id is None:
             raise ValueError("client_id is required")
+        if (
+            client_info.client_id not in self._clients
+            and len(self._clients) >= self._max_clients
+        ):
+            raise ValueError(
+                f"Maximum number of registered OAuth clients ({self._max_clients}) "
+                "reached. Increase META_DATA_MCP_OAUTH_MAX_CLIENTS or remove "
+                "unused clients."
+            )
         self._clients[client_info.client_id] = client_info
 
     # ------------------------------------------------------------------
@@ -174,7 +203,7 @@ class InMemoryOAuthProvider(
             token=access_token_str,
             client_id=client_id,
             scopes=authorization_code.scopes,
-            expires_at=int(time.time()) + 1_209_600,  # 2-week access token
+            expires_at=int(time.time()) + self._token_ttl,
         )
         self._refresh_tokens[refresh_token_str] = RefreshToken(
             token=refresh_token_str,
@@ -185,7 +214,7 @@ class InMemoryOAuthProvider(
         return OAuthToken(
             access_token=access_token_str,
             token_type="Bearer",
-            expires_in=1_209_600,
+            expires_in=self._token_ttl,
             refresh_token=refresh_token_str,
             scope=" ".join(authorization_code.scopes),
         )
@@ -223,7 +252,7 @@ class InMemoryOAuthProvider(
             token=new_access,
             client_id=client_id,
             scopes=effective_scopes,
-            expires_at=int(time.time()) + 1_209_600,  # 2-week access token
+            expires_at=int(time.time()) + self._token_ttl,
         )
         self._refresh_tokens[new_refresh] = RefreshToken(
             token=new_refresh,
@@ -234,7 +263,7 @@ class InMemoryOAuthProvider(
         return OAuthToken(
             access_token=new_access,
             token_type="Bearer",
-            expires_in=1_209_600,
+            expires_in=self._token_ttl,
             refresh_token=new_refresh,
             scope=" ".join(effective_scopes),
         )
@@ -244,13 +273,19 @@ class InMemoryOAuthProvider(
     # ------------------------------------------------------------------
 
     async def verify_access_token(self, token: str) -> AccessToken | None:
-        at = self._access_tokens.get(token)
-        if at is None:
+        # Use constant-time comparison to avoid timing side-channels.
+        # We scan all stored tokens and return the match (or None).
+        matched: AccessToken | None = None
+        for stored_token, at in list(self._access_tokens.items()):
+            if hmac.compare_digest(stored_token, token):
+                matched = at
+                break
+        if matched is None:
             return None
-        if at.expires_at is not None and time.time() > at.expires_at:
+        if matched.expires_at is not None and time.time() > matched.expires_at:
             del self._access_tokens[token]
             return None
-        return at
+        return matched
 
     # ------------------------------------------------------------------
     # Token revocation
