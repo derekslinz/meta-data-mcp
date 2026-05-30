@@ -347,7 +347,7 @@ def _render_fetch_fn(tool: dict[str, Any], requires_env: list[str]) -> str:
             )
         seen_env_query_params.add(query_param)
         env_lines.append(
-            f'    query["{query_param}"] = _require_key({_py_literal(env_var)})'
+            f'    query["{query_param}"] = require_env_key({_py_literal(env_var)})'
         )
 
     body_parts = [url_line, "    query: dict = {}"]
@@ -468,13 +468,10 @@ def _render_tool_block(tool: dict[str, Any], requires_env: list[str]) -> str:
 def _render_env_helper(requires_env: list[str]) -> str:
     if not requires_env:
         return ""
-    # No inline helper needed — generated code calls require_env_key() imported
-    # from meta_data_mcp.provider_config, which keeps `os` out of generated modules.
-    return (
-        "def _require_key(var_name: str) -> str:\n"
-        '    """Return the environment variable value via the trusted helper."""\n'
-        "    return require_env_key(var_name)\n"
-    )
+    # No helper function needed — generated code calls require_env_key() directly,
+    # imported from meta_data_mcp.provider_config. This keeps `os` out of generated
+    # modules, preventing env-var exfiltration via the AST allowlist.
+    return ""
 
 
 def render_provider(spec: dict[str, Any]) -> str:
