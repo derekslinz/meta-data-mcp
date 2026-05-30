@@ -468,15 +468,12 @@ def _render_tool_block(tool: dict[str, Any], requires_env: list[str]) -> str:
 def _render_env_helper(requires_env: list[str]) -> str:
     if not requires_env:
         return ""
+    # No inline helper needed — generated code calls require_env_key() imported
+    # from meta_data_mcp.provider_config, which keeps `os` out of generated modules.
     return (
         "def _require_key(var_name: str) -> str:\n"
-        '    """Return the environment variable or raise ValueError if missing."""\n'
-        "    value = os.getenv(var_name)\n"
-        "    if not value:\n"
-        "        raise ValueError(\n"
-        '            f"Environment variable {var_name} is required for this provider"\n'
-        "        )\n"
-        "    return value"
+        '    """Return the environment variable value via the trusted helper."""\n'
+        "    return require_env_key(var_name)\n"
     )
 
 
@@ -527,7 +524,7 @@ def render_provider(spec: dict[str, Any]) -> str:
         "import logging",
     ]
     if requires_env:
-        import_lines.append("import os")
+        import_lines.append("from meta_data_mcp.provider_config import require_env_key")
     import_lines.extend(
         [
             "from typing import Any, List, Optional, Sequence",

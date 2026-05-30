@@ -51,3 +51,25 @@ class ProviderConfig:
         if not token:
             return {}
         return {"Authorization": f"Token {token}"}
+
+
+def require_env_key(var_name: str) -> str:
+    """Return the value of environment variable *var_name* or raise ``RuntimeError``.
+
+    Generated provider plugins must call this function (imported from
+    ``meta_data_mcp.provider_config``) instead of calling ``os.getenv``
+    directly.  Centralising the lookup here keeps ``os`` out of the
+    generated-plugin import allowlist, which prevents a malicious or
+    mis-generated plugin from enumerating or exfiltrating arbitrary
+    environment variables.
+
+    Raises:
+        RuntimeError: If the variable is not set or is empty.
+    """
+    value = os.getenv(var_name)
+    if not value:
+        raise RuntimeError(
+            f"Required environment variable '{var_name}' is not set. "
+            "Configure it before starting the server."
+        )
+    return value
