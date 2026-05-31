@@ -22,6 +22,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import time
@@ -35,6 +36,8 @@ from mcp.server.auth.provider import (
     RefreshToken,
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+
+log = logging.getLogger(__name__)
 
 
 class InMemoryOAuthProvider(
@@ -66,11 +69,11 @@ class InMemoryOAuthProvider(
 
     def __init__(self, issuer_url: str) -> None:
         self.issuer_url = issuer_url.rstrip("/")
-        self._max_clients = int(
-            os.getenv("META_DATA_MCP_OAUTH_MAX_CLIENTS", str(self._DEFAULT_MAX_CLIENTS))
+        self._max_clients = self._read_positive_int_env(
+            "META_DATA_MCP_OAUTH_MAX_CLIENTS", self._DEFAULT_MAX_CLIENTS
         )
-        self._token_ttl = int(
-            os.getenv("META_DATA_MCP_OAUTH_TOKEN_TTL", str(self._DEFAULT_TOKEN_TTL))
+        self._token_ttl = self._read_positive_int_env(
+            "META_DATA_MCP_OAUTH_TOKEN_TTL", self._DEFAULT_TOKEN_TTL
         )
         # Storage maps: key → object
         self._clients: dict[str, OAuthClientInformationFull] = {}
@@ -78,6 +81,21 @@ class InMemoryOAuthProvider(
         self._auth_codes: dict[str, AuthorizationCode] = {}
         self._access_tokens: dict[str, AccessToken] = {}
         self._refresh_tokens: dict[str, RefreshToken] = {}
+
+    @staticmethod
+    def _read_positive_int_env(name: str, default: int) -> int:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            log.warning("%s must be an integer; using default %d", name, default)
+            return default
+        if value <= 0:
+            log.warning("%s must be > 0; using default %d", name, default)
+            return default
+        return value
 
     # ------------------------------------------------------------------
     # Client management
@@ -279,7 +297,6 @@ class InMemoryOAuthProvider(
         for stored_token, at in self._access_tokens.items():
             if hmac.compare_digest(stored_token, token):
                 matched = at
-                break
         if matched is None:
             return None
         if matched.expires_at is not None and time.time() > matched.expires_at:

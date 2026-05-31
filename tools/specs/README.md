@@ -39,7 +39,7 @@ byte-identical output.
 | `domains`      | list[str]   | no       | Registry hint — not used by the generator itself.        |
 | `regions`      | list[str]   | no       | Registry hint — not used by the generator itself.        |
 | `keywords`     | list[str]   | no       | Registry hint — not used by the generator itself.        |
-| `requires_env` | list[str]   | no       | Env vars that must be set; each gets a `_require_key()`. |
+| `requires_env` | list[str]   | no       | Env vars that must be set; generator imports and calls `require_env_key(...)` for each. |
 | `tools`        | list[tool]  | yes      | One entry per MCP tool the provider exposes.             |
 
 ### Each `tools[]` entry
@@ -105,8 +105,8 @@ edit the generated module by hand — it is a starting point, not a finished
 provider.
 
 - **Auth headers** — no support for `Authorization: Bearer`, signed
-  requests, or per-request token refresh. `requires_env` only injects an
-  `api_key` query parameter.
+  requests, or per-request token refresh. `requires_env` currently injects
+  each key as an `api_key` query parameter via `require_env_key(...)`.
 - **POST / PUT / DELETE** — every generated fetch uses `http_get`.
 - **Non-trivial response shaping** — the handler returns
   `response.json()` or `response.text` verbatim. Custom flattening,
