@@ -337,7 +337,6 @@ _CREATE_PLUGIN_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 # their suspenders.
 _AST_ALLOWED_IMPORT_PREFIXES = (
     "logging",
-    "os",
     "typing",
     "mcp",
     "pydantic",
@@ -385,6 +384,9 @@ _AST_BANNED_CALL_ATTRS = frozenset(
         for suffix in (
             "system",
             "popen",
+            # env access — prevents exfiltrating secrets via allowed http helpers
+            "getenv",
+            "environ",
             # exec — both v-family (argv list) and l-family (variadic argv)
             "execv",
             "execve",
@@ -738,6 +740,8 @@ async def handle_create_plugin(
         except Exception as exc:  # noqa: BLE001 — surface any import error
             with contextlib.suppress(OSError):
                 spec_path.unlink()
+            with contextlib.suppress(OSError):
+                provider_path.unlink()
             return [
                 types.TextContent(
                     type="text",

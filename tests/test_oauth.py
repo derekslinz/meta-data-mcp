@@ -37,6 +37,19 @@ def provider():
 # ---------------------------------------------------------------------------
 
 
+def test_oauth_env_defaults_for_invalid_values(monkeypatch, caplog):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_MAX_CLIENTS", "invalid")
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_TOKEN_TTL", "0")
+
+    with caplog.at_level("WARNING"):
+        provider = InMemoryOAuthProvider(issuer_url="http://localhost:8000")
+
+    assert provider._max_clients == provider._DEFAULT_MAX_CLIENTS
+    assert provider._token_ttl == provider._DEFAULT_TOKEN_TTL
+    assert "META_DATA_MCP_OAUTH_MAX_CLIENTS must be an integer" in caplog.text
+    assert "META_DATA_MCP_OAUTH_TOKEN_TTL must be > 0" in caplog.text
+
+
 @pytest.mark.anyio
 async def test_register_and_get_client(provider):
     """register_client stores the client; get_client retrieves it by id."""

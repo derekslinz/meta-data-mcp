@@ -1,6 +1,9 @@
 import pytest
 
-from meta_data_mcp.smithery_triggers import SmitheryTriggersMiddleware
+from meta_data_mcp.smithery_triggers import (
+    SmitheryTriggersMiddleware,
+    _validate_webhook_url,
+)
 
 
 @pytest.mark.anyio
@@ -68,3 +71,20 @@ async def test_oversized_request_preserves_disconnect(monkeypatch):
     await middleware({"type": "http", "method": "POST"}, receive, send)
 
     assert sent_events == []
+
+
+@pytest.mark.parametrize(
+    ("url", "host"),
+    [
+        ("https://0.0.0.0/hook", "0.0.0.0"),
+        ("https://224.0.0.1/hook", "224.0.0.1"),
+        ("https://240.0.0.1/hook", "240.0.0.1"),
+        ("https://[::]/hook", "::"),
+        ("https://[ff02::1]/hook", "ff02::1"),
+    ],
+)
+def test_validate_webhook_url_rejects_unsafe_special_addresses(url, host):
+    assert (
+        _validate_webhook_url(url)
+        == f"webhook URL host '{host}' is a private or loopback address"
+    )

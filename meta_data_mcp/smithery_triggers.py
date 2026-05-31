@@ -21,16 +21,83 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import secrets
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Webhook URL validation (SSRF mitigation)
+# ---------------------------------------------------------------------------
+
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local
+    ipaddress.ip_network("100.64.0.0/10"),  # CGNAT / shared address space
+    ipaddress.ip_network("224.0.0.0/4"),  # multicast
+    ipaddress.ip_network("240.0.0.0/4"),  # reserved / future use
+    ipaddress.ip_network("::/128"),  # IPv6 unspecified
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("ff00::/8"),  # IPv6 multicast
+    ipaddress.ip_network("fc00::/7"),  # IPv6 ULA
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+]
+
+_BLOCKED_HOSTNAMES = frozenset({"localhost", "localhost.localdomain"})
+
+
+def _validate_webhook_url(url: str) -> str | None:
+    """Return an error message if *url* must not be used as a webhook target.
+
+    Rejected cases:
+    - Non-HTTPS scheme (blocks http://, ftp://, file://, etc.)
+    - Missing or empty host
+    - Hostname that is ``localhost`` or a blocked bare name
+    - Hostname that is a bare IP address in a private / loopback / link-local
+      range (RFC 1918, RFC 4193, RFC 3927, etc.)
+
+    DNS-rebinding attacks are outside the scope of this check; a full
+    server-side DNS guard should be added at the HTTP-client layer if required.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return "invalid webhook URL"
+
+    if parsed.scheme != "https":
+        return "webhook URL must use the https scheme"
+
+    host = parsed.hostname or ""
+    if not host:
+        return "webhook URL must include a host"
+
+    if host.lower() in _BLOCKED_HOSTNAMES:
+        return f"webhook URL host '{host}' is not allowed"
+
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        # Not a bare IP — hostname-based; allow (DNS rebinding not checked here)
+        return None
+
+    for net in _PRIVATE_NETWORKS:
+        if addr in net:
+            return f"webhook URL host '{host}' is a private or loopback address"
+
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Event catalogue
@@ -213,6 +280,9 @@ async def handle_smithery_rpc(body: dict) -> dict:
         secret = consumer.get("secret", secrets.token_hex(32))
         if not event_name or not webhook_url:
             return _rpc_err(req_id, -32602, "event and consumer.url are required")
+        url_error = _validate_webhook_url(webhook_url)
+        if url_error:
+            return _rpc_err(req_id, -32602, f"invalid consumer.url: {url_error}")
         sub = _store.subscribe(event_name, webhook_url, secret)
         return _rpc_ok(
             req_id,
