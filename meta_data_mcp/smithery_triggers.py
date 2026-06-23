@@ -92,10 +92,13 @@ def _validate_webhook_url(url: str) -> str | None:
         # Not a bare IP — hostname-based; allow (DNS rebinding not checked here)
         return None
 
+    # Treat IPv4-mapped IPv6 as its underlying IPv4 address (e.g. ::ffff:127.0.0.1)
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+
     for net in _PRIVATE_NETWORKS:
         if addr in net:
             return f"webhook URL host '{host}' is a private or loopback address"
-
     return None
 
 

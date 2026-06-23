@@ -293,16 +293,20 @@ class InMemoryOAuthProvider(
     async def verify_access_token(self, token: str) -> AccessToken | None:
         # Use constant-time comparison to avoid timing side-channels.
         # We scan all stored tokens and return the match (or None).
-        matched: AccessToken | None = None
+        matched: tuple[str, AccessToken] | None = None
         for stored_token, at in self._access_tokens.items():
             if hmac.compare_digest(stored_token, token):
-                matched = at
+                matched = (stored_token, at)
         if matched is None:
             return None
-        if matched.expires_at is not None and time.time() > matched.expires_at:
-            del self._access_tokens[token]
+        matched_token, matched_access_token = matched
+        if (
+            matched_access_token.expires_at is not None
+            and time.time() > matched_access_token.expires_at
+        ):
+            del self._access_tokens[matched_token]
             return None
-        return matched
+        return matched_access_token
 
     # ------------------------------------------------------------------
     # Token revocation
