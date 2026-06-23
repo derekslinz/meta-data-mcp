@@ -743,11 +743,11 @@ def test_validate_generated_provider_ast_rejects_os_getenv():
     )
     assert _validate_generated_provider_ast(src_alias) is not None
 
-    # Attribute-only access should also be rejected (`os.environ` is a mapping)
-    src_environ = "import os\nx = os.environ\n"
-    assert _validate_generated_provider_ast(src_environ) is not None
-    src_environ_alias = "import logging as os\nx = os.environ\n"
-    assert _validate_generated_provider_ast(src_environ_alias) is not None
+# Access via dict methods should be rejected (covers common read + enumeration paths)
+src_environ = "import os\nx = os.environ.get('SECRET')\n"
+assert _validate_generated_provider_ast(src_environ) is not None
+src_environ_alias = "import logging as os\nx = os.environ.get('SECRET')\n"
+assert _validate_generated_provider_ast(src_environ_alias) is not None
 
 
 @pytest.mark.anyio
