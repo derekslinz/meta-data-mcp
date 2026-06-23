@@ -66,12 +66,27 @@ class InMemoryOAuthProvider(
 
     def __init__(self, issuer_url: str) -> None:
         self.issuer_url = issuer_url.rstrip("/")
-        self._max_clients = int(
-            os.getenv("META_DATA_MCP_OAUTH_MAX_CLIENTS", str(self._DEFAULT_MAX_CLIENTS))
-        )
-        self._token_ttl = int(
-            os.getenv("META_DATA_MCP_OAUTH_TOKEN_TTL", str(self._DEFAULT_TOKEN_TTL))
-        )
+        try:
+            self._max_clients = int(
+                os.getenv(
+                    "META_DATA_MCP_OAUTH_MAX_CLIENTS", str(self._DEFAULT_MAX_CLIENTS)
+                )
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "META_DATA_MCP_OAUTH_MAX_CLIENTS must be an integer"
+            ) from exc
+        if self._max_clients < 1:
+            raise ValueError("META_DATA_MCP_OAUTH_MAX_CLIENTS must be >= 1")
+
+        try:
+            self._token_ttl = int(
+                os.getenv("META_DATA_MCP_OAUTH_TOKEN_TTL", str(self._DEFAULT_TOKEN_TTL))
+            )
+        except ValueError as exc:
+            raise ValueError("META_DATA_MCP_OAUTH_TOKEN_TTL must be an integer") from exc
+        if self._token_ttl < 1:
+            raise ValueError("META_DATA_MCP_OAUTH_TOKEN_TTL must be >= 1")
         # Storage maps: key → object
         self._clients: dict[str, OAuthClientInformationFull] = {}
         self._auth_sessions: dict[str, dict[str, Any]] = {}  # consent-page sessions
