@@ -7,9 +7,9 @@
   <!--
     ui://meta-data-mcp/app/discovery/v1 — Phase 3 discovery app.
 
-    Wraps the five meta tools (opendata.providers.find, opendata.domains.list,
-    opendata.regions.list, opendata.providers.list_active,
-    opendata.providers.activate) plus the new opendata.health.snapshot into one
+    Wraps the five meta tools (opendata_providers_find, opendata_domains_list,
+    opendata_regions_list, opendata_providers_list_active,
+    opendata_providers_activate) plus the new opendata_health_snapshot into one
     panel: faceted filter (domain × region × text), ranked provider list with
     score breakdown + health badge, click-to-activate, and a bottom "active
     providers" tray.
@@ -266,25 +266,25 @@
 
         // Unsolicited push (e.g. initial render). Dispatch by tool name when
         // present, otherwise treat as a generic find-providers payload — the
-        // host preloads this app via opendata.providers.find, so that's the
+        // host preloads this app via opendata_providers_find, so that's the
         // most likely shape.
-        if (name === 'opendata.domains.list') {
+        if (name === 'opendata_domains_list') {
           if (payload && Array.isArray(payload.domains)) {
             state.domains = payload.domains.slice();
             renderFacetDomains();
           }
-        } else if (name === 'opendata.regions.list') {
+        } else if (name === 'opendata_regions_list') {
           if (payload && Array.isArray(payload.regions)) {
             state.regions = payload.regions.slice();
             renderFacetRegions();
           }
-        } else if (name === 'opendata.providers.list_active') {
+        } else if (name === 'opendata_providers_list_active') {
           if (payload && Array.isArray(payload.active_providers)) {
             state.activeIds = new Set(payload.active_providers);
             renderActiveTray();
             renderResults();
           }
-        } else if (name === 'opendata.health.snapshot') {
+        } else if (name === 'opendata_health_snapshot') {
           if (payload && payload.snapshot && typeof payload.snapshot === 'object') {
             state.health = payload.snapshot;
             renderResults();
@@ -469,7 +469,7 @@
       if (state.query) args.query = state.query;
       if (state.domain) args.domain = state.domain;
       if (state.region) args.region = state.region;
-      callTool('opendata.providers.find', args).then(function (payload) {
+      callTool('opendata_providers_find', args).then(function (payload) {
         ingestFindProvidersPayload(payload);
       }).catch(function (err) {
         showError('find-providers failed: ' + err.message);
@@ -479,7 +479,7 @@
     function activateProvider(pid, btn) {
       btn.disabled = true;
       btn.textContent = '…';
-      callTool('opendata.providers.activate', { provider_id: pid }).then(function (payload) {
+      callTool('opendata_providers_activate', { provider_id: pid }).then(function (payload) {
         if (payload && (payload.status === 'activated' || payload.status === 'already_active')) {
           state.activeIds.add(pid);
         }
@@ -495,7 +495,7 @@
     function refreshHealth() {
       var ids = state.providers.map(function (p) { return p.id; });
       if (!ids.length) return;
-      callTool('opendata.health.snapshot', { provider_ids: ids }).then(function (payload) {
+      callTool('opendata_health_snapshot', { provider_ids: ids }).then(function (payload) {
         if (payload && payload.snapshot) {
           state.health = payload.snapshot;
           renderResults();
@@ -522,19 +522,19 @@
     // Kick off the discovery flow: parallel-load domains, regions, active list,
     // and an initial provider list. Each lands via the postMessage handler.
     function boot() {
-      callTool('opendata.domains.list', {}).then(function (payload) {
+      callTool('opendata_domains_list', {}).then(function (payload) {
         if (payload && Array.isArray(payload.domains)) {
           state.domains = payload.domains.slice();
           renderFacetDomains();
         }
       }).catch(function () { /* non-fatal */ });
-      callTool('opendata.regions.list', {}).then(function (payload) {
+      callTool('opendata_regions_list', {}).then(function (payload) {
         if (payload && Array.isArray(payload.regions)) {
           state.regions = payload.regions.slice();
           renderFacetRegions();
         }
       }).catch(function () { /* non-fatal */ });
-      callTool('opendata.providers.list_active', {}).then(function (payload) {
+      callTool('opendata_providers_list_active', {}).then(function (payload) {
         if (payload && Array.isArray(payload.active_providers)) {
           state.activeIds = new Set(payload.active_providers);
           renderActiveTray();

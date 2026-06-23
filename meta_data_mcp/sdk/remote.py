@@ -254,9 +254,12 @@ class RemoteClient:
         promises.
         """
         payload = await self._call_tool("opendata_health_snapshot", {})
-        snapshot = payload.get("snapshot", {})
+        snapshot = payload.get("snapshot")
+        if not isinstance(snapshot, dict):
+            # Malformed or pre-v2.5 server response — nothing usable to map.
+            return {}
         return {
             provider_id: entry["score"]
             for provider_id, entry in snapshot.items()
-            if isinstance(entry, dict) and "score" in entry
+            if isinstance(entry, dict) and isinstance(entry.get("score"), (int, float))
         }

@@ -173,6 +173,29 @@ def test_bundle_directory_is_populated() -> None:
     )
 
 
+# Matches a dotted meta/registry tool name (the pre-v2.5 form) anywhere in a
+# bundle. ``ui://`` bundles dispatch tool calls by literal name from JS, so a
+# stale dotted name there breaks the app at runtime without failing any other
+# test. The charset invariant only sees Python ``TOOLS``; this catches the HTML.
+DOTTED_TOOL_NAME_RE = re.compile(
+    r"\b(?:opendata|mcp)(?:\.[a-z_]+){2,}\b",
+)
+
+
+@pytest.mark.parametrize("bundle", _bundles(), ids=lambda p: p.name)
+def test_bundle_uses_no_dotted_tool_names(bundle: Path) -> None:
+    """A bundle must not reference dotted tool names (e.g.
+    ``opendata.providers.find``). Hosts expose tools under the underscore
+    form, so a dotted dispatch name no longer resolves once renamed.
+    """
+    text = bundle.read_text(encoding="utf-8")
+    offenders = sorted({match.group(0) for match in DOTTED_TOOL_NAME_RE.finditer(text)})
+    assert not offenders, (
+        f"{bundle.name} dispatches dotted tool name(s) that no longer resolve "
+        f"(use underscore form): {offenders}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # M5 — README coverage for bundled providers and optional env vars
 # ---------------------------------------------------------------------------
