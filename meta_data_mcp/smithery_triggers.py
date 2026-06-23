@@ -39,13 +39,18 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _PRIVATE_NETWORKS = [
+    ipaddress.ip_network("0.0.0.0/8"),
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("172.16.0.0/12"),
     ipaddress.ip_network("192.168.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("169.254.0.0/16"),  # link-local
     ipaddress.ip_network("100.64.0.0/10"),  # CGNAT / shared address space
+    ipaddress.ip_network("224.0.0.0/4"),  # multicast
+    ipaddress.ip_network("240.0.0.0/4"),  # reserved / future use
+    ipaddress.ip_network("::/128"),  # IPv6 unspecified
     ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("ff00::/8"),  # IPv6 multicast
     ipaddress.ip_network("fc00::/7"),  # IPv6 ULA
     ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
 ]
