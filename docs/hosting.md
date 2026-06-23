@@ -331,7 +331,10 @@ Requires OAuth to be enabled (`META_DATA_MCP_OAUTH_ISSUER`).
 **Email backend precedence:** Resend (if `…_RESEND_API_KEY` set) → SMTP (if
 `…_SMTP_HOST` set) → **console** (neither set). The console backend logs the
 magic link instead of emailing it — useful for local testing, never for
-production (anyone reading the logs can sign in).
+production (anyone reading the logs can sign in). Because of that risk, enabling
+the gate with no real backend **refuses to start**; set
+`META_DATA_MCP_ALLOW_CONSOLE_EMAIL=1` to explicitly allow the console backend
+for local testing.
 
 ```bash
 # Example: gated public server using Resend, 60 req/min per user.

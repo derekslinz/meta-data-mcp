@@ -84,6 +84,38 @@ async def test_revoke_clears_email_binding(provider):
     assert provider.email_for_token(token.access_token) is None
 
 
+@pytest.mark.anyio
+async def test_refresh_preserves_email_binding(provider):
+    """A refresh exchange must re-bind the email to the new access token, else
+    a user could shed their rate-limit identity by refreshing."""
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    token = await _issue_token(provider, email="user@example.com")
+    client_info = OAuthClientInformationFull(client_id="gate-test", redirect_uris=None)
+    rt = await provider.load_refresh_token(client_info, token.refresh_token)
+    assert rt is not None
+    new_token = await provider.exchange_refresh_token(client_info, rt, scopes=[])
+
+    assert provider.email_for_token(new_token.access_token) == "user@example.com"
+    # And the rotated refresh token carries it forward too.
+    rt2 = await provider.load_refresh_token(client_info, new_token.refresh_token)
+    assert rt2 is not None
+    newer = await provider.exchange_refresh_token(client_info, rt2, scopes=[])
+    assert provider.email_for_token(newer.access_token) == "user@example.com"
+
+
+@pytest.mark.anyio
+async def test_refresh_without_email_stays_unbound(provider):
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    token = await _issue_token(provider, email=None)
+    client_info = OAuthClientInformationFull(client_id="gate-test", redirect_uris=None)
+    rt = await provider.load_refresh_token(client_info, token.refresh_token)
+    assert rt is not None
+    new_token = await provider.exchange_refresh_token(client_info, rt, scopes=[])
+    assert provider.email_for_token(new_token.access_token) is None
+
+
 # ---------------------------------------------------------------------------
 # Middleware rate limiting
 # ---------------------------------------------------------------------------

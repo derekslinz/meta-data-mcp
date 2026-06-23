@@ -74,6 +74,32 @@ def test_from_env_smtp_requires_from(monkeypatch):
         Emailer.from_env()
 
 
+def test_from_env_smtp_port_invalid_defaults(monkeypatch, caplog):
+    _clear_email_env(monkeypatch)
+    monkeypatch.setenv("META_DATA_MCP_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("META_DATA_MCP_EMAIL_FROM", "x@example.com")
+    monkeypatch.setenv("META_DATA_MCP_SMTP_PORT", "not-a-number")
+    with caplog.at_level("WARNING"):
+        e = Emailer.from_env()
+    assert e._smtp_port == 587  # fell back to default, did not crash
+    assert "META_DATA_MCP_SMTP_PORT must be an integer" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# __init__ invariant validation
+# ---------------------------------------------------------------------------
+
+
+def test_init_resend_requires_key():
+    with pytest.raises(ValueError, match="resend_api_key"):
+        Emailer(EmailBackend.RESEND, from_addr="x@example.com")
+
+
+def test_init_smtp_requires_host():
+    with pytest.raises(ValueError, match="smtp_host"):
+        Emailer(EmailBackend.SMTP, from_addr="x@example.com")
+
+
 # ---------------------------------------------------------------------------
 # Delivery
 # ---------------------------------------------------------------------------

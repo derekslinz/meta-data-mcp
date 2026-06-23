@@ -24,6 +24,7 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from pydantic import AnyUrl
+from starlette.responses import JSONResponse
 
 from meta_data_mcp import provenance
 
@@ -355,8 +356,6 @@ class BearerAuthMiddleware:
                             email_for_token(presented) if email_for_token else None
                         ) or presented
                         if not self.rate_limiter.allow(identity):
-                            from starlette.responses import JSONResponse
-
                             retry_after = self.rate_limiter.retry_after(identity)
                             resp = JSONResponse(
                                 {"error": "rate_limited"},
@@ -367,8 +366,6 @@ class BearerAuthMiddleware:
                             return
                     await self.app(scope, receive, send)
                     return
-
-        from starlette.responses import JSONResponse
 
         if self.resource_metadata_url:
             www_auth = (
@@ -408,7 +405,6 @@ async def run_server(
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.middleware.cors import CORSMiddleware
-        from starlette.responses import JSONResponse
         from starlette.routing import Mount, Route
 
         from contextlib import asynccontextmanager
@@ -502,10 +498,24 @@ async def run_server(
                     MagicLinkStore,
                     RateLimiter,
                 )
-                from meta_data_mcp.emailer import Emailer
+                from meta_data_mcp.emailer import EmailBackend, Emailer
 
                 magic_store = MagicLinkStore()
                 emailer = Emailer.from_env()
+                # The console backend logs the magic link instead of sending
+                # it — anyone with log access could sign in. Refuse to start a
+                # gated server on it unless the operator explicitly opts in.
+                if emailer.backend is EmailBackend.CONSOLE and os.getenv(
+                    "META_DATA_MCP_ALLOW_CONSOLE_EMAIL", ""
+                ).strip().lower() not in ("1", "true", "yes", "on"):
+                    raise RuntimeError(
+                        "META_DATA_MCP_EMAIL_GATE is enabled but no email backend "
+                        "is configured (set META_DATA_MCP_RESEND_API_KEY or "
+                        "META_DATA_MCP_SMTP_HOST). The console backend logs magic "
+                        "links in plaintext and is unsafe for production. To use "
+                        "it for local testing, set "
+                        "META_DATA_MCP_ALLOW_CONSOLE_EMAIL=1."
+                    )
                 rpm = DEFAULT_RATE_LIMIT_RPM
                 raw_rpm = os.getenv("META_DATA_MCP_RATE_LIMIT_RPM")
                 if raw_rpm is not None:

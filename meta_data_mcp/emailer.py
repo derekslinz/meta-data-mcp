@@ -36,6 +36,24 @@ log = logging.getLogger(__name__)
 
 RESEND_API_URL = "https://api.resend.com/emails"
 _DEFAULT_FROM = "meta-data-mcp <no-reply@localhost>"
+_DEFAULT_SMTP_PORT = 587
+
+
+def _int_env(name: str, default: int) -> int:
+    """Parse an integer env var, warning and falling back on bad input.
+
+    Mirrors the lenient parsing in ``InMemoryOAuthProvider`` so a typo in
+    ``META_DATA_MCP_SMTP_PORT`` degrades to the default instead of crashing
+    server startup.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        log.warning("%s must be an integer; using default %d", name, default)
+        return default
 
 
 class EmailBackend(str, Enum):
@@ -76,6 +94,14 @@ class Emailer:
         smtp_password: str | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
+        # Validate backend-specific invariants up front so misconfiguration
+        # fails loudly here instead of as a confusing runtime error later
+        # (e.g. "Authorization: Bearer None" from Resend or a bare SMTP assert).
+        if backend is EmailBackend.RESEND and not resend_api_key:
+            raise ValueError("RESEND backend requires a resend_api_key")
+        if backend is EmailBackend.SMTP and not smtp_host:
+            raise ValueError("SMTP backend requires a smtp_host")
+
         self.backend = backend
         self.from_addr = from_addr
         self._resend_api_key = resend_api_key
@@ -118,7 +144,7 @@ class Emailer:
                 EmailBackend.SMTP,
                 from_addr=from_addr,
                 smtp_host=smtp_host,
-                smtp_port=int(os.getenv("META_DATA_MCP_SMTP_PORT", "587")),
+                smtp_port=_int_env("META_DATA_MCP_SMTP_PORT", _DEFAULT_SMTP_PORT),
                 smtp_user=os.getenv("META_DATA_MCP_SMTP_USER") or None,
                 smtp_password=os.getenv("META_DATA_MCP_SMTP_PASSWORD") or None,
             )
