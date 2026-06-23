@@ -741,8 +741,13 @@ def test_validate_generated_provider_ast_rejects_os_getenv():
         "import logging as os\n"  # allowlist bypass attempt
         "token = os.getenv('SECRET')\n"
     )
-    err_alias = _validate_generated_provider_ast(src_alias)
-    assert err_alias is not None
+    assert _validate_generated_provider_ast(src_alias) is not None
+
+    # Attribute-only access should also be rejected (`os.environ` is a mapping)
+    src_environ = "import os\nx = os.environ\n"
+    assert _validate_generated_provider_ast(src_environ) is not None
+    src_environ_alias = "import logging as os\nx = os.environ\n"
+    assert _validate_generated_provider_ast(src_environ_alias) is not None
 
 
 @pytest.mark.anyio
