@@ -742,6 +742,9 @@ async def handle_create_plugin(
                 spec_path.unlink()
             with contextlib.suppress(OSError):
                 provider_path.unlink()
+            test_path = repo_root / "tests" / "providers" / f"test_{plugin_id}.py"
+            with contextlib.suppress(OSError):
+                test_path.unlink()
             return [
                 types.TextContent(
                     type="text",
