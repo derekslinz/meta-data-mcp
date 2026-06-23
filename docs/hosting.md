@@ -317,7 +317,7 @@ sudo systemctl restart meta-data-mcp
 | `unauthorized` on `/sse` despite valid header | CORS preflight stripped the header | Already handled — CORS middleware sits outermost; confirm proxy doesn't drop `Authorization` |
 | Server warning `auth DISABLED` on startup | `META_DATA_MCP_AUTH_TOKEN` not visible to the process | Verify with `sudo systemctl show meta-data-mcp -p Environment`; reload if you edited the env file |
 | `Could not find session for ID: …` after `systemctl restart` | Session state is in-memory; restart wipes every active session | The client must re-handshake (re-open `/sse`, capture the new `endpoint` event, re-send `initialize`). For Claude Code this means running `/mcp` once; if a tool call after that fails with `Invalid request parameters` or `Received request before initialization was complete`, run `/mcp` again — the first reconnect re-opens SSE but Claude Code does not always replay `initialize` automatically. See [Behaviour on restart](#behaviour-on-restart). |
-| `Could not write spec file: Read-only file system` from `opendata.plugins.create` | `ProtectSystem=strict` makes the source tree read-only at runtime | The install script ([scripts/install-systemd-service.sh](../scripts/install-systemd-service.sh)) now adds `tools/specs/`, `meta_data_mcp/providers/`, and `tests/providers/` to `ReadWritePaths`. For an existing deployment, edit `/etc/systemd/system/meta-data-mcp.service` to add those three paths, `systemctl daemon-reload`, then restart. |
+| `Could not write spec file: Read-only file system` from `opendata_plugins_create` | `ProtectSystem=strict` makes the source tree read-only at runtime | The install script ([scripts/install-systemd-service.sh](../scripts/install-systemd-service.sh)) now adds `tools/specs/`, `meta_data_mcp/providers/`, and `tests/providers/` to `ReadWritePaths`. For an existing deployment, edit `/etc/systemd/system/meta-data-mcp.service` to add those three paths, `systemctl daemon-reload`, then restart. |
 
 ## Single-worker constraint
 
@@ -344,7 +344,7 @@ This is upstream MCP-SDK + client behaviour, not specific to meta-data-mcp. The 
 - Token rotation (`/etc/meta-data-mcp/env` is loaded only at process start).
 - Changes to the systemd unit (`daemon-reload && restart`).
 
-Plugin creation via `opendata.plugins.create` does **not** require a restart — it hot-loads the new module into the running registry, and the new tools become visible on the next `tools/list` from any connected client.
+Plugin creation via `opendata_plugins_create` does **not** require a restart — it hot-loads the new module into the running registry, and the new tools become visible on the next `tools/list` from any connected client.
 
 When a restart is unavoidable, clients should explicitly re-handshake:
 

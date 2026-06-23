@@ -9,8 +9,8 @@ organization but are exposed under this one server's tool namespace.
 This module is both:
 
 1. The discovery layer — exposing meta tools that let an LLM search the
-   internal plugin registry (`opendata.providers.find`,
-   `opendata.domains.list`, etc.).
+   internal plugin registry (`opendata_providers_find`,
+   `opendata_domains_list`, etc.).
 2. The runtime entry point — `main()` discovers every plugin module
    under `meta_data_mcp.providers`, imports it, and merges its tools
    into the single server's tool list before serving.
@@ -86,12 +86,12 @@ def _log_background_event_failure(task: asyncio.Task[None]) -> None:
 # (tests/providers/test_meta_data_mcp.py::test_discovery_tool_binds_to_discovery_app)
 # enforces consistency.
 DISCOVERY_TOOL_NAMES: tuple[str, ...] = (
-    "opendata.providers.find",
-    "opendata.domains.list",
-    "opendata.regions.list",
-    "opendata.providers.list_active",
-    "opendata.providers.activate",
-    "opendata.health.snapshot",
+    "opendata_providers_find",
+    "opendata_domains_list",
+    "opendata_regions_list",
+    "opendata_providers_list_active",
+    "opendata_providers_activate",
+    "opendata_health_snapshot",
 )
 
 # Module-level singleton — cache survives across tool calls within the same server process.
@@ -109,7 +109,7 @@ _engine = RoutingEngine()
 
 
 class FindProvidersParams(BaseModel):
-    """Filters for `opendata.providers.find`."""
+    """Filters for `opendata_providers_find`."""
 
     query: Optional[str] = Field(
         None,
@@ -117,11 +117,11 @@ class FindProvidersParams(BaseModel):
     )
     domain: Optional[str] = Field(
         None,
-        description="Restrict to providers tagged with this domain (e.g. 'health', 'legal', 'finance'). Use opendata.domains.list to enumerate.",
+        description="Restrict to providers tagged with this domain (e.g. 'health', 'legal', 'finance'). Use opendata_domains_list to enumerate.",
     )
     region: Optional[str] = Field(
         None,
-        description="Restrict to providers tagged with this region (e.g. 'us', 'eu', 'uk', 'global'). Use opendata.regions.list to enumerate.",
+        description="Restrict to providers tagged with this region (e.g. 'us', 'eu', 'uk', 'global'). Use opendata_regions_list to enumerate.",
     )
     limit: int = Field(
         default=20,
@@ -136,7 +136,7 @@ class FindProvidersParams(BaseModel):
         description=(
             "If > 0, automatically activate the top-N matching providers so their "
             "tools become callable in this session. Default 0 means find-providers "
-            "is read-only — you must call opendata.providers.activate explicitly to "
+            "is read-only — you must call opendata_providers_activate explicitly to "
             "load tools."
         ),
     )
@@ -145,7 +145,7 @@ class FindProvidersParams(BaseModel):
 async def handle_find_providers(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.providers.find tool call.
+    """Handle the opendata_providers_find tool call.
 
     Uses sophisticated multi-criteria routing for intelligent provider ranking.
     Falls back to original token-based search if needed.
@@ -194,16 +194,16 @@ async def handle_find_providers(
 
         # When the user supplied a query but nothing matched, hand the LLM
         # the next move: it can autonomously create a new plugin for this
-        # query by calling `opendata.plugins.create` with a YAML spec.
+        # query by calling `opendata_plugins_create` with a YAML spec.
         if params.query and not matches:
             payload["no_match"] = True
             payload["next_step"] = (
                 "No registered plugin matches this query. To serve this "
                 "request autonomously: (1) web-search for an open/public "
                 "API that exposes the requested data, (2) call "
-                "`opendata.plugins.draft` with the API's id, base_url, and "
+                "`opendata_plugins_draft` with the API's id, base_url, and "
                 "tool definitions to get a validated YAML spec, (3) pass "
-                "that spec to `opendata.plugins.create` to materialize, "
+                "that spec to `opendata_plugins_create` to materialize, "
                 "register, and hot-load a new plugin in this running "
                 "server. Its tools will become available immediately "
                 "afterwards."
@@ -226,21 +226,21 @@ async def handle_find_providers(
             else:
                 payload["next_step"] = (
                     "To make a provider's tools callable in this session, call "
-                    "opendata.providers.activate with provider_id=<id>. To list "
-                    "currently active providers, call opendata.providers.list_active. "
+                    "opendata_providers_activate with provider_id=<id>. To list "
+                    "currently active providers, call opendata_providers_list_active. "
                     "Pass activate_top=N to find-providers to skip the explicit "
                     "activation step for the top-N results."
                 )
 
         return payload
     except Exception as e:
-        log.error(f"Error in opendata.providers.find: {e}")
+        log.error(f"Error in opendata_providers_find: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.providers.find",
+        name="opendata_providers_find",
         outputSchema={
             "type": "object",
             "properties": {
@@ -257,7 +257,7 @@ TOOLS.append(
             "FIRST when you don't know which plugin can answer a question. "
             "If no plugin matches, the response includes a `next_step` field "
             "that explains how to autonomously create one via "
-            "`opendata.plugins.create`."
+            "`opendata_plugins_create`."
         ),
         inputSchema=FindProvidersParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
@@ -268,7 +268,7 @@ TOOLS.append(
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
-TOOLS_HANDLERS["opendata.providers.find"] = handle_find_providers
+TOOLS_HANDLERS["opendata_providers_find"] = handle_find_providers
 
 
 ###################
@@ -277,7 +277,7 @@ TOOLS_HANDLERS["opendata.providers.find"] = handle_find_providers
 
 
 class CreatePluginParams(BaseModel):
-    """Parameters for `opendata.plugins.create`.
+    """Parameters for `opendata_plugins_create`.
 
     The LLM is expected to draft `spec_yaml` after web-searching for an open
     API that fits the user's query. The YAML follows the schema described in
@@ -297,7 +297,7 @@ class CreatePluginParams(BaseModel):
         default_factory=list,
         description=(
             "Registry domains for the new plugin (e.g. ['security']). "
-            "Use `opendata.domains.list` to see existing values, but new "
+            "Use `opendata_domains_list` to see existing values, but new "
             "domain names are allowed."
         ),
     )
@@ -305,7 +305,7 @@ class CreatePluginParams(BaseModel):
         default_factory=list,
         description=(
             "Registry regions for the new plugin (e.g. ['global', 'us']). "
-            "Use `opendata.regions.list` to see existing values."
+            "Use `opendata_regions_list` to see existing values."
         ),
     )
     keywords: list[str] = Field(
@@ -803,7 +803,7 @@ async def handle_create_plugin(
             )
         ]
     except Exception as e:
-        log.error(f"Error in opendata.plugins.create: {e}")
+        log.error(f"Error in opendata_plugins_create: {e}")
         return [
             types.TextContent(
                 type="text",
@@ -814,13 +814,13 @@ async def handle_create_plugin(
 
 TOOLS.append(
     types.Tool(
-        name="opendata.plugins.create",
+        name="opendata_plugins_create",
         title="Create Plugin",
         description=(
             "Autonomously create a new plugin for this meta-data-mcp server "
-            "from a YAML spec. Use this when `opendata.providers.find` "
+            "from a YAML spec. Use this when `opendata_providers_find` "
             "returned no match. Recommended flow: first call "
-            "`opendata.plugins.draft` with structured fields to get a valid "
+            "`opendata_plugins_draft` with structured fields to get a valid "
             "YAML spec, then pass it here. The new plugin is materialized "
             "to disk, imported, registered in the live registry, and its "
             "tools become available immediately."
@@ -829,7 +829,7 @@ TOOLS.append(
         annotations=types.ToolAnnotations(destructiveHint=False),
     )
 )
-TOOLS_HANDLERS["opendata.plugins.create"] = handle_create_plugin
+TOOLS_HANDLERS["opendata_plugins_create"] = handle_create_plugin
 
 
 ###################
@@ -942,7 +942,7 @@ class DraftSpecParams(BaseModel):
     )
     keywords: list[str] = Field(
         default_factory=list,
-        description="Search keywords that should match this plugin in opendata.providers.find.",
+        description="Search keywords that should match this plugin in opendata_providers_find.",
     )
     requires_env: list[str] = Field(
         default_factory=list,
@@ -961,7 +961,7 @@ async def handle_draft_spec(
 ) -> Sequence[types.TextContent]:
     """Compose a validated plugin YAML spec from structured inputs.
 
-    Use this BEFORE calling `opendata.plugins.create`. The output is a
+    Use this BEFORE calling `opendata_plugins_create`. The output is a
     YAML string that's syntactically valid, schema-compliant, and ready
     to pass straight through. This eliminates the need to hand-author
     YAML and surfaces validation errors up-front.
@@ -1133,7 +1133,7 @@ async def handle_draft_spec(
                         "spec_yaml": spec_yaml,
                         "next_step": (
                             "Pass `spec_yaml` (and your chosen domains/regions/"
-                            "keywords/requires_env) to `opendata.plugins.create` to "
+                            "keywords/requires_env) to `opendata_plugins_create` to "
                             "materialize and hot-load the plugin."
                         ),
                     }
@@ -1141,7 +1141,7 @@ async def handle_draft_spec(
             )
         ]
     except Exception as e:
-        log.error(f"Error in opendata.plugins.draft: {e}")
+        log.error(f"Error in opendata_plugins_draft: {e}")
         return [
             types.TextContent(
                 type="text",
@@ -1152,21 +1152,21 @@ async def handle_draft_spec(
 
 TOOLS.append(
     types.Tool(
-        name="opendata.plugins.draft",
+        name="opendata_plugins_draft",
         title="Draft Spec",
         description=(
             "Build a validated YAML plugin spec from structured inputs. "
-            "Use this BEFORE `opendata.plugins.create` to avoid hand-writing "
+            "Use this BEFORE `opendata_plugins_create` to avoid hand-writing "
             "YAML. Validates id format, kebab-case tool names, path-"
             "placeholder/param consistency, parameter types, and response "
             "format. Returns the YAML string ready to feed into "
-            "`opendata.plugins.create`."
+            "`opendata_plugins_create`."
         ),
         inputSchema=DraftSpecParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
-TOOLS_HANDLERS["opendata.plugins.draft"] = handle_draft_spec
+TOOLS_HANDLERS["opendata_plugins_draft"] = handle_draft_spec
 
 
 ###################
@@ -1237,13 +1237,13 @@ async def handle_explain_choice(
 
         return payload
     except Exception as e:
-        log.error(f"Error in opendata.explain.choice: {e}")
+        log.error(f"Error in opendata_explain_choice: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.explain.choice",
+        name="opendata_explain_choice",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1257,7 +1257,7 @@ TOOLS.append(
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
-TOOLS_HANDLERS["opendata.explain.choice"] = handle_explain_choice
+TOOLS_HANDLERS["opendata_explain_choice"] = handle_explain_choice
 
 
 ###################
@@ -1272,17 +1272,17 @@ class ListDomainsParams(BaseModel):
 async def handle_list_domains(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.domains.list tool call."""
+    """Handle the opendata_domains_list tool call."""
     try:
         return {"domains": list_domains()}
     except Exception as e:
-        log.error(f"Error in opendata.domains.list: {e}")
+        log.error(f"Error in opendata_domains_list: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.domains.list",
+        name="opendata_domains_list",
         outputSchema={
             "type": "object",
             "properties": {"domains": {"type": "array", "items": {"type": "string"}}},
@@ -1294,7 +1294,7 @@ TOOLS.append(
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
-TOOLS_HANDLERS["opendata.domains.list"] = handle_list_domains
+TOOLS_HANDLERS["opendata_domains_list"] = handle_list_domains
 
 
 ###################
@@ -1309,17 +1309,17 @@ class ListRegionsParams(BaseModel):
 async def handle_list_regions(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.regions.list tool call."""
+    """Handle the opendata_regions_list tool call."""
     try:
         return {"regions": list_regions()}
     except Exception as e:
-        log.error(f"Error in opendata.regions.list: {e}")
+        log.error(f"Error in opendata_regions_list: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.regions.list",
+        name="opendata_regions_list",
         outputSchema={
             "type": "object",
             "properties": {"regions": {"type": "array", "items": {"type": "string"}}},
@@ -1331,7 +1331,7 @@ TOOLS.append(
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
-TOOLS_HANDLERS["opendata.regions.list"] = handle_list_regions
+TOOLS_HANDLERS["opendata_regions_list"] = handle_list_regions
 
 
 ###################
@@ -1351,7 +1351,7 @@ class DescribeProviderParams(BaseModel):
 async def handle_describe_provider(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.providers.describe tool call."""
+    """Handle the opendata_providers_describe tool call."""
     try:
         if not arguments or "provider_id" not in arguments:
             raise ValueError("provider_id is required")
@@ -1363,13 +1363,13 @@ async def handle_describe_provider(
             payload = entry.to_dict()
         return payload
     except Exception as e:
-        log.error(f"Error in opendata.providers.describe: {e}")
+        log.error(f"Error in opendata_providers_describe: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.providers.describe",
+        name="opendata_providers_describe",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1387,7 +1387,7 @@ TOOLS.append(
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
-TOOLS_HANDLERS["opendata.providers.describe"] = handle_describe_provider
+TOOLS_HANDLERS["opendata_providers_describe"] = handle_describe_provider
 
 
 ###################
@@ -1414,7 +1414,7 @@ class ListProvidersParams(BaseModel):
 async def handle_list_providers(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.providers.list tool call."""
+    """Handle the opendata_providers_list tool call."""
     try:
         params = ListProvidersParams(**(arguments or {}))
         all_entries = list(REGISTRY)
@@ -1436,13 +1436,13 @@ async def handle_list_providers(
         }
         return payload
     except Exception as e:
-        log.error(f"Error in opendata.providers.list: {e}")
+        log.error(f"Error in opendata_providers_list: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.providers.list",
+        name="opendata_providers_list",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1458,7 +1458,7 @@ TOOLS.append(
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
-TOOLS_HANDLERS["opendata.providers.list"] = handle_list_providers
+TOOLS_HANDLERS["opendata_providers_list"] = handle_list_providers
 
 
 ###################
@@ -1533,7 +1533,7 @@ async def handle_discover_providers(
                 role="user",
                 content=types.TextContent(
                     type="text",
-                    text=f"I want to build the following: {use_case}\n\nPlease use your `opendata.providers.find` tool to search the registry and recommend the 3 most relevant providers for my project. Explain why each one is a good fit and how I can use them together.",
+                    text=f"I want to build the following: {use_case}\n\nPlease use your `opendata_providers_find` tool to search the registry and recommend the 3 most relevant providers for my project. Explain why each one is a good fit and how I can use them together.",
                 ),
             )
         ],
@@ -1594,14 +1594,14 @@ for prompt_id, case_info in USE_CASES.items():
 
 
 class ActivateProviderParams(BaseModel):
-    """Parameters for opendata.providers.activate."""
+    """Parameters for opendata_providers_activate."""
 
     provider_id: str = Field(
         ...,
         min_length=1,
         description=(
             "Provider id to activate (e.g. 'us_data_gov' or 'us-data-gov'). "
-            "Use opendata.providers.find or opendata.providers.list to "
+            "Use opendata_providers_find or opendata_providers_list to "
             "discover available ids."
         ),
     )
@@ -1610,7 +1610,7 @@ class ActivateProviderParams(BaseModel):
 async def handle_activate_provider(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.providers.activate tool call."""
+    """Handle the opendata_providers_activate tool call."""
     from meta_data_mcp.smithery_triggers import fire_event
 
     params = ActivateProviderParams(**(arguments or {}))
@@ -1633,7 +1633,7 @@ async def handle_activate_provider(
 
 TOOLS.append(
     types.Tool(
-        name="opendata.providers.activate",
+        name="opendata_providers_activate",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1656,7 +1656,7 @@ TOOLS.append(
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
-TOOLS_HANDLERS["opendata.providers.activate"] = handle_activate_provider
+TOOLS_HANDLERS["opendata_providers_activate"] = handle_activate_provider
 
 
 ###################
@@ -1665,7 +1665,7 @@ TOOLS_HANDLERS["opendata.providers.activate"] = handle_activate_provider
 
 
 class DeactivateProviderParams(BaseModel):
-    """Parameters for opendata.providers.deactivate."""
+    """Parameters for opendata_providers_deactivate."""
 
     provider_id: str = Field(
         ...,
@@ -1677,7 +1677,7 @@ class DeactivateProviderParams(BaseModel):
 async def handle_deactivate_provider(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.providers.deactivate tool call."""
+    """Handle the opendata_providers_deactivate tool call."""
     from meta_data_mcp.smithery_triggers import fire_event
 
     params = DeactivateProviderParams(**(arguments or {}))
@@ -1696,7 +1696,7 @@ async def handle_deactivate_provider(
 
 TOOLS.append(
     types.Tool(
-        name="opendata.providers.deactivate",
+        name="opendata_providers_deactivate",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1716,7 +1716,7 @@ TOOLS.append(
         annotations=types.ToolAnnotations(idempotentHint=True),
     )
 )
-TOOLS_HANDLERS["opendata.providers.deactivate"] = handle_deactivate_provider
+TOOLS_HANDLERS["opendata_providers_deactivate"] = handle_deactivate_provider
 
 
 ###################
@@ -1731,7 +1731,7 @@ class ListActiveProvidersParams(BaseModel):
 async def handle_list_active_providers(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.providers.list_active tool call."""
+    """Handle the opendata_providers_list_active tool call."""
     ListActiveProvidersParams(**(arguments or {}))
     # Plugin-owned tools are anything _owner_by_tool maps to a non-meta value.
     # Everything else in TOOLS_HANDLERS is a meta tool. Counting this way
@@ -1754,7 +1754,7 @@ async def handle_list_active_providers(
 
 TOOLS.append(
     types.Tool(
-        name="opendata.providers.list_active",
+        name="opendata_providers_list_active",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1775,7 +1775,7 @@ TOOLS.append(
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
-TOOLS_HANDLERS["opendata.providers.list_active"] = handle_list_active_providers
+TOOLS_HANDLERS["opendata_providers_list_active"] = handle_list_active_providers
 
 
 ###################
@@ -1784,7 +1784,7 @@ TOOLS_HANDLERS["opendata.providers.list_active"] = handle_list_active_providers
 
 
 class HealthSnapshotParams(BaseModel):
-    """Parameters for opendata.health.snapshot."""
+    """Parameters for opendata_health_snapshot."""
 
     provider_ids: Optional[List[str]] = Field(
         None,
@@ -1800,7 +1800,7 @@ class HealthSnapshotParams(BaseModel):
 async def handle_health_snapshot(
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Handle the opendata.health.snapshot tool call.
+    """Handle the opendata_health_snapshot tool call.
 
     Returns a per-provider health snapshot for the discovery app's live
     health badges. The payload follows the shape:
@@ -1839,7 +1839,7 @@ async def handle_health_snapshot(
         params = HealthSnapshotParams(**(arguments or {}))
         # Default to every registered provider so an empty call from the
         # discovery app gets a useful response. Use iter_registry to also
-        # cover hot-loaded plugins from opendata.plugins.create.
+        # cover hot-loaded plugins from opendata_plugins_create.
         if params.provider_ids is None:
             ids = [entry.id for entry in iter_registry()]
         else:
@@ -1852,13 +1852,13 @@ async def handle_health_snapshot(
         }
         return payload
     except Exception as e:
-        log.error(f"Error in opendata.health.snapshot: {e}")
+        log.error(f"Error in opendata_health_snapshot: {e}")
         raise
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.health.snapshot",
+        name="opendata_health_snapshot",
         outputSchema={
             "type": "object",
             "properties": {
@@ -1881,7 +1881,7 @@ TOOLS.append(
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
     )
 )
-TOOLS_HANDLERS["opendata.health.snapshot"] = handle_health_snapshot
+TOOLS_HANDLERS["opendata_health_snapshot"] = handle_health_snapshot
 
 
 ###################
@@ -1890,13 +1890,13 @@ TOOLS_HANDLERS["opendata.health.snapshot"] = handle_health_snapshot
 
 
 class CallToolParams(BaseModel):
-    """Parameters for opendata.tool.call."""
+    """Parameters for opendata_tool_call."""
 
     tool_name: str = Field(
         ...,
         description=(
             "Exact name of an activated plugin tool to call "
-            "(e.g. 'nvd-search-cves'). Use opendata.providers.activate first, "
+            "(e.g. 'nvd-search-cves'). Use opendata_providers_activate first, "
             "then pass the tool name from its 'tools' list."
         ),
     )
@@ -1912,7 +1912,7 @@ async def handle_call_tool(
     """Proxy any activated plugin tool by name — workaround for environments
     that don't surface dynamically registered tools as callable.
 
-    After calling opendata.providers.activate, use this tool to invoke
+    After calling opendata_providers_activate, use this tool to invoke
     any of the newly registered tools by passing their exact name and
     arguments instead of calling them directly.
     """
@@ -1924,7 +1924,7 @@ async def handle_call_tool(
         )
         return {
             "error": f"Tool '{params.tool_name}' not found or not activated.",
-            "hint": "Call opendata.providers.activate first.",
+            "hint": "Call opendata_providers_activate first.",
             "activated_tools": sorted(available),
         }
     try:
@@ -1941,18 +1941,18 @@ async def handle_call_tool(
                 return {"result": result[0].text}
         return {"result": str(result)}
     except Exception as exc:
-        log.error("opendata.tool.call(%s) failed: %s", params.tool_name, exc)
+        log.error("opendata_tool_call(%s) failed: %s", params.tool_name, exc)
         return {"error": str(exc), "tool_name": params.tool_name}
 
 
 TOOLS.append(
     types.Tool(
-        name="opendata.tool.call",
+        name="opendata_tool_call",
         title="Call Activated Tool",
         description=(
             "Proxy any activated plugin tool by name. Use this when dynamically "
             "activated tools aren't directly callable in your environment. "
-            "First activate the provider with opendata.providers.activate, "
+            "First activate the provider with opendata_providers_activate, "
             "then call this tool with the tool name and arguments from the "
             "activation response's tool_schemas field."
         ),
@@ -1960,7 +1960,7 @@ TOOLS.append(
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
     )
 )
-TOOLS_HANDLERS["opendata.tool.call"] = handle_call_tool
+TOOLS_HANDLERS["opendata_tool_call"] = handle_call_tool
 
 
 # ---------------------------------------------------------------------------
@@ -1971,7 +1971,7 @@ TOOLS_HANDLERS["opendata.tool.call"] = handle_call_tool
 # `TOOLS` and `TOOLS_HANDLERS`. By default the server starts in DISCOVERY-
 # ONLY mode — only the meta tools defined in THIS module are advertised —
 # and individual plugins are activated on demand via
-# ``opendata.providers.activate`` (or in batch via the
+# ``opendata_providers_activate`` (or in batch via the
 # ``META_DATA_MCP_PRELOAD`` environment variable). This keeps the
 # tool-catalog footprint small for clients with limited context budgets.
 #
@@ -1996,7 +1996,7 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     plugins_loaded, plugin_tools_added = _load_all_plugins()
     log.info(
         "meta-data-mcp — %d plugins preloaded, %d plugin tools + %d discovery tools "
-        "(set META_DATA_MCP_PRELOAD=* to preload all, or use opendata.providers.activate "
+        "(set META_DATA_MCP_PRELOAD=* to preload all, or use opendata_providers_activate "
         "at runtime)",
         plugins_loaded,
         plugin_tools_added,
