@@ -509,7 +509,11 @@ def _validate_generated_provider_ast(source: str) -> str | None:
             # ``os.environ["KEY"]`` is an Attribute node inside a Subscript,
             # not a Call, so the _ast.Call branch below never sees it.
             dotted = _ast_dotted_name(node)
-            if node.attr == "environ" or (dotted and dotted in _AST_BANNED_CALL_ATTRS):
+            if (
+                node.attr == "environ"
+                or node.attr in _AST_BANNED_CALL_ATTR_SUFFIXES
+                or (dotted and dotted in _AST_BANNED_CALL_ATTRS)
+            ):
                 return f"generated module accesses banned attribute: {(dotted or node.attr)!r}"
         elif isinstance(node, _ast.Call):
             func = node.func
