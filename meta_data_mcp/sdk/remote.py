@@ -207,7 +207,7 @@ class RemoteClient:
             args["domain"] = domain
         if region is not None:
             args["region"] = region
-        payload = await self._call_tool("opendata.providers.find", args)
+        payload = await self._call_tool("opendata_providers_find", args)
         providers: list[dict[str, Any]] = payload.get("providers", [])
         breakdowns: dict[str, Any] = payload.get("breakdowns", {})
         return [
@@ -220,18 +220,18 @@ class RemoteClient:
 
     async def list_domains(self) -> list[str]:
         """Return all domain tags from the server's registry."""
-        payload = await self._call_tool("opendata.domains.list", {})
+        payload = await self._call_tool("opendata_domains_list", {})
         return payload.get("domains", [])
 
     async def list_regions(self) -> list[str]:
         """Return all region tags from the server's registry."""
-        payload = await self._call_tool("opendata.regions.list", {})
+        payload = await self._call_tool("opendata_regions_list", {})
         return payload.get("regions", [])
 
     async def describe_provider(self, provider_id: str) -> dict[str, Any] | None:
         """Return the registry entry for *provider_id*, or ``None`` if unknown."""
         payload = await self._call_tool(
-            "opendata.providers.describe", {"provider_id": provider_id}
+            "opendata_providers_describe", {"provider_id": provider_id}
         )
         return payload.get("provider") or None
 
@@ -242,10 +242,24 @@ class RemoteClient:
         ``tools_added``, ``new_tool_names``).
         """
         return await self._call_tool(
-            "opendata.providers.activate", {"provider_id": provider_id}
+            "opendata_providers_activate", {"provider_id": provider_id}
         )
 
     async def health_snapshot(self) -> dict[str, float]:
-        """Return a ``{provider_id: health_score}`` snapshot from the server."""
-        payload = await self._call_tool("opendata.health.snapshot", {})
-        return payload.get("scores", {})
+        """Return a ``{provider_id: health_score}`` snapshot from the server.
+
+        The ``opendata_health_snapshot`` tool returns a per-provider payload
+        shaped ``{"snapshot": {provider_id: {"score": float, ...}}}``; this
+        flattens it to the ``{provider_id: score}`` map the SDK contract
+        promises.
+        """
+        payload = await self._call_tool("opendata_health_snapshot", {})
+        snapshot = payload.get("snapshot")
+        if not isinstance(snapshot, dict):
+            # Malformed or pre-v2.5 server response — nothing usable to map.
+            return {}
+        return {
+            provider_id: entry["score"]
+            for provider_id, entry in snapshot.items()
+            if isinstance(entry, dict) and isinstance(entry.get("score"), (int, float))
+        }

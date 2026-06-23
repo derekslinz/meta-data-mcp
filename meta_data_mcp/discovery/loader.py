@@ -3,7 +3,7 @@
 The meta server starts in *discovery-only* mode (just the ~13 meta
 tools defined in :mod:`meta_data_mcp.providers.meta_data_mcp`). Data
 plugins are activated on demand — either by the user calling
-``opendata.providers.activate`` or by the ``META_DATA_MCP_PRELOAD``
+``opendata_providers_activate`` or by the ``META_DATA_MCP_PRELOAD``
 environment variable at startup.
 
 This module owns the activation plumbing:

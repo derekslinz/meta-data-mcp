@@ -54,14 +54,14 @@ def test_meta_tools_registered():
     module-import time (before main() merges plugins)."""
     names = {tool.name for tool in TOOLS}
     expected = {
-        "opendata.explain.choice",
-        "opendata.providers.find",
-        "opendata.domains.list",
-        "opendata.regions.list",
-        "opendata.providers.describe",
-        "opendata.providers.list",
-        "opendata.plugins.create",
-        "opendata.plugins.draft",
+        "opendata_explain_choice",
+        "opendata_providers_find",
+        "opendata_domains_list",
+        "opendata_regions_list",
+        "opendata_providers_describe",
+        "opendata_providers_list",
+        "opendata_plugins_create",
+        "opendata_plugins_draft",
     }
     # The set must contain (at least) all of the above. Plugin tools may
     # have been hot-loaded earlier in this test session — that's fine.
@@ -107,7 +107,7 @@ async def test_draft_spec_emits_valid_yaml_for_simple_api():
     assert "title: Draft Test API" in yaml_str
 
     # Round-trip the YAML through the generator's validator to prove it's
-    # actually consumable by `opendata.plugins.create`.
+    # actually consumable by `opendata_plugins_create`.
     import tempfile
     from pathlib import Path as _P
     import importlib.util
@@ -216,7 +216,7 @@ async def test_call_tool_reports_only_plugin_tools_when_missing():
         _owner_by_tool.clear()
         _owner_by_tool.update(
             {
-                "opendata.providers.list": "meta",
+                "opendata_providers_list": "meta",
                 "example-plugin-tool": "example_provider",
             }
         )
@@ -260,12 +260,12 @@ async def test_find_providers_no_match_returns_empty():
     # The no-match response must steer the LLM toward autonomous creation.
     payload = json.loads(text)
     assert payload.get("no_match") is True
-    assert "opendata.plugins.create" in payload.get("next_step", "")
+    assert "opendata_plugins_create" in payload.get("next_step", "")
 
 
 @pytest.mark.anyio
 async def test_create_plugin_end_to_end(tmp_path, monkeypatch):
-    """Drive opendata.plugins.create through a real generator invocation.
+    """Drive opendata_plugins_create through a real generator invocation.
 
     Confirms the pipeline: validate spec → write to tools/specs/ → run
     generate_provider.py → import module → register in dynamic registry →
@@ -358,7 +358,7 @@ async def test_create_plugin_rejects_missing_required_keys():
     assert "missing required keys" in payload["error"].lower()
 
 
-# -- Security regression tests for opendata.plugins.create (RCE-prevention) ---
+# -- Security regression tests for opendata_plugins_create (RCE-prevention) ---
 #
 # These guard against the five vulnerabilities surfaced in the expanded-scope
 # security review: id-driven path traversal in handle_create_plugin, plus
@@ -760,7 +760,9 @@ def test_validate_generated_provider_ast_rejects_os_getenv():
         "f = provider_config.os.getenv\n"
         "x = f('SECRET')\n"
     )
-    assert _validate_generated_provider_ast(src_provider_config_getenv_alias) is not None
+    assert (
+        _validate_generated_provider_ast(src_provider_config_getenv_alias) is not None
+    )
 
 
 @pytest.mark.anyio
@@ -820,7 +822,7 @@ async def test_find_providers_exception_handling(caplog):
             with pytest.raises(RuntimeError, match="Test error"):
                 await handle_find_providers({"query": "test"})
 
-        assert "Error in opendata.providers.find: Test error" in caplog.text
+        assert "Error in opendata_providers_find: Test error" in caplog.text
 
 
 @pytest.mark.anyio
@@ -833,7 +835,7 @@ async def test_explain_choice_exception_handling(caplog):
             with pytest.raises(ValueError, match="Bad params"):
                 await handle_explain_choice({"query": "test"})
 
-        assert "Error in opendata.explain.choice: Bad params" in caplog.text
+        assert "Error in opendata_explain_choice: Bad params" in caplog.text
 
 
 @pytest.mark.anyio
@@ -846,7 +848,7 @@ async def test_list_domains_exception_handling(caplog):
             with pytest.raises(RuntimeError, match="Domain list error"):
                 await handle_list_domains({})
 
-        assert "Error in opendata.domains.list: Domain list error" in caplog.text
+        assert "Error in opendata_domains_list: Domain list error" in caplog.text
 
 
 @pytest.mark.anyio
@@ -859,7 +861,7 @@ async def test_list_regions_exception_handling(caplog):
             with pytest.raises(RuntimeError, match="Region list error"):
                 await handle_list_regions({})
 
-        assert "Error in opendata.regions.list: Region list error" in caplog.text
+        assert "Error in opendata_regions_list: Region list error" in caplog.text
 
 
 @pytest.mark.anyio
@@ -874,7 +876,7 @@ async def test_list_providers_exception_handling(caplog):
             with pytest.raises(RuntimeError, match="Registry error"):
                 await handle_list_providers({"limit": 10})
 
-        assert "Error in opendata.providers.list: Registry error" in caplog.text
+        assert "Error in opendata_providers_list: Registry error" in caplog.text
 
 
 # Resource handler coverage tests
@@ -1062,7 +1064,7 @@ async def test_main_function_creates_server():
 
 
 # ---------------------------------------------------------------------------
-# Phase 3: discovery app binding + opendata.health.snapshot
+# Phase 3: discovery app binding + opendata_health_snapshot
 # ---------------------------------------------------------------------------
 
 
@@ -1091,10 +1093,10 @@ def test_discovery_tool_binds_to_discovery_app(tool_name):
 
 
 def test_health_snapshot_tool_registered():
-    """``opendata.health.snapshot`` is the only net-new tool in Phase 3."""
+    """``opendata_health_snapshot`` is the only net-new tool in Phase 3."""
     names = {t.name for t in TOOLS}
-    assert "opendata.health.snapshot" in names
-    assert "opendata.health.snapshot" in TOOLS_HANDLERS
+    assert "opendata_health_snapshot" in names
+    assert "opendata_health_snapshot" in TOOLS_HANDLERS
 
 
 @pytest.mark.anyio

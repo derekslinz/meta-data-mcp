@@ -22,7 +22,7 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_mcp_registry_search_success():
-    """Smoke test: mcp.registry.search returns success payload."""
+    """Smoke test: mcp_registry_search returns success payload."""
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "ok": True,
@@ -37,7 +37,7 @@ async def test_mcp_registry_search_success():
 
 @pytest.mark.anyio
 async def test_mcp_registry_search_http_error():
-    """mcp.registry.search propagates httpx errors."""
+    """mcp_registry_search propagates httpx errors."""
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
@@ -46,7 +46,7 @@ async def test_mcp_registry_search_http_error():
 
 @pytest.mark.anyio
 async def test_mcp_registry_list_success():
-    """Smoke test: mcp.registry.list returns success payload."""
+    """Smoke test: mcp_registry_list returns success payload."""
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "ok": True,
@@ -61,7 +61,7 @@ async def test_mcp_registry_list_success():
 
 @pytest.mark.anyio
 async def test_mcp_registry_list_http_error():
-    """mcp.registry.list propagates httpx errors."""
+    """mcp_registry_list propagates httpx errors."""
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):

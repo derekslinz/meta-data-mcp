@@ -140,7 +140,7 @@ async def test_find_providers_passes_correct_tool_name_and_args(client):
         )
 
     mock.assert_called_once_with(
-        "opendata.providers.find",
+        "opendata_providers_find",
         {
             "query": "floods",
             "domain": "earth-science",
@@ -237,7 +237,24 @@ async def test_activate_provider(client):
 
 @pytest.mark.anyio
 async def test_health_snapshot(client):
-    payload = {"scores": {"us_usgs_earthquake": 1.0, "global_arxiv": 0.95}}
+    # Mirror the real opendata_health_snapshot payload shape: per-provider
+    # entries under "snapshot", each with score/failure_mass/last_update_ts.
+    payload = {
+        "snapshot": {
+            "us_usgs_earthquake": {
+                "score": 1.0,
+                "failure_mass": 0.0,
+                "last_update_ts": None,
+            },
+            "global_arxiv": {
+                "score": 0.95,
+                "failure_mass": 0.5,
+                "last_update_ts": 123.0,
+            },
+        },
+        "generated_at": 1700000000.0,
+        "generated_at_monotonic": 456.0,
+    }
     with patch.object(client, "_call_tool", new=AsyncMock(return_value=payload)):
         snap = await client.health_snapshot()
 

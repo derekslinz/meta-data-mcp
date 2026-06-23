@@ -1,6 +1,6 @@
 """``ui://meta-data-mcp/app/discovery/v1`` — Phase 3 discovery app.
 
-Wraps the five discovery meta tools plus ``opendata.health.snapshot`` into
+Wraps the five discovery meta tools plus ``opendata_health_snapshot`` into
 one panel: faceted filter (domain × region × text), ranked provider list
 with score breakdown + health badge, click-to-activate, bottom active-
 provider tray.
@@ -38,7 +38,7 @@ URI: str = "ui://meta-data-mcp/app/discovery/v1"
 _DESCRIPTION = (
     "Discovery app: faceted filter, ranked provider list with score "
     "breakdown and live health badges, click-to-activate. Wraps "
-    "opendata.providers.find / list-domains / list-regions / "
+    "opendata_providers_find / list-domains / list-regions / "
     "list-active-providers / activate-provider / health-snapshot. "
     "Dependency-free vanilla JS. "
     "postMessage protocol — "

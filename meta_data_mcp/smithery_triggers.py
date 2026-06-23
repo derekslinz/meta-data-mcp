@@ -5,9 +5,9 @@ events to Smithery subscribers when providers are activated/deactivated
 or new plugins are created.
 
 Three events are exposed:
-  - provider.activated   — fired by opendata.providers.activate
-  - provider.deactivated — fired by opendata.providers.deactivate
-  - plugin.created       — fired by opendata.plugins.create
+  - provider.activated   — fired by opendata_providers_activate
+  - provider.deactivated — fired by opendata_providers_deactivate
+  - plugin.created       — fired by opendata_plugins_create
 
 Smithery discovers events via ai.smithery/events/list, registers webhooks
 via ai.smithery/events/subscribe, and tears them down via
@@ -109,7 +109,7 @@ def _validate_webhook_url(url: str) -> str | None:
 EVENTS = [
     {
         "name": "provider.activated",
-        "description": "Fires when a provider is activated via opendata.providers.activate.",
+        "description": "Fires when a provider is activated via opendata_providers_activate.",
         "delivery": ["webhook"],
         "inputSchema": {"type": "object", "properties": {}},
         "payloadSchema": {
@@ -124,7 +124,7 @@ EVENTS = [
     },
     {
         "name": "provider.deactivated",
-        "description": "Fires when a provider is deactivated via opendata.providers.deactivate.",
+        "description": "Fires when a provider is deactivated via opendata_providers_deactivate.",
         "delivery": ["webhook"],
         "inputSchema": {"type": "object", "properties": {}},
         "payloadSchema": {
@@ -138,7 +138,7 @@ EVENTS = [
     },
     {
         "name": "plugin.created",
-        "description": "Fires when a new plugin is created via opendata.plugins.create.",
+        "description": "Fires when a new plugin is created via opendata_plugins_create.",
         "delivery": ["webhook"],
         "inputSchema": {"type": "object", "properties": {}},
         "payloadSchema": {

@@ -157,7 +157,7 @@ def snapshot(
 ) -> dict[str, dict[str, float | None]]:
     """Return a snapshot of health state for instrumentation / UI.
 
-    The Phase 3 ``opendata.health.snapshot`` meta tool calls this to feed
+    The Phase 3 ``opendata_health_snapshot`` meta tool calls this to feed
     the discovery app's per-provider health badges. The return value is a
     fresh dict — callers can mutate it freely without affecting the
     in-memory registry.

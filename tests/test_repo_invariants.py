@@ -29,6 +29,7 @@ lxml/beautifulsoup would be more risk than parser-leniency saves.
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
@@ -39,6 +40,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PROVIDERS_DIR = REPO_ROOT / "meta_data_mcp" / "providers"
 BUNDLES_DIR = REPO_ROOT / "meta_data_mcp" / "ui_resources"
 README_PATH = REPO_ROOT / "README.md"
+
+# MCP tool names are surfaced to hosts (e.g. Claude) as Anthropic API tool
+# names, which must match ``^[a-zA-Z0-9_-]{1,64}$``. A name containing a dot,
+# space, slash, or colon — or one over 64 chars — gets rejected by the host
+# (or silently sanitized into a name that no longer matches our handler dict
+# keys), breaking the whole connector. Dotted names (``opendata.providers.find``)
+# were the bug class this guard closes.
+TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +60,33 @@ ADAPTER_TODO_RE = re.compile(
     r"^\s*#\s*TODO:\s*write\s+a\s+_\w+_to_shape_payload\(data\)\s+adapter\b",
     re.MULTILINE,
 )
+
+
+def test_every_tool_name_matches_mcp_charset() -> None:
+    """Every tool registered by any provider module must use a name the MCP
+    host will accept (``^[a-zA-Z0-9_-]{1,64}$``).
+
+    Importing each provider module is enough: every provider appends to its
+    module-level ``TOOLS`` list at import time. This catches the dotted-name
+    bug class (e.g. ``opendata.providers.find``, ``mcp.registry.search``) that
+    a regex over ``name="..."`` literals would miss for dynamically-built
+    names, and pins it for any future provider too.
+    """
+    offenders: list[str] = []
+    for path in sorted(PROVIDERS_DIR.glob("*.py")):
+        stem = path.stem
+        if stem.startswith("__"):  # __init__, __template__
+            continue
+        module = importlib.import_module(f"meta_data_mcp.providers.{stem}")
+        for tool in getattr(module, "TOOLS", []):
+            if not TOOL_NAME_RE.match(tool.name):
+                offenders.append(f"{stem}: {tool.name!r}")
+
+    assert not offenders, (
+        "Tool name(s) violate the MCP charset ^[a-zA-Z0-9_-]{1,64}$ — "
+        "hosts reject dots/spaces/slashes/colons and over-64-char names:\n  "
+        + "\n  ".join(offenders)
+    )
 
 
 def test_no_generated_provider_ships_with_unwritten_shape_adapter() -> None:
@@ -134,6 +170,29 @@ def test_bundle_directory_is_populated() -> None:
     Pin a floor so a refactor that moves the directory fails loudly."""
     assert _bundles(), (
         f"No bundles found in {BUNDLES_DIR} — directory moved or glob is stale."
+    )
+
+
+# Matches a dotted meta/registry tool name (the pre-v2.5 form) anywhere in a
+# bundle. ``ui://`` bundles dispatch tool calls by literal name from JS, so a
+# stale dotted name there breaks the app at runtime without failing any other
+# test. The charset invariant only sees Python ``TOOLS``; this catches the HTML.
+DOTTED_TOOL_NAME_RE = re.compile(
+    r"\b(?:opendata|mcp)(?:\.[a-z_]+){2,}\b",
+)
+
+
+@pytest.mark.parametrize("bundle", _bundles(), ids=lambda p: p.name)
+def test_bundle_uses_no_dotted_tool_names(bundle: Path) -> None:
+    """A bundle must not reference dotted tool names (e.g.
+    ``opendata.providers.find``). Hosts expose tools under the underscore
+    form, so a dotted dispatch name no longer resolves once renamed.
+    """
+    text = bundle.read_text(encoding="utf-8")
+    offenders = sorted({match.group(0) for match in DOTTED_TOOL_NAME_RE.finditer(text)})
+    assert not offenders, (
+        f"{bundle.name} dispatches dotted tool name(s) that no longer resolve "
+        f"(use underscore form): {offenders}"
     )
 
 
