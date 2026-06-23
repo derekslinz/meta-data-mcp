@@ -246,6 +246,17 @@ class RemoteClient:
         )
 
     async def health_snapshot(self) -> dict[str, float]:
-        """Return a ``{provider_id: health_score}`` snapshot from the server."""
+        """Return a ``{provider_id: health_score}`` snapshot from the server.
+
+        The ``opendata_health_snapshot`` tool returns a per-provider payload
+        shaped ``{"snapshot": {provider_id: {"score": float, ...}}}``; this
+        flattens it to the ``{provider_id: score}`` map the SDK contract
+        promises.
+        """
         payload = await self._call_tool("opendata_health_snapshot", {})
-        return payload.get("scores", {})
+        snapshot = payload.get("snapshot", {})
+        return {
+            provider_id: entry["score"]
+            for provider_id, entry in snapshot.items()
+            if isinstance(entry, dict) and "score" in entry
+        }
