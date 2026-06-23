@@ -372,7 +372,7 @@ _AST_BANNED_CALL_NAMES = frozenset(
 # `__builtins__` Name check higher up closes the most common indirect path
 # (`__builtins__["__import__"]("subprocess").run(...)`).
 _AST_BANNED_CALL_ATTR_SUFFIXES = frozenset(
-    {"ev" + "al", "ex" + "ec", "compile", "__import__", "system", "popen"}
+    {"ev" + "al", "ex" + "ec", "compile", "__import__", "system", "popen", "getenv"}
 )
 # Built as concatenation to keep the constant out of literal-string grep
 # checks that flag dangerous-looking strings in source.
@@ -504,6 +504,13 @@ def _validate_generated_provider_ast(source: str) -> str | None:
                         f"generated module imports banned callable by name: "
                         f"'from {module} import {alias.name}'"
                     )
+        elif isinstance(node, _ast.Attribute):
+            # Catch non-call attribute access to banned names — e.g.
+            # ``os.environ["KEY"]`` is an Attribute node inside a Subscript,
+            # not a Call, so the _ast.Call branch below never sees it.
+            dotted = _ast_dotted_name(node)
+            if dotted and dotted in _AST_BANNED_CALL_ATTRS:
+                return f"generated module accesses banned attribute: {dotted!r}"
         elif isinstance(node, _ast.Call):
             func = node.func
             if isinstance(func, _ast.Name) and func.id in _AST_BANNED_CALL_NAMES:
@@ -513,6 +520,10 @@ def _validate_generated_provider_ast(source: str) -> str | None:
                 # closes the `__builtins__.<banned>` indirect path that
                 # _AST_BANNED_CALL_ATTRS (which only lists explicit
                 # `os.system`/`subprocess.run`/etc. dotted names) would miss.
+                # ``getenv`` is also in this suffix set so that indirect access
+                # like ``some_module.os.getenv(...)`` is caught even when the
+                # full dotted name differs from the ``os.getenv`` entry in
+                # _AST_BANNED_CALL_ATTRS.
                 if func.attr in _AST_BANNED_CALL_ATTR_SUFFIXES:
                     return f"generated module calls banned attribute: {func.attr!r}"
                 dotted = _ast_dotted_name(func)
