@@ -347,7 +347,7 @@ def _render_fetch_fn(tool: dict[str, Any], requires_env: list[str]) -> str:
             )
         seen_env_query_params.add(query_param)
         env_lines.append(
-            f'    query["{query_param}"] = _require_key({_py_literal(env_var)})'
+            f'    query["{query_param}"] = require_env_key({_py_literal(env_var)})'
         )
 
     body_parts = [url_line, "    query: dict = {}"]
@@ -468,16 +468,10 @@ def _render_tool_block(tool: dict[str, Any], requires_env: list[str]) -> str:
 def _render_env_helper(requires_env: list[str]) -> str:
     if not requires_env:
         return ""
-    return (
-        "def _require_key(var_name: str) -> str:\n"
-        '    """Return the environment variable or raise ValueError if missing."""\n'
-        "    value = os.getenv(var_name)\n"
-        "    if not value:\n"
-        "        raise ValueError(\n"
-        '            f"Environment variable {var_name} is required for this provider"\n'
-        "        )\n"
-        "    return value"
-    )
+    # No helper function needed — generated code calls require_env_key() directly,
+    # imported from meta_data_mcp.provider_config. This keeps `os` out of generated
+    # modules; sandbox enforcement still relies on the generated-plugin AST validator.
+    return ""
 
 
 def render_provider(spec: dict[str, Any]) -> str:
@@ -527,7 +521,7 @@ def render_provider(spec: dict[str, Any]) -> str:
         "import logging",
     ]
     if requires_env:
-        import_lines.append("import os")
+        import_lines.append("from meta_data_mcp.provider_config import require_env_key")
     import_lines.extend(
         [
             "from typing import Any, List, Optional, Sequence",
