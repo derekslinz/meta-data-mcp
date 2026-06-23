@@ -99,6 +99,7 @@ def _validate_webhook_url(url: str) -> str | None:
     for net in _PRIVATE_NETWORKS:
         if addr in net:
             return f"webhook URL host '{host}' is a private or loopback address"
+    return None
 
 
 # ---------------------------------------------------------------------------
