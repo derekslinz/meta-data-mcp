@@ -470,7 +470,7 @@ def _render_env_helper(requires_env: list[str]) -> str:
         return ""
     # No helper function needed — generated code calls require_env_key() directly,
     # imported from meta_data_mcp.provider_config. This keeps `os` out of generated
-    # modules, preventing env-var exfiltration via the AST allowlist.
+    # modules; sandbox enforcement still relies on the generated-plugin AST validator.
     return ""
 
 
