@@ -81,6 +81,16 @@ class InMemoryOAuthProvider(
         self._auth_codes: dict[str, AuthorizationCode] = {}
         self._access_tokens: dict[str, AccessToken] = {}
         self._refresh_tokens: dict[str, RefreshToken] = {}
+        # Email identity side-maps for the magic-link gate. The MCP SDK's
+        # AuthorizationCode/AccessToken types have no field for a verified
+        # email, so we carry it alongside: session → code → token. Empty
+        # entries simply mean "no email gate" (e.g. static-token auth).
+        self._code_email: dict[str, str] = {}
+        self._token_email: dict[str, str] = {}
+        # Refresh tokens carry the email too, so a refresh exchange re-binds the
+        # new access token. Without this, refreshing would drop the identity and
+        # let a user escape per-email rate limiting by rotating tokens.
+        self._refresh_email: dict[str, str] = {}
 
     @staticmethod
     def _read_positive_int_env(name: str, default: int) -> int:
@@ -178,6 +188,11 @@ class InMemoryOAuthProvider(
                 "redirect_uri_provided_explicitly"
             ],
         )
+        # Carry a verified email (set by the magic-link gate) onto the code so
+        # it survives the exchange and lands on the access token.
+        email = session.get("email")
+        if email:
+            self._code_email[code] = email
         return code
 
     # ------------------------------------------------------------------
@@ -212,6 +227,9 @@ class InMemoryOAuthProvider(
         """
         # Remove the used code (one-shot).
         self._auth_codes.pop(authorization_code.code, None)
+        # Move any verified email from the code to the issued access token so
+        # the rate limiter and identity lookups can key on it.
+        email = self._code_email.pop(authorization_code.code, None)
 
         access_token_str = secrets.token_urlsafe(32)
         refresh_token_str = secrets.token_urlsafe(32)
@@ -223,6 +241,9 @@ class InMemoryOAuthProvider(
             scopes=authorization_code.scopes,
             expires_at=int(time.time()) + self._token_ttl,
         )
+        if email:
+            self._token_email[access_token_str] = email
+            self._refresh_email[refresh_token_str] = email
         self._refresh_tokens[refresh_token_str] = RefreshToken(
             token=refresh_token_str,
             client_id=client_id,
@@ -258,8 +279,10 @@ class InMemoryOAuthProvider(
         scopes: list[str],
     ) -> OAuthToken:
         """Issue a new access token (and rotate the refresh token)."""
-        # Invalidate the old refresh token.
+        # Invalidate the old refresh token, carrying its bound email forward so
+        # the rotated access token keeps the same rate-limit identity.
         self._refresh_tokens.pop(refresh_token.token, None)
+        email = self._refresh_email.pop(refresh_token.token, None)
 
         effective_scopes = scopes or refresh_token.scopes
         new_access = secrets.token_urlsafe(32)
@@ -277,6 +300,9 @@ class InMemoryOAuthProvider(
             client_id=client_id,
             scopes=effective_scopes,
         )
+        if email:
+            self._token_email[new_access] = email
+            self._refresh_email[new_refresh] = email
 
         return OAuthToken(
             access_token=new_access,
@@ -305,8 +331,17 @@ class InMemoryOAuthProvider(
             and time.time() > matched_access_token.expires_at
         ):
             del self._access_tokens[matched_token]
+            self._token_email.pop(matched_token, None)
             return None
         return matched_access_token
+
+    def email_for_token(self, token: str) -> str | None:
+        """Return the verified email bound to ``token`` by the magic-link gate.
+
+        ``None`` means the token was issued without an email gate (e.g. static
+        bearer-token auth) — callers fall back to the token itself as identity.
+        """
+        return self._token_email.get(token)
 
     # ------------------------------------------------------------------
     # Token revocation
@@ -318,6 +353,8 @@ class InMemoryOAuthProvider(
     ) -> None:
         self._access_tokens.pop(token.token, None)
         self._refresh_tokens.pop(token.token, None)
+        self._token_email.pop(token.token, None)
+        self._refresh_email.pop(token.token, None)
 
 
 # ---------------------------------------------------------------------------

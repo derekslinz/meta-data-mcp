@@ -24,6 +24,7 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from pydantic import AnyUrl
+from starlette.responses import JSONResponse
 
 from meta_data_mcp import provenance
 
@@ -307,12 +308,17 @@ class BearerAuthMiddleware:
         protected_prefixes: Sequence[str] = ("/sse", "/messages"),
         oauth_provider: Any = None,
         resource_metadata_url: str | None = None,
+        rate_limiter: Any = None,
     ) -> None:
         self.app = app
         self.token = token
         self.protected_prefixes = tuple(protected_prefixes)
         self.oauth_provider = oauth_provider
         self.resource_metadata_url = resource_metadata_url
+        # Optional per-user throttle, applied only on the OAuth path (the
+        # static operator token is not rate-limited). Identity is the verified
+        # email when the magic-link gate bound one, else the access token.
+        self.rate_limiter = rate_limiter
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope.get("type") != "http" or not any(
@@ -342,10 +348,24 @@ class BearerAuthMiddleware:
             if self.oauth_provider is not None:
                 access_token = await self.oauth_provider.verify_access_token(presented)
                 if access_token is not None:
+                    if self.rate_limiter is not None:
+                        email_for_token = getattr(
+                            self.oauth_provider, "email_for_token", None
+                        )
+                        identity = (
+                            email_for_token(presented) if email_for_token else None
+                        ) or presented
+                        if not self.rate_limiter.allow(identity):
+                            retry_after = self.rate_limiter.retry_after(identity)
+                            resp = JSONResponse(
+                                {"error": "rate_limited"},
+                                status_code=429,
+                                headers={"Retry-After": str(retry_after)},
+                            )
+                            await resp(scope, receive, send)
+                            return
                     await self.app(scope, receive, send)
                     return
-
-        from starlette.responses import JSONResponse
 
         if self.resource_metadata_url:
             www_auth = (
@@ -385,7 +405,6 @@ async def run_server(
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.middleware.cors import CORSMiddleware
-        from starlette.responses import JSONResponse
         from starlette.routing import Mount, Route
 
         from contextlib import asynccontextmanager
@@ -436,6 +455,7 @@ async def run_server(
         # ----------------------------------------------------------------
         oauth_provider = None
         extra_routes: list = []
+        rate_limiter = None
 
         oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
         if oauth_issuer:
@@ -460,8 +480,72 @@ async def run_server(
 
             oauth_provider = InMemoryOAuthProvider(issuer_url=oauth_issuer)
 
+            # ----------------------------------------------------------------
+            # Magic-link email gate (optional — META_DATA_MCP_EMAIL_GATE=1)
+            # ----------------------------------------------------------------
+            # When enabled, the consent page collects an email and emails a
+            # single-use sign-in link; access is granted only after the link is
+            # clicked, and the verified email becomes the rate-limit identity.
+            # When disabled, the original one-click Approve consent is used.
+            email_gate_enabled = os.getenv(
+                "META_DATA_MCP_EMAIL_GATE", ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+            magic_store = None
+            emailer = None
+            if email_gate_enabled:
+                from meta_data_mcp.auth_gate import (
+                    DEFAULT_RATE_LIMIT_RPM,
+                    MagicLinkStore,
+                    RateLimiter,
+                )
+                from meta_data_mcp.emailer import EmailBackend, Emailer
+
+                magic_store = MagicLinkStore()
+                emailer = Emailer.from_env()
+                # The console backend logs the magic link instead of sending
+                # it — anyone with log access could sign in. Refuse to start a
+                # gated server on it unless the operator explicitly opts in.
+                if emailer.backend is EmailBackend.CONSOLE and os.getenv(
+                    "META_DATA_MCP_ALLOW_CONSOLE_EMAIL", ""
+                ).strip().lower() not in ("1", "true", "yes", "on"):
+                    raise RuntimeError(
+                        "META_DATA_MCP_EMAIL_GATE is enabled but no email backend "
+                        "is configured (set META_DATA_MCP_RESEND_API_KEY or "
+                        "META_DATA_MCP_SMTP_HOST). The console backend logs magic "
+                        "links in plaintext and is unsafe for production. To use "
+                        "it for local testing, set "
+                        "META_DATA_MCP_ALLOW_CONSOLE_EMAIL=1."
+                    )
+                rpm = DEFAULT_RATE_LIMIT_RPM
+                raw_rpm = os.getenv("META_DATA_MCP_RATE_LIMIT_RPM")
+                if raw_rpm is not None:
+                    try:
+                        rpm = int(raw_rpm)
+                    except ValueError:
+                        log.warning(
+                            "META_DATA_MCP_RATE_LIMIT_RPM must be an integer; "
+                            "using default %d",
+                            DEFAULT_RATE_LIMIT_RPM,
+                        )
+                rate_limiter = RateLimiter(rpm=rpm)
+                log.info(
+                    "Email gate enabled — magic-link sign-in via %s backend, %s",
+                    emailer.backend.value,
+                    f"{rpm} req/min per user" if rpm > 0 else "rate limiting off",
+                )
+
             import html as _html
             from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
+
+            def _looks_like_email(value: str) -> bool:
+                """Cheap structural email check — not RFC-5322, just enough to
+                reject obvious junk before we send. Final proof of validity is
+                whether the magic link is actually received and clicked."""
+                value = value.strip()
+                if not (3 <= len(value) <= 254) or " " in value:
+                    return False
+                local, _, domain = value.partition("@")
+                return bool(local) and "." in domain and not domain.startswith(".")
 
             def _add_query_params(base_url: str, params: dict[str, str]) -> str:
                 """Append params to base_url, preserving any existing query string.
@@ -500,16 +584,28 @@ async def run_server(
                     ", ".join(session.get("scopes", [])) or "(default)"
                 )
                 session_token_escaped = _html.escape(session_token)
-                return HTMLResponse(f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<title>Authorize — meta-data-mcp</title>
-<style>body{{font-family:sans-serif;max-width:480px;margin:3rem auto;padding:0 1rem}}
-  .card{{border:1px solid #ddd;border-radius:8px;padding:1.5rem}}
-  h2{{margin-top:0}} .scope{{color:#555;font-size:.9rem}}
-  button{{padding:.6rem 1.4rem;border:none;border-radius:4px;cursor:pointer;font-size:1rem}}
-  .approve{{background:#2563eb;color:#fff}} .deny{{background:#e5e7eb;color:#111;margin-left:.5rem}}
-</style></head><body>
-<div class="card">
+                _style = """<style>body{font-family:sans-serif;max-width:480px;margin:3rem auto;padding:0 1rem}
+  .card{border:1px solid #ddd;border-radius:8px;padding:1.5rem}
+  h2{margin-top:0} .scope{color:#555;font-size:.9rem}
+  input[type=email]{width:100%;padding:.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;margin:.5rem 0 1rem;box-sizing:border-box}
+  button{padding:.6rem 1.4rem;border:none;border-radius:4px;cursor:pointer;font-size:1rem}
+  .approve{background:#2563eb;color:#fff} .deny{background:#e5e7eb;color:#111;margin-left:.5rem}
+</style>"""
+                if email_gate_enabled:
+                    body_html = f"""<div class="card">
+  <h2>Sign in to meta-data-mcp</h2>
+  <p><strong>{client_name}</strong> is requesting access. Enter your email and
+  we'll send you a single-use sign-in link.</p>
+  <p class="scope">Requested scopes: {scopes_html}</p>
+  <form method="POST" action="/oauth/consent/request-link">
+    <input type="hidden" name="session" value="{session_token_escaped}">
+    <input type="email" name="email" placeholder="you@example.com" required autofocus>
+    <button type="submit" class="approve">Email me a sign-in link</button>
+    <button type="submit" name="deny" value="1" class="deny" formaction="/oauth/consent/approve">Deny</button>
+  </form>
+</div>"""
+                else:
+                    body_html = f"""<div class="card">
   <h2>Authorize access</h2>
   <p><strong>{client_name}</strong> is requesting access to your meta-data-mcp server.</p>
   <p class="scope">Requested scopes: {scopes_html}</p>
@@ -518,7 +614,12 @@ async def run_server(
     <button type="submit" class="approve">Approve</button>
     <button type="submit" name="deny" value="1" class="deny">Deny</button>
   </form>
-</div></body></html>""")
+</div>"""
+                return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Authorize — meta-data-mcp</title>
+{_style}</head><body>
+{body_html}</body></html>""")
 
             # Consent approval — POST /oauth/consent/approve
             async def consent_post(request: Request) -> HTMLResponse:
@@ -539,6 +640,80 @@ async def run_server(
                     return RedirectResponse(
                         _add_query_params(redirect_uri, params), status_code=302
                     )
+                code = oauth_provider.create_authorization_code(session)
+                params = {"code": code}
+                if session.get("state"):
+                    params["state"] = session["state"]
+                return RedirectResponse(
+                    _add_query_params(session["redirect_uri"], params), status_code=302
+                )
+
+            # Magic-link request — POST /oauth/consent/request-link
+            async def request_link_post(request: Request) -> HTMLResponse:
+                form = await request.form()
+                session_token = str(form.get("session", ""))
+                email = str(form.get("email", "")).strip()
+                # Peek (don't consume): the session must survive until the user
+                # clicks the magic link, where consume_session finalizes it.
+                session = oauth_provider.peek_session(session_token)
+                if session is None:
+                    return HTMLResponse(
+                        "<h1>Session expired or invalid.</h1>", status_code=400
+                    )
+                if not _looks_like_email(email):
+                    return HTMLResponse(
+                        "<h1>Please enter a valid email address.</h1>"
+                        "<p><a href='javascript:history.back()'>Go back</a></p>",
+                        status_code=400,
+                    )
+                assert magic_store is not None and emailer is not None
+                from meta_data_mcp.emailer import magic_link_message
+
+                magic_token = magic_store.issue(session_token, email)
+                link = f"{oauth_issuer.rstrip('/')}/oauth/magic?token={magic_token}"
+                try:
+                    await emailer.send(magic_link_message(email, link))
+                except Exception:
+                    log.exception("Failed to send magic-link email to %s", email)
+                    return HTMLResponse(
+                        "<h1>Couldn't send the sign-in email.</h1>"
+                        "<p>Please try again in a moment.</p>",
+                        status_code=502,
+                    )
+                email_escaped = _html.escape(email)
+                return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Check your email — meta-data-mcp</title>
+<style>body{{font-family:sans-serif;max-width:480px;margin:3rem auto;padding:0 1rem}}
+  .card{{border:1px solid #ddd;border-radius:8px;padding:1.5rem}}</style>
+</head><body><div class="card">
+  <h2>Check your email</h2>
+  <p>We sent a single-use sign-in link to <strong>{email_escaped}</strong>.
+  Open it on this device to finish connecting. The link expires shortly.</p>
+</div></body></html>""")
+
+            # Magic-link verification — GET /oauth/magic?token=<token>
+            async def magic_get(request: Request):
+                from starlette.responses import RedirectResponse
+
+                token = request.query_params.get("token", "")
+                assert magic_store is not None
+                record = magic_store.verify(token)
+                if record is None:
+                    return HTMLResponse(
+                        "<h1>This sign-in link is invalid or has expired.</h1>"
+                        "<p>Start the connection again to get a new link.</p>",
+                        status_code=400,
+                    )
+                session = oauth_provider.consume_session(record.session_token)
+                if session is None:
+                    return HTMLResponse(
+                        "<h1>Your sign-in session expired.</h1>"
+                        "<p>Start the connection again.</p>",
+                        status_code=400,
+                    )
+                # Bind the verified email so it flows session → code → token.
+                session["email"] = record.email
                 code = oauth_provider.create_authorization_code(session)
                 params = {"code": code}
                 if session.get("state"):
@@ -671,6 +846,15 @@ async def run_server(
                     ),
                 ]
             )
+            if email_gate_enabled:
+                extra_routes += [
+                    Route(
+                        "/oauth/consent/request-link",
+                        endpoint=request_link_post,
+                        methods=["POST"],
+                    ),
+                    Route("/oauth/magic", endpoint=magic_get, methods=["GET"]),
+                ]
             log.info(f"OAuth 2.0 enabled — issuer: {oauth_issuer}")
 
         from meta_data_mcp.smithery_triggers import SmitheryTriggersMiddleware
@@ -694,6 +878,7 @@ async def run_server(
                 BearerAuthMiddleware,
                 token=auth_token,
                 oauth_provider=oauth_provider,
+                rate_limiter=rate_limiter,
             )
             log.info(
                 "SSE auth enabled — %s",

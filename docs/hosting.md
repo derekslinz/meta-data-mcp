@@ -275,7 +275,7 @@ were running locally.
 | Failure response | `401` with `WWW-Authenticate: Bearer realm="meta-data-mcp"` |
 | Token comparison | `hmac.compare_digest` (constant-time) |
 | Number of tokens | One per server instance (rotate by restarting with a new value) |
-| OAuth / per-user tokens | **Not** supported — see [Threat model](#threat-model) |
+| OAuth / per-user tokens | Supported — enable `META_DATA_MCP_OAUTH_ISSUER`, optionally with the [email gate](#email-gate-magic-link-sign-in--per-user-rate-limiting) for per-user identity + rate limiting |
 
 ### Threat model
 
@@ -306,6 +306,52 @@ EOF
 sudo systemctl restart meta-data-mcp
 # Update each client's headers to send the new value.
 ```
+
+## Email gate (magic-link sign-in + per-user rate limiting)
+
+For a public deployment where you want to know who is connecting and throttle
+each user independently — instead of handing out one shared bearer token — turn
+on the **magic-link email gate**. It rides the existing OAuth 2.1 flow: at the
+consent step the user enters an email, receives a single-use sign-in link, and
+clicking it completes the OAuth handshake. The verified email becomes the
+rate-limit identity.
+
+Requires OAuth to be enabled (`META_DATA_MCP_OAUTH_ISSUER`).
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `META_DATA_MCP_EMAIL_GATE` | Set to `1`/`true`/`on` to enable the gate | off |
+| `META_DATA_MCP_RATE_LIMIT_RPM` | Requests per minute per verified email (`0` disables throttling) | `30` |
+| `META_DATA_MCP_EMAIL_FROM` | Sender address for the sign-in email (required for Resend/SMTP) | — |
+| `META_DATA_MCP_RESEND_API_KEY` | Use the [Resend](https://resend.com) HTTP API to send links | — |
+| `META_DATA_MCP_SMTP_HOST` | Use SMTP (STARTTLS) instead of Resend | — |
+| `META_DATA_MCP_SMTP_PORT` | SMTP port | `587` |
+| `META_DATA_MCP_SMTP_USER` / `META_DATA_MCP_SMTP_PASSWORD` | SMTP auth (omit for unauthenticated relays) | — |
+
+**Email backend precedence:** Resend (if `…_RESEND_API_KEY` set) → SMTP (if
+`…_SMTP_HOST` set) → **console** (neither set). The console backend logs the
+magic link instead of emailing it — useful for local testing, never for
+production (anyone reading the logs can sign in). Because of that risk, enabling
+the gate with no real backend **refuses to start**; set
+`META_DATA_MCP_ALLOW_CONSOLE_EMAIL=1` to explicitly allow the console backend
+for local testing.
+
+```bash
+# Example: gated public server using Resend, 60 req/min per user.
+export META_DATA_MCP_OAUTH_ISSUER="https://mcp.example.com"
+export META_DATA_MCP_EMAIL_GATE=1
+export META_DATA_MCP_RATE_LIMIT_RPM=60
+export META_DATA_MCP_EMAIL_FROM="meta-data-mcp <no-reply@example.com>"
+export META_DATA_MCP_RESEND_API_KEY="re_..."
+```
+
+**Caveats (v1):** the magic-link tokens, the email→token binding, and the
+rate-limit counters are all **in-memory and process-local** — a restart forces
+every user to re-verify, and the limiter does not share state across workers
+(see [Single-worker constraint](#single-worker-constraint)). A durable backend
+(SQLite) is a planned follow-up; the store interfaces are already isolated for
+it. The static `META_DATA_MCP_AUTH_TOKEN`, if also set, continues to work and is
+**not** rate-limited (it's the operator's own key).
 
 ## Troubleshooting
 
