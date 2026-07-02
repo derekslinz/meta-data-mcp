@@ -103,7 +103,8 @@ class SolarsystemGetBodyParams(BaseModel):
 
 def fetch_solarsystem_get_body(params: SolarsystemGetBodyParams) -> Any:
     """Fetch data for the solarsystem-get-body tool."""
-    url = f"{BASE_URL}/bodies/{params.body_id}"
+    from urllib.parse import quote
+    url = f"{BASE_URL}/bodies/{quote(params.body_id, safe='')}"
     query: dict = {}
     response = http_get(url, params=query or None, provider=PROVIDER_ID)
     return response.json()
