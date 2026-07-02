@@ -178,7 +178,8 @@ class HackernewsGetUserParams(BaseModel):
 
 def fetch_hackernews_get_user(params: HackernewsGetUserParams) -> Any:
     """Fetch data for the hackernews-get-user tool."""
-    url = f"{BASE_URL}/user/{params.username}.json"
+    from urllib.parse import quote
+    url = f"{BASE_URL}/user/{quote(params.username, safe='')}.json"
     query: dict = {}
     response = http_get(url, params=query or None, provider=PROVIDER_ID)
     return response.json()
