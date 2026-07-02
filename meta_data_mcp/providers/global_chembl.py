@@ -111,6 +111,7 @@ class ChemblGetMoleculeParams(BaseModel):
 def fetch_chembl_get_molecule(params: ChemblGetMoleculeParams) -> Any:
     """Fetch data for the chembl-get-molecule tool."""
     from urllib.parse import quote
+
     url = f"{BASE_URL}/molecule/{quote(params.chembl_id, safe='')}.json"
     query: dict = {}
     response = http_get(url, params=query or None, provider=PROVIDER_ID)
