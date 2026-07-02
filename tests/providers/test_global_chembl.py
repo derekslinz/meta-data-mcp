@@ -25,7 +25,10 @@ def anyio_backend():
 async def test_chembl_search_molecules_success():
     """Smoke test: chembl-search-molecules returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_chembl_search_molecules({})
@@ -46,10 +49,13 @@ async def test_chembl_search_molecules_http_error():
 async def test_chembl_get_molecule_success():
     """Smoke test: chembl-get-molecule returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
-        result = await handle_chembl_get_molecule({'chembl_id': 'test'})
+        result = await handle_chembl_get_molecule({"chembl_id": "test"})
         assert len(result) == 1
         assert "GENERATED_TEST_MARKER" in result[0].text
 
@@ -60,14 +66,17 @@ async def test_chembl_get_molecule_http_error():
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
-            await handle_chembl_get_molecule({'chembl_id': 'test'})
+            await handle_chembl_get_molecule({"chembl_id": "test"})
 
 
 @pytest.mark.anyio
 async def test_chembl_list_activities_success():
     """Smoke test: chembl-list-activities returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_chembl_list_activities({})

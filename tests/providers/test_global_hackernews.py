@@ -26,7 +26,10 @@ def anyio_backend():
 async def test_hackernews_top_stories_success():
     """Smoke test: hackernews-top-stories returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_hackernews_top_stories({})
@@ -47,7 +50,10 @@ async def test_hackernews_top_stories_http_error():
 async def test_hackernews_new_stories_success():
     """Smoke test: hackernews-new-stories returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_hackernews_new_stories({})
@@ -68,10 +74,13 @@ async def test_hackernews_new_stories_http_error():
 async def test_hackernews_get_item_success():
     """Smoke test: hackernews-get-item returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
-        result = await handle_hackernews_get_item({'item_id': 1})
+        result = await handle_hackernews_get_item({"item_id": 1})
         assert len(result) == 1
         assert "GENERATED_TEST_MARKER" in result[0].text
 
@@ -82,17 +91,20 @@ async def test_hackernews_get_item_http_error():
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
-            await handle_hackernews_get_item({'item_id': 1})
+            await handle_hackernews_get_item({"item_id": 1})
 
 
 @pytest.mark.anyio
 async def test_hackernews_get_user_success():
     """Smoke test: hackernews-get-user returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
-        result = await handle_hackernews_get_user({'username': 'test'})
+        result = await handle_hackernews_get_user({"username": "test"})
         assert len(result) == 1
         assert "GENERATED_TEST_MARKER" in result[0].text
 
@@ -103,4 +115,4 @@ async def test_hackernews_get_user_http_error():
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = httpx.HTTPError("Network down")
         with pytest.raises(httpx.HTTPError):
-            await handle_hackernews_get_user({'username': 'test'})
+            await handle_hackernews_get_user({"username": "test"})

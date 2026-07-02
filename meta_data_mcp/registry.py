@@ -167,7 +167,14 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         description="Germany's federal open-data catalog (CKAN). Search datasets and browse organizations/groups.",
         domains=("government", "statistics"),
         regions=("de",),
-        keywords=("germany", "govdata", "ckan", "open data", "datasets", "public sector"),
+        keywords=(
+            "germany",
+            "govdata",
+            "ckan",
+            "open data",
+            "datasets",
+            "public sector",
+        ),
         homepage="https://www.govdata.de/",
     ),
     ProviderEntry(
@@ -288,7 +295,14 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         description="EMBL-EBI chemical biology database for molecules and bioactivity records.",
         domains=("chemistry", "biology", "health"),
         regions=("global", "eu"),
-        keywords=("chembl", "chemistry", "molecule", "bioactivity", "drug discovery", "compounds"),
+        keywords=(
+            "chembl",
+            "chemistry",
+            "molecule",
+            "bioactivity",
+            "drug discovery",
+            "compounds",
+        ),
         homepage="https://www.ebi.ac.uk/chembl/",
     ),
     ProviderEntry(
@@ -760,7 +774,14 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         description="Open solar-system reference API for planets, moons, and other celestial bodies.",
         domains=("astronomy", "space"),
         regions=("global",),
-        keywords=("solar system", "planets", "moons", "astronomy", "space objects", "celestial"),
+        keywords=(
+            "solar system",
+            "planets",
+            "moons",
+            "astronomy",
+            "space objects",
+            "celestial",
+        ),
         homepage="https://api.le-systeme-solaire.net/",
     ),
     ProviderEntry(

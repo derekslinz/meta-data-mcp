@@ -25,7 +25,10 @@ def anyio_backend():
 async def test_ch_opendata_package_search_success():
     """Smoke test: ch-opendata-package-search returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_ch_opendata_package_search({})
@@ -46,7 +49,10 @@ async def test_ch_opendata_package_search_http_error():
 async def test_ch_opendata_organization_list_success():
     """Smoke test: ch-opendata-organization-list returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_ch_opendata_organization_list({})
@@ -67,7 +73,10 @@ async def test_ch_opendata_organization_list_http_error():
 async def test_ch_opendata_tag_list_success():
     """Smoke test: ch-opendata-tag-list returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_ch_opendata_tag_list({})

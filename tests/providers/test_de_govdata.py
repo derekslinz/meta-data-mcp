@@ -25,7 +25,10 @@ def anyio_backend():
 async def test_de_govdata_package_search_success():
     """Smoke test: de-govdata-package-search returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_de_govdata_package_search({})
@@ -46,7 +49,10 @@ async def test_de_govdata_package_search_http_error():
 async def test_de_govdata_organization_list_success():
     """Smoke test: de-govdata-organization-list returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_de_govdata_organization_list({})
@@ -67,7 +73,10 @@ async def test_de_govdata_organization_list_http_error():
 async def test_de_govdata_group_list_success():
     """Smoke test: de-govdata-group-list returns success payload."""
     with patch("httpx.get") as mock_get:
-        mock_get.return_value.json.return_value = {"ok": True, "marker": "GENERATED_TEST_MARKER"}
+        mock_get.return_value.json.return_value = {
+            "ok": True,
+            "marker": "GENERATED_TEST_MARKER",
+        }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
         result = await handle_de_govdata_group_list({})
