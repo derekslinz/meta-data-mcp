@@ -1,0 +1,42 @@
+id: de_govdata
+server_name: de-govdata
+base_url: https://www.govdata.de/ckan/api/3/action
+description: |
+  GovData Germany CKAN API. Search German public datasets,
+  and browse organizations and groups.
+homepage: https://www.govdata.de/
+domains: [government, statistics]
+regions: [de]
+keywords: [germany, govdata, ckan, open data, datasets, public sector]
+requires_env: []
+
+tools:
+  - name: de-govdata-package-search
+    description: "Search GovData datasets"
+    endpoint: /package_search
+    response_format: json
+    params:
+      - name: q
+        type: str
+        required: false
+        description: "Free-text query"
+      - name: rows
+        type: int
+        required: false
+        default: 20
+        description: "Number of results to return"
+      - name: start
+        type: int
+        required: false
+        default: 0
+        description: "Result offset"
+
+  - name: de-govdata-organization-list
+    description: "List GovData organizations"
+    endpoint: /organization_list
+    response_format: json
+
+  - name: de-govdata-group-list
+    description: "List GovData groups"
+    endpoint: /group_list
+    response_format: json

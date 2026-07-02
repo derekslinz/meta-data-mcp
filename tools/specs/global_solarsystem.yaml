@@ -1,0 +1,41 @@
+id: global_solarsystem
+server_name: global-solarsystem
+base_url: https://api.le-systeme-solaire.net/rest
+description: |
+  Le Systeme Solaire public API for solar-system objects,
+  body metadata, and catalog counts.
+homepage: https://api.le-systeme-solaire.net/
+domains: [astronomy, space]
+regions: [global]
+keywords: [solar system, planets, moons, astronomy, space objects, celestial]
+requires_env: []
+
+tools:
+  - name: solarsystem-list-bodies
+    description: "List solar-system bodies with optional query filter"
+    endpoint: /bodies
+    response_format: json
+    params:
+      - name: filter
+        type: str
+        required: false
+        description: "Optional API filter expression"
+      - name: data
+        type: str
+        required: false
+        description: "Comma-separated fields to include"
+
+  - name: solarsystem-get-body
+    description: "Get details for a solar-system body by body ID"
+    endpoint: /bodies/{body_id}
+    response_format: json
+    params:
+      - name: body_id
+        type: str
+        required: true
+        description: "Body identifier (e.g. terre, mars, lune)"
+
+  - name: solarsystem-known-count
+    description: "Get known object counts by category"
+    endpoint: /knowncount
+    response_format: json
