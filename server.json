@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.derekslinz/meta-data-mcp",
-  "description": "Query 83 open data APIs — government, science, finance, environment, and more.",
-  "version": "2.6.0",
+  "description": "Query 88 open data APIs — government, science, finance, environment, and more.",
+  "version": "2.7.0",
   "repository": {
     "url": "https://github.com/derekslinz/meta-data-mcp",
     "source": "github"
@@ -11,7 +11,7 @@
     {
       "registryType": "pypi",
       "identifier": "meta-data-mcp",
-      "version": "2.6.0",
+      "version": "2.7.0",
       "runtimeHint": "python",
       "transport": {
         "type": "sse",
@@ -33,7 +33,7 @@
           "health",
           "law"
         ],
-        "pitch": "One MCP server, 83 open data sources. Ask about GDP, earthquakes, court records, air quality, drug approvals, satellite imagery, or biodiversity — meta-data-mcp routes the request to the right API and returns structured data. Providers activate lazily so the default tool surface stays small; use opendata_providers_find to discover and opendata_providers_activate to unlock domain-specific tools on demand.",
+        "pitch": "One MCP server, 88 open data sources. Ask about GDP, earthquakes, court records, air quality, drug approvals, satellite imagery, or biodiversity — meta-data-mcp routes the request to the right API and returns structured data. Providers activate lazily so the default tool surface stays small; use opendata_providers_find to discover and opendata_providers_activate to unlock domain-specific tools on demand.",
         "example_calls": [
           "opendata_providers_find({ query: \"climate\" })  ->  ranked list of climate/weather providers",
           "opendata_providers_activate({ provider_id: \"global-world-bank\" })  ->  activates World Bank tools",
@@ -43,7 +43,7 @@
         "tools": [
           {
             "name": "opendata_providers_find",
-            "description": "Semantic search across 83 providers — ranked matches with health scores and domain tags."
+            "description": "Semantic search across 88 providers — ranked matches with health scores and domain tags."
           },
           {
             "name": "opendata_providers_activate",
