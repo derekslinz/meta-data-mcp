@@ -185,7 +185,7 @@ tools:
 
 See [`tools/specs/README.md`](tools/specs/README.md) for the full reference. Bundle-size budgets are enforced in CI (warn ≥ 100 KB, error ≥ 1 MB); the v2.0 bundles range from 14 KB (timeseries primitive) to 34 KB (vulnerability app), all comfortably inside the budget.
 
-## Bundled plugins (83)
+## Bundled plugins (88)
 
 This is what's inside the one server. You don't install these individually — they all come along.
 
@@ -195,6 +195,8 @@ This is what's inside the one server. You don't install these individually — t
 |---|---|---|
 | `au_data_gov` | Australian Government Open Data | CKAN catalog at data.gov.au |
 | `ca_open_gov` | Canada Open Data | CKAN catalog at open.canada.ca |
+| `ch_opendata_swiss` | opendata.swiss | Swiss federal open-data catalog (CKAN) |
+| `de_govdata` | GovData Germany | Germany's federal open-data catalog (CKAN) |
 | `fr_data_gouv` | data.gouv.fr | French government open data platform |
 | `nl_tweedekamer` | Tweede Kamer | Dutch Parliament open data |
 | `sg_data_gov` | Singapore Open Data | data.gov.sg datasets and collections |
@@ -231,6 +233,7 @@ This is what's inside the one server. You don't install these individually — t
 
 | Plugin | Source | Description |
 |---|---|---|
+| `global_chembl` | ChEMBL | EMBL-EBI molecule and bioactivity database |
 | `global_disease_sh` | disease.sh | COVID-19, influenza, vaccine aggregator |
 | `global_pubchem` | NCBI PubChem | Chemical compounds and substances |
 | `global_rcsb_pdb` | RCSB PDB | 3D protein and macromolecular structures |
@@ -260,6 +263,7 @@ This is what's inside the one server. You don't install these individually — t
 | `global_gbif` | GBIF | Global biodiversity occurrence records |
 | `global_inaturalist` | iNaturalist | Citizen-science species observations |
 | `global_opensky` | OpenSky Network | Live ADS-B flight tracking |
+| `global_solarsystem` | Le Systeme Solaire API | Open solar-system object and body metadata |
 | `us_nasa` | NASA | APOD, Near Earth Objects, Mars rover photos |
 
 ### Geo / Mapping / Knowledge
@@ -330,6 +334,7 @@ This is what's inside the one server. You don't install these individually — t
 | Plugin | Source | Description |
 |---|---|---|
 | `global_gdelt` | GDELT 2.0 | Global news, event, and tone monitoring across 100+ languages |
+| `global_hackernews` | Hacker News API | Public stories, comments, jobs, and user profiles |
 
 ### Networking / Internet
 

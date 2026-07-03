@@ -1,0 +1,62 @@
+id: global_chembl
+server_name: global-chembl
+base_url: https://www.ebi.ac.uk/chembl/api/data
+description: |
+  ChEMBL chemical biology database API from EMBL-EBI. Search molecules,
+  inspect molecule records, and query bioactivity data.
+homepage: https://www.ebi.ac.uk/chembl/
+domains: [chemistry, biology, health]
+regions: [global, eu]
+keywords: [chembl, chemistry, molecule, bioactivity, drug discovery, compounds]
+requires_env: []
+
+tools:
+  - name: chembl-search-molecules
+    description: "Search ChEMBL molecules with optional text filter"
+    endpoint: /molecule.json
+    response_format: json
+    params:
+      - name: molecule_synonym
+        type: str
+        required: false
+        description: "Optional molecule synonym/text filter"
+      - name: limit
+        type: int
+        required: false
+        default: 20
+        description: "Maximum number of records to return"
+      - name: offset
+        type: int
+        required: false
+        default: 0
+        description: "Pagination offset"
+
+  - name: chembl-get-molecule
+    description: "Get detailed ChEMBL molecule information by ChEMBL ID"
+    endpoint: /molecule/{chembl_id}.json
+    response_format: json
+    params:
+      - name: chembl_id
+        type: str
+        required: true
+        description: "ChEMBL molecule identifier (e.g. CHEMBL25)"
+
+  - name: chembl-list-activities
+    description: "List ChEMBL activities with optional molecule filter"
+    endpoint: /activity.json
+    response_format: json
+    params:
+      - name: molecule_chembl_id
+        type: str
+        required: false
+        description: "Optional molecule ChEMBL ID filter"
+      - name: limit
+        type: int
+        required: false
+        default: 20
+        description: "Maximum number of activities to return"
+      - name: offset
+        type: int
+        required: false
+        default: 0
+        description: "Pagination offset"

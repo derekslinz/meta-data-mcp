@@ -1,0 +1,42 @@
+id: ch_opendata_swiss
+server_name: ch-opendata-swiss
+base_url: https://opendata.swiss/api/3/action
+description: |
+  opendata.swiss CKAN API. Search Swiss open datasets and
+  browse organizations and tags.
+homepage: https://opendata.swiss/
+domains: [government, statistics]
+regions: [ch]
+keywords: [switzerland, opendata swiss, ckan, open data, datasets]
+requires_env: []
+
+tools:
+  - name: ch-opendata-package-search
+    description: "Search Swiss open datasets"
+    endpoint: /package_search
+    response_format: json
+    params:
+      - name: q
+        type: str
+        required: false
+        description: "Free-text query"
+      - name: rows
+        type: int
+        required: false
+        default: 20
+        description: "Number of results to return"
+      - name: start
+        type: int
+        required: false
+        default: 0
+        description: "Result offset"
+
+  - name: ch-opendata-organization-list
+    description: "List opendata.swiss organizations"
+    endpoint: /organization_list
+    response_format: json
+
+  - name: ch-opendata-tag-list
+    description: "List opendata.swiss tags"
+    endpoint: /tag_list
+    response_format: json

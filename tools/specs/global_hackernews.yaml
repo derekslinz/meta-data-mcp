@@ -1,0 +1,42 @@
+id: global_hackernews
+server_name: global-hackernews
+base_url: https://hacker-news.firebaseio.com/v0
+description: |
+  Hacker News public Firebase API. Fetch top/new story IDs,
+  item details, and user profiles without authentication.
+homepage: https://github.com/HackerNews/API
+domains: [news, knowledge]
+regions: [global]
+keywords: [hacker news, hn, tech news, stories, comments, startups]
+requires_env: []
+
+tools:
+  - name: hackernews-top-stories
+    description: "List top story IDs from Hacker News"
+    endpoint: /topstories.json
+    response_format: json
+
+  - name: hackernews-new-stories
+    description: "List newest story IDs from Hacker News"
+    endpoint: /newstories.json
+    response_format: json
+
+  - name: hackernews-get-item
+    description: "Get a Hacker News item by ID (story/comment/job/poll)"
+    endpoint: /item/{item_id}.json
+    response_format: json
+    params:
+      - name: item_id
+        type: int
+        required: true
+        description: "Hacker News item ID"
+
+  - name: hackernews-get-user
+    description: "Get a Hacker News user profile by username"
+    endpoint: /user/{username}.json
+    response_format: json
+    params:
+      - name: username
+        type: str
+        required: true
+        description: "Hacker News username"
