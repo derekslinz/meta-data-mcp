@@ -23,7 +23,7 @@ from typing import Any
 
 import httpx
 
-from meta_data_mcp import __version__
+from meta_data_mcp import __version__, citations
 
 log = logging.getLogger(__name__)
 
@@ -248,6 +248,13 @@ def http_get(
         cached = _response_cache.get(cache_key)
         if cached is not None:
             log.debug("Cache hit for %s", url)
+            citations.record(
+                provider=provider,
+                url=url,
+                params=params,
+                response=cached,
+                cache_hit=True,
+            )
             return cached
 
     _DEFAULT_HTTP_RETRIES = 2
@@ -308,6 +315,7 @@ def http_get(
         time.sleep(sleep_for)
 
     assert response is not None  # loop runs at least once
+    citations.record(provider=provider, url=url, params=params, response=response)
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
@@ -430,6 +438,7 @@ def http_post(
         time.sleep(sleep_for)
 
     assert response is not None
+    citations.record(provider=provider, url=url, response=response, method="POST")
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:

@@ -26,7 +26,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from pydantic import AnyUrl
 from starlette.responses import JSONResponse
 
-from meta_data_mcp import provenance
+from meta_data_mcp import citations, provenance
 
 log = logging.getLogger(__name__)
 
@@ -239,29 +239,43 @@ def create_mcp_server(
             log.error(f"Tool {name} not found")
             raise AttributeError(f"Tool {name} not found")
 
+        cite = citations.is_enabled()
         try:
-            result = await _tools_handlers[name](arguments)
+            if cite:
+                with citations.recording_span() as source_records:
+                    result = await _tools_handlers[name](arguments)
+            else:
+                source_records = []
+                result = await _tools_handlers[name](arguments)
         except Exception as e:
             log.error(f"Error calling tool {name}: {e}")
             raise
 
-        if provenance.is_enabled():
-            if isinstance(result, dict):
-                result = (
-                    provenance.attach(
-                        [
-                            types.TextContent(
-                                type="text", text=json.dumps(result, indent=2)
-                            )
-                        ],
-                        tool_name=name,
-                        arguments=arguments,
-                    ),
-                    result,
-                )
-            else:
-                result = provenance.attach(result, tool_name=name, arguments=arguments)
-        return result
+        prov = provenance.is_enabled()
+        if not (source_records or prov):
+            # Nothing to attach — pass the handler result through
+            # untouched (dicts stay dicts so the SDK builds
+            # structuredContent exactly as before).
+            return result
+
+        # Normalize once so both _meta layers stack on the same content
+        # list. Citations go first, provenance second; the digest hashes
+        # _meta-stripped content, so the order can't perturb it.
+        structured: dict[str, Any] | None = None
+        if isinstance(result, dict):
+            structured = result
+            content: list[Any] = [
+                types.TextContent(type="text", text=json.dumps(result, indent=2))
+            ]
+        else:
+            content = list(result)
+
+        if source_records:
+            content = citations.attach(content, source_records)
+        if prov:
+            content = provenance.attach(content, tool_name=name, arguments=arguments)
+
+        return (content, structured) if structured is not None else content
 
     # register the prompts
     @server.list_prompts()
