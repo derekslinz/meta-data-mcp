@@ -23,7 +23,8 @@ from typing import Any
 
 import httpx
 
-from meta_data_mcp import __version__
+from meta_data_mcp import __version__, citations
+from meta_data_mcp._meta_common import utc_iso_ms
 
 log = logging.getLogger(__name__)
 
@@ -248,7 +249,16 @@ def http_get(
         cached = _response_cache.get(cache_key)
         if cached is not None:
             log.debug("Cache hit for %s", url)
-            return cached
+            cached_response, cached_fetched_at = cached
+            citations.record(
+                provider=provider,
+                url=url,
+                params=params,
+                response=cached_response,
+                cache_hit=True,
+                fetched_at=cached_fetched_at,
+            )
+            return cached_response
 
     _DEFAULT_HTTP_RETRIES = 2
     try:
@@ -291,6 +301,9 @@ def http_get(
         )
         if not is_retryable or attempt == max_attempts - 1:
             break
+        # This attempt's exchange is retried away, but it still happened
+        # — cite it so the manifest reflects upstream flakiness honestly.
+        citations.record(provider=provider, url=url, params=params, response=response)
         retry_after = None
         try:
             retry_after = response.headers.get("Retry-After")
@@ -308,6 +321,7 @@ def http_get(
         time.sleep(sleep_for)
 
     assert response is not None  # loop runs at least once
+    citations.record(provider=provider, url=url, params=params, response=response)
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
@@ -326,7 +340,10 @@ def http_get(
     health.record_success(provider)
 
     if effective_ttl > 0 and cache_key is not None:
-        _response_cache.set(cache_key, response, ttl=effective_ttl)
+        # Store the fetch time alongside the response: cache-hit
+        # citations must report when the bytes were actually fetched,
+        # not when the cache was read.
+        _response_cache.set(cache_key, (response, utc_iso_ms()), ttl=effective_ttl)
 
     return response
 
@@ -413,6 +430,9 @@ def http_post(
         )
         if not is_retryable or attempt == max_attempts - 1:
             break
+        # Cite the retried-away attempt; see the matching comment in
+        # ``http_get``.
+        citations.record(provider=provider, url=url, response=response, method="POST")
         retry_after = None
         try:
             retry_after = response.headers.get("Retry-After")
@@ -430,6 +450,7 @@ def http_post(
         time.sleep(sleep_for)
 
     assert response is not None
+    citations.record(provider=provider, url=url, response=response, method="POST")
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:

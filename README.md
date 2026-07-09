@@ -185,6 +185,35 @@ tools:
 
 See [`tools/specs/README.md`](tools/specs/README.md) for the full reference. Bundle-size budgets are enforced in CI (warn ≥ 100 KB, error ≥ 1 MB); the v2.0 bundles range from 14 KB (timeseries primitive) to 34 KB (vulnerability app), all comfortably inside the budget.
 
+## Citable answers
+
+Every tool result carries a machine-readable **citation manifest**: exactly which upstream requests produced it. The transport kernel records each HTTP exchange during a tool call, and the result's first content block gains a `_meta["meta-data-mcp/citations"]` entry:
+
+```jsonc
+{
+  "sources": [
+    {
+      "provider": "eu-eurostat",
+      "title": "Eurostat",
+      "homepage": "https://ec.europa.eu/eurostat",
+      "license": "Eurostat data is reusable under CC BY 4.0; cite '© European Union, Eurostat'.",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=en",
+      "method": "GET",
+      "status": 200,
+      "fetched_at": "2026-07-09T14:02:11.482Z",
+      "cache_hit": false
+    }
+  ]
+}
+```
+
+This is what makes an LLM data answer auditable: the exact URL(s) — query parameters included — when they were fetched, whether they came from the transport cache, and the provider's license/attribution terms. Anyone can re-issue the URL and check the claim.
+
+- **Secrets never leak.** Values of sensitive query parameters are replaced with `REDACTED` — an exact denylist (`api_key`, `token`, `appid`, …) plus conservative heuristics (`*key`, `*token`, `*secret*`, `*signature*`, …) that also cover presigned cloud-storage URLs and plugin-specific key params. Userinfo credentials in the URL itself (`https://user:pass@host`) are redacted too; parameter names are preserved so the URL stays reproducible with your own credentials. Headers never enter the manifest.
+- **Failed exchanges are cited too** — a 4xx/5xx a handler recovered from, and the intermediate 429/5xx attempts the kernel's retry loop absorbed, are part of how the answer was produced; filter on `status`. (A tool call that *errors out* returns the SDK's `isError` result, which carries no manifest.)
+- **Honest timestamps.** `fetched_at` is when the bytes were actually fetched: cache-served exchanges report the original fetch time with `cache_hit: true`, not the cache-read time.
+- **On by default.** Set `META_DATA_MCP_CITATIONS=0` to disable. Complements the opt-in tamper-evidence digest (`META_DATA_MCP_PROVENANCE`); both can coexist on the same result.
+
 ## Bundled plugins (88)
 
 This is what's inside the one server. You don't install these individually — they all come along.
@@ -374,6 +403,7 @@ A few bundled plugins accept optional API keys for higher rate limits. Set these
 | `META_DATA_MCP_OAUTH_ISSUER` | Enable OAuth 2.0 Authorization Code + PKCE. Set to the server's public base URL (e.g. `http://localhost:8000`). Mounts `/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token`, `/revoke`, and a consent page at `/oauth/consent`. Coexists with `META_DATA_MCP_AUTH_TOKEN` — both auth methods remain valid simultaneously. |
 | `META_DATA_MCP_OAUTH_MAX_CLIENTS` | Maximum number of registered OAuth clients kept in memory. Default `1000`. Must be a positive integer; invalid values fall back to the default. |
 | `META_DATA_MCP_OAUTH_TOKEN_TTL` | OAuth access-token lifetime in seconds. Default `3600` (1 hour). Must be a positive integer; invalid values fall back to the default. |
+| `META_DATA_MCP_CITATIONS` | Citation manifest on tool results (see [Citable answers](#citable-answers)). **Default on**; set to `0`/`false`/`no`/`off` to disable. Adds a `meta-data-mcp/citations` entry to the first content block's `_meta` listing every upstream HTTP exchange (redacted URL, status, fetch timestamp, cache disposition, provider title/homepage/license). |
 | `META_DATA_MCP_PROVENANCE` | Truthy (`1`, `true`, `yes`, `on`) enables a `meta-data-mcp/provenance` entry on every tool-call result's first content block's `_meta`, carrying `sha256` and `timestamp` (ISO 8601 UTC, ms precision). The digest covers the canonical `(tool, arguments, content)` envelope — content blocks dumped via `model_dump(mode="json", by_alias=True, exclude_none=True)` with `_meta` stripped, JSON-serialized with `sort_keys=True, separators=(",",":"), ensure_ascii=True`. Binding tool name + arguments into the hash means audit logs can distinguish "tool A returned X" from "tool B returned X". Default off — opt in when you need tamper-evidence. See `meta_data_mcp/provenance.py` module docstring for the verbatim receiver recipe. |
 
 ## Transports

@@ -231,6 +231,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         regions=("eu",),
         keywords=("eurostat", "europe", "statistics", "demographics", "gdp"),
         homepage="https://ec.europa.eu/eurostat",
+        license_note="Eurostat data is reusable under CC BY 4.0; cite '© European Union, Eurostat'.",
     ),
     ProviderEntry(
         id="fr_data_gouv",
@@ -358,6 +359,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         regions=("global",),
         keywords=("economics", "imf", "world bank", "ecb", "series", "statistics"),
         homepage="https://db.nomics.world/",
+        license_note="DBnomics aggregates third-party sources; each series carries its upstream provider's license — cite the original provider named in the series metadata.",
     ),
     ProviderEntry(
         id="global_disease_sh",
@@ -496,6 +498,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         regions=("global",),
         keywords=("imf", "international monetary fund", "ifs", "bop", "sdmx"),
         homepage="https://data.imf.org/",
+        license_note="IMF data is free for non-commercial use under the IMF copyright policy; cite 'International Monetary Fund'.",
     ),
     ProviderEntry(
         id="global_inaturalist",
@@ -558,6 +561,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         regions=("global",),
         keywords=("oecd", "statistics", "economics", "indicators", "sdmx"),
         homepage="https://data.oecd.org/",
+        license_note="Most OECD data is reusable under CC BY 4.0; cite 'OECD' with the dataset name.",
     ),
     ProviderEntry(
         id="global_open_library",
@@ -880,6 +884,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         regions=("global",),
         keywords=("world bank", "gdp", "indicators", "development", "economics"),
         homepage="https://data.worldbank.org/",
+        license_note="World Bank open data is CC BY 4.0; cite 'World Bank' with the indicator code.",
     ),
     ProviderEntry(
         id="nl_cbs",
@@ -890,6 +895,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
         regions=("nl",),
         keywords=("cbs", "netherlands", "dutch", "statistics", "odata"),
         homepage="https://opendata.cbs.nl/",
+        license_note="CBS open data is CC BY 4.0; cite 'Statistics Netherlands (CBS)'.",
     ),
     ProviderEntry(
         id="nl_ndov",
@@ -988,6 +994,7 @@ _STATIC_ENTRIES: tuple[ProviderEntry, ...] = (
             "demographics",
         ),
         homepage="https://www.ons.gov.uk/",
+        license_note="ONS data is reusable under the Open Government Licence v3.0; cite 'Office for National Statistics'.",
     ),
     ProviderEntry(
         id="us_arcgis_item",
@@ -1385,6 +1392,22 @@ class Registry:
         needle = provider_id.lower()
         for e in self._entries:
             if e.id.lower() == needle:
+                return e
+        return None
+
+    def find_by_server_name(self, server_name: str) -> ProviderEntry | None:
+        """Resolve a kebab ``server_name`` (what the transport kernel
+        receives as ``provider=``) to its entry. Case-insensitive.
+
+        Linear scan by design: the registry holds ~100 entries and the
+        alternative — a reverse index — would be a third piece of
+        mutable bookkeeping for ``add``/``remove``/``restore`` to keep
+        consistent (see the ``_static_count`` history for how that
+        goes wrong).
+        """
+        needle = server_name.lower()
+        for e in self._entries:
+            if e.server_name.lower() == needle:
                 return e
         return None
 

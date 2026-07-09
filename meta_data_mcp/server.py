@@ -26,7 +26,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from pydantic import AnyUrl
 from starlette.responses import JSONResponse
 
-from meta_data_mcp import provenance
+from meta_data_mcp import citations, provenance
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ ToolCallResult = (
     ToolUnstructuredContent
     | ToolStructuredContent
     | tuple[ToolUnstructuredContent, ToolStructuredContent]
+    | types.CallToolResult
 )
 
 
@@ -239,29 +240,56 @@ def create_mcp_server(
             log.error(f"Tool {name} not found")
             raise AttributeError(f"Tool {name} not found")
 
-        try:
-            result = await _tools_handlers[name](arguments)
-        except Exception as e:
-            log.error(f"Error calling tool {name}: {e}")
-            raise
+        # recording_span handles the citations env gate internally: when
+        # disabled it yields a list that record() never populates.
+        with citations.recording_span() as source_records:
+            try:
+                result = await _tools_handlers[name](arguments)
+            except Exception as e:
+                log.error(f"Error calling tool {name}: {e}")
+                raise
 
-        if provenance.is_enabled():
+            # Normalize the SDK-permitted return shapes while the span
+            # is still open — materializing lazy iterables here means
+            # any http_get a generator performs is still recorded.
+            structured: dict[str, Any] | None = None
+            content: list[Any] | None = None
+            if isinstance(result, types.CallToolResult):
+                # SDK short-circuit shape (handler controls isError and
+                # friends) — attach layers don't apply; pass through.
+                return result
             if isinstance(result, dict):
-                result = (
-                    provenance.attach(
-                        [
-                            types.TextContent(
-                                type="text", text=json.dumps(result, indent=2)
-                            )
-                        ],
-                        tool_name=name,
-                        arguments=arguments,
-                    ),
-                    result,
-                )
+                structured = result
+            elif isinstance(result, tuple) and len(result) == 2:
+                # (unstructured_content, structured_dict) — the SDK's
+                # CombinationContent shape.
+                content, structured = list(result[0]), result[1]
             else:
-                result = provenance.attach(result, tool_name=name, arguments=arguments)
-        return result
+                content = list(result)
+
+        prov = provenance.is_enabled()
+        if not (source_records or prov):
+            # Nothing to attach — reassemble the handler's original
+            # shape untouched (dicts stay dicts so the SDK builds
+            # structuredContent exactly as before).
+            if content is None:
+                assert structured is not None  # dict-shaped result
+                return structured
+            return (content, structured) if structured is not None else content
+
+        # Both _meta layers stack on the same content list. Citations go
+        # first, provenance second; the digest hashes _meta-stripped
+        # content, so the order can't perturb it.
+        if content is None:
+            content = [
+                types.TextContent(type="text", text=json.dumps(structured, indent=2))
+            ]
+        if source_records:
+            content = citations.attach(content, source_records)
+        if prov:
+            content = provenance.attach(content, tool_name=name, arguments=arguments)
+
+        return (content, structured) if structured is not None else content
 
     # register the prompts
     @server.list_prompts()
