@@ -16,14 +16,15 @@ These tests cover:
    cache-hit flagging, and context isolation across concurrent tasks.
 4. ``attach`` — manifest on the first block only, pre-existing ``_meta``
    preserved (provenance coexistence), registry enrichment (title /
-   homepage / license) keyed by kebab ``server_name``, stub synthesis
-   for empty content, pass-through when there are no records.
+   homepage / license) keyed by kebab ``server_name``, empty-content
+   pass-through, pass-through when there are no records.
 5. ``Registry.find_by_server_name`` — kebab lookup, case-insensitive.
 6. Transport integration — ``http_get`` records success, error-status,
-   and cache-hit exchanges.
+   cache-hit (with original fetch time), and retried-away exchanges.
 7. End-to-end through the SDK dispatcher — enabled by default, absent
-   when disabled, coexists with the provenance digest, and rides the
-   structured-content (dict result) path.
+   when disabled, coexists with the provenance digest, and preserves
+   every SDK-permitted handler return shape (dict, tuple,
+   CallToolResult, lazy iterable, empty content).
 """
 
 from __future__ import annotations
@@ -109,6 +110,42 @@ def test_redact_url_preserves_repeated_params() -> None:
     assert out == "https://api.test/v1?geo=DE&geo=FR&token=REDACTED"
 
 
+def test_redact_url_strips_userinfo_credentials() -> None:
+    out = citations.redact_url("https://apikey:s3cret@api.test/v1/data")
+    assert "s3cret" not in out
+    assert "apikey:" not in out
+    assert out == "https://REDACTED:REDACTED@api.test/v1/data"
+
+
+def test_redact_url_covers_presigned_cloud_urls() -> None:
+    # follow_redirects=True means response.request.url can be a
+    # post-redirect presigned URL — its signature params must not leak.
+    out = citations.redact_url(
+        "https://bucket.s3.test/obj"
+        "?X-Amz-Credential=AKIA%2F123&X-Amz-Signature=deadbeef&X-Amz-Expires=300"
+    )
+    assert "deadbeef" not in out
+    assert "AKIA" not in out
+    assert "X-Amz-Signature=REDACTED" in out
+    assert "X-Amz-Expires=300" in out
+
+
+@pytest.mark.parametrize(
+    "param",
+    ["subscription-key", "user-key", "private_token", "page_token", "sig"],
+)
+def test_redact_url_suffix_heuristics_catch_provider_specific_keys(
+    param: str,
+) -> None:
+    # Generated plugins can map an env var onto any query-param name;
+    # the *key/*token suffix heuristics cover names the exact denylist
+    # can't enumerate (over-redacting a benign page_token is the safe
+    # direction).
+    out = citations.redact_url(f"https://api.test/v1?{param}=s3cret&q=data")
+    assert "s3cret" not in out
+    assert "q=data" in out
+
+
 # ---------------------------------------------------------------------------
 # record() / recording_span()
 # ---------------------------------------------------------------------------
@@ -149,6 +186,46 @@ def test_record_flags_cache_hits() -> None:
             provider="p", url="https://x.test/a", status=200, cache_hit=True
         )
     assert records[0].cache_hit is True
+
+
+def test_record_survives_requestless_response() -> None:
+    # httpx.Response.request raises RuntimeError (not AttributeError)
+    # when no request was set; record() must fall back to composing the
+    # URL rather than propagating into the tool call.
+    with citations.recording_span() as records:
+        citations.record(
+            provider="p",
+            url="https://x.test/a",
+            params={"fmt": "json"},
+            response=httpx.Response(200),
+        )
+    assert len(records) == 1
+    assert records[0].url == "https://x.test/a?fmt=json"
+    assert records[0].status == 200
+
+
+def test_record_never_breaks_the_tool_call() -> None:
+    # An unrecordable exchange (garbage response double, unparseable
+    # URL) is logged and dropped — observability must not fail the work
+    # it observes.
+    from types import SimpleNamespace
+
+    # A Mock-like double whose request.url is not a URL at all —
+    # redact_url's httpx.URL() call raises TypeError on it.
+    garbage = SimpleNamespace(request=SimpleNamespace(url=object()), status_code=200)
+
+    with citations.recording_span() as records:
+        citations.record(provider="p", url="https://x.test/a", response=garbage)  # type: ignore[arg-type]
+    assert records == []
+
+
+def test_recording_span_disabled_records_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(citations._ENV_VAR, "0")
+    with citations.recording_span() as records:
+        citations.record(provider="p", url="https://x.test/a", status=200)
+    assert records == []
 
 
 def test_spans_isolate_concurrent_tasks() -> None:
@@ -253,11 +330,12 @@ def test_attach_preserves_existing_meta_keys() -> None:
     assert citations.CITATIONS_META_KEY in out[0].meta
 
 
-def test_attach_synthesizes_stub_for_empty_content() -> None:
+def test_attach_empty_content_passes_through_and_drops_manifest() -> None:
+    # Synthesizing a stub block would change the wire shape clients see
+    # (e.g. the remote SDK's `if not result.content: return {}` guard) —
+    # citations annotate results, never alter them.
     out = citations.attach([], [_record()])
-    assert len(out) == 1
-    assert out[0].text == ""
-    assert citations.CITATIONS_META_KEY in out[0].meta
+    assert out == []
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +392,47 @@ def test_http_get_records_cache_hits(monkeypatch: pytest.MonkeyPatch) -> None:
         assert records[1].status == 200
     finally:
         _response_cache.clear()
+
+
+def test_cache_hit_reports_original_fetch_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """fetched_at on a cache hit is when the bytes were fetched, not
+    when the cache was read."""
+    url = "https://api.test/cached-time"
+    monkeypatch.setattr(
+        "meta_data_mcp.transport.httpx.get",
+        lambda *a, **kw: _http_response(200, url),
+    )
+    stamps = iter(["2026-01-01T10:00:00.000Z", "2026-01-01T11:00:00.000Z"])
+    # The fetch path stamps the cache entry via transport's utc_iso_ms;
+    # a later read must reuse that stamp rather than minting a new one.
+    monkeypatch.setattr("meta_data_mcp.transport.utc_iso_ms", lambda: next(stamps))
+    _response_cache.clear()
+    try:
+        with citations.recording_span() as records:
+            http_get(url, provider="prov-x", cache_ttl=60.0)
+        with citations.recording_span() as later_records:
+            http_get(url, provider="prov-x", cache_ttl=60.0)
+        assert later_records[0].cache_hit is True
+        assert later_records[0].fetched_at == "2026-01-01T10:00:00.000Z"
+        assert records[0].cache_hit is False
+    finally:
+        _response_cache.clear()
+
+
+def test_retried_attempts_are_cited(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Intermediate 429/5xx attempts the retry loop recovers from still
+    appear in the manifest — they're part of how the answer was produced."""
+    url = "https://api.test/flaky"
+    responses = iter([_http_response(500, url), _http_response(200, url)])
+    monkeypatch.setattr(
+        "meta_data_mcp.transport.httpx.get", lambda *a, **kw: next(responses)
+    )
+    monkeypatch.setattr("meta_data_mcp.transport.time.sleep", lambda s: None)
+    with citations.recording_span() as records:
+        http_get(url, provider="prov-x")
+    assert [r.status for r in records] == [500, 200]
 
 
 # ---------------------------------------------------------------------------
@@ -420,3 +539,94 @@ async def test_dispatcher_structured_result_keeps_structured_content(
     assert result.root.structuredContent == {"answer": 42}
     meta = result.root.content[0].meta
     assert citations.CITATIONS_META_KEY in meta
+
+
+def _server_with_handler(handler):
+    tools = [types.Tool(name="t", description="", inputSchema={"type": "object"})]
+    return create_mcp_server(
+        "test-citations-shape", tools=tools, tools_handlers={"t": handler}
+    )
+
+
+def _record_one_exchange() -> None:
+    citations.record(
+        provider="eu-eurostat", url="https://ec.europa.eu/eurostat/api/x", status=200
+    )
+
+
+@pytest.mark.anyio
+async def test_dispatcher_handles_tuple_return_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """(unstructured, structured) — the SDK's CombinationContent shape —
+    must survive attachment intact."""
+    monkeypatch.delenv(citations._ENV_VAR, raising=False)
+    monkeypatch.delenv(provenance._ENV_VAR, raising=False)
+
+    async def handler(args):
+        _record_one_exchange()
+        return ([_txt("combo")], {"rows": [1, 2]})
+
+    result = await _call_tool(_server_with_handler(handler), "t", {})
+    assert result.root.isError is False
+    assert result.root.structuredContent == {"rows": [1, 2]}
+    assert result.root.content[0].text == "combo"
+    assert citations.CITATIONS_META_KEY in result.root.content[0].meta
+
+
+@pytest.mark.anyio
+async def test_dispatcher_passes_calltoolresult_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A handler returning types.CallToolResult keeps full control —
+    the attach layers step aside."""
+    monkeypatch.delenv(citations._ENV_VAR, raising=False)
+    monkeypatch.delenv(provenance._ENV_VAR, raising=False)
+
+    async def handler(args):
+        _record_one_exchange()
+        return types.CallToolResult(content=[_txt("direct")], isError=True)
+
+    result = await _call_tool(_server_with_handler(handler), "t", {})
+    assert result.root.isError is True
+    assert result.root.content[0].text == "direct"
+    assert result.root.content[0].meta is None
+
+
+@pytest.mark.anyio
+async def test_dispatcher_materializes_generators_inside_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lazy handler results are consumed while the recording span is
+    open, so exchanges made during iteration still get cited."""
+    monkeypatch.delenv(citations._ENV_VAR, raising=False)
+    monkeypatch.delenv(provenance._ENV_VAR, raising=False)
+
+    async def handler(args):
+        def gen():
+            _record_one_exchange()  # records during iteration
+            yield _txt("lazy")
+
+        return gen()
+
+    result = await _call_tool(_server_with_handler(handler), "t", {})
+    assert result.root.content[0].text == "lazy"
+    manifest = result.root.content[0].meta[citations.CITATIONS_META_KEY]
+    assert manifest["sources"][0]["provider"] == "eu-eurostat"
+
+
+@pytest.mark.anyio
+async def test_dispatcher_empty_content_stays_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A handler returning [] after upstream calls keeps its empty
+    content — no phantom stub block on the default path."""
+    monkeypatch.delenv(citations._ENV_VAR, raising=False)
+    monkeypatch.delenv(provenance._ENV_VAR, raising=False)
+
+    async def handler(args):
+        _record_one_exchange()
+        return []
+
+    result = await _call_tool(_server_with_handler(handler), "t", {})
+    assert result.root.content == []

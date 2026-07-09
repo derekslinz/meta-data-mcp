@@ -34,13 +34,33 @@ claim.
 ``appid``, ``token``, …). :func:`redact_url` replaces the values of
 sensitive parameters with ``REDACTED`` before anything enters the
 manifest; the parameter *names* are preserved so the request stays
-reproducible for anyone holding their own credentials. Headers never
-enter the manifest at all.
+reproducible for anyone holding their own credentials. Matching is a
+denylist of exact names plus conservative suffix/substring heuristics
+(``*key``, ``*token``, ``*secret*``, ``*signature*``, ``*password*``,
+``*credential*``) so presigned cloud-storage URLs (``X-Amz-Signature``)
+and generated plugins with provider-specific key params are covered.
+The heuristics occasionally redact a benign param (e.g. a pagination
+``page_token``) — the safe direction. Userinfo credentials embedded in
+the URL itself (``https://user:pass@host``) are redacted too. Headers
+never enter the manifest at all.
 
-**Failed exchanges are cited too.** A 4xx/5xx response that a handler
-catches (or that federation reports per-query) is part of how the
-result was produced; consumers can filter on ``status``. Pre-response
-network failures produce no exchange and are not recorded.
+**Failed exchanges are cited too.** Every completed HTTP exchange is
+recorded — including 4xx/5xx responses a handler recovers from and the
+intermediate 429/5xx attempts of the kernel's retry loop — so the
+manifest reflects upstream flakiness honestly; consumers can filter on
+``status``. Pre-response network failures produce no exchange and are
+not recorded. Note the SDK error path bypasses attachment entirely: a
+tool call that *raises* returns an ``isError`` result with no manifest.
+
+**Timestamps.** ``fetched_at`` is when the bytes were actually fetched
+from upstream. Cache-served exchanges carry the original fetch time
+(stored alongside the cached response), not the cache-read time, with
+``cache_hit: true``.
+
+**Recording never breaks a tool call.** This is an observability layer;
+:func:`record` catches its own failures (malformed URLs, exotic
+response doubles), logs a warning, and drops the record rather than
+propagating into the handler.
 
 **POST bodies** are intentionally not captured in v3.0 — only the URL.
 Reproducibility for POST-based providers is a documented follow-up.
@@ -64,11 +84,11 @@ import os
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Generator, Sequence
 
 import httpx
-from mcp import types
+
+from meta_data_mcp._meta_common import Content, merge_into_first_block, utc_iso_ms
 
 CITATIONS_META_KEY = "meta-data-mcp/citations"
 
@@ -77,8 +97,9 @@ REDACTED = "REDACTED"
 _ENV_VAR = "META_DATA_MCP_CITATIONS"
 _FALSY = frozenset({"0", "false", "no", "off"})
 
-# Lowercased query-parameter names whose values are replaced with
-# REDACTED. Matching is case-insensitive on the parameter name.
+# Exact (lowercased) query-parameter names whose values are always
+# redacted. Extended by the suffix/substring heuristics in
+# ``_is_sensitive_param``.
 _SENSITIVE_PARAMS = frozenset(
     {
         "api_key",
@@ -87,11 +108,15 @@ _SENSITIVE_PARAMS = frozenset(
         "apitoken",
         "access_token",
         "auth",
+        "auth_token",
         "client_secret",
         "key",
         "password",
+        "private_token",
         "secret",
+        "sig",
         "signature",
+        "subscription-key",
         "token",
         "appid",
         "app_id",
@@ -99,8 +124,6 @@ _SENSITIVE_PARAMS = frozenset(
 )
 
 log = logging.getLogger(__name__)
-
-Content = types.TextContent | types.ImageContent | types.EmbeddedResource
 
 _RECORDING: ContextVar[list["SourceRecord"] | None] = ContextVar(
     "meta_data_mcp_citations_recording", default=None
@@ -127,30 +150,49 @@ class SourceRecord:
     cache_hit: bool
 
 
-def _utc_iso_ms() -> str:
-    """ISO 8601 UTC with millisecond precision and a trailing ``Z``."""
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+def _is_sensitive_param(name: str) -> bool:
+    """Whether a query parameter's value must be redacted.
+
+    Exact denylist first, then conservative heuristics that catch
+    provider-specific credential names the denylist can't enumerate:
+    generated plugins may map an env var onto any query-param name
+    (``subscription-key``, ``user-key``), and redirect-followed
+    presigned URLs carry ``X-Amz-Signature`` / ``X-Amz-Credential``.
+    ``auth`` is exact-match only — a substring test would hit
+    ``author``.
+    """
+    n = name.lower()
+    return (
+        n in _SENSITIVE_PARAMS
+        or n.endswith("key")
+        or n.endswith("token")
+        or "secret" in n
+        or "signature" in n
+        or "password" in n
+        or "credential" in n
+    )
 
 
 def redact_url(url: str | httpx.URL) -> str:
-    """Return ``url`` with sensitive query-parameter values replaced.
+    """Return ``url`` with credential material replaced by ``REDACTED``.
 
-    Parameter names are matched case-insensitively against
-    ``_SENSITIVE_PARAMS``; names and ordering are preserved so the
-    redacted URL remains a usable template for re-issuing the request
-    with one's own credentials. URLs without a query pass through
-    unchanged.
+    Covers sensitive query-parameter values (names and ordering are
+    preserved so the redacted URL remains a usable template for
+    re-issuing the request with one's own credentials) and userinfo
+    embedded in the authority (``https://user:pass@host`` — both parts
+    are replaced, since a username there is typically an API key).
     """
     u = httpx.URL(url)
+    if u.userinfo:
+        u = u.copy_with(username=REDACTED, password=REDACTED)
     if not u.query:
         return str(u)
     qp = httpx.QueryParams(u.query)
+    items = qp.multi_items()
+    if not any(_is_sensitive_param(k) for k, _ in items):
+        return str(u)
     redacted = httpx.QueryParams(
-        [
-            (k, REDACTED if k.lower() in _SENSITIVE_PARAMS else v)
-            for k, v in qp.multi_items()
-        ]
+        [(k, REDACTED if _is_sensitive_param(k) else v) for k, v in items]
     )
     return str(u.copy_with(query=str(redacted).encode()))
 
@@ -164,81 +206,82 @@ def record(
     method: str = "GET",
     status: int | None = None,
     cache_hit: bool = False,
+    fetched_at: str | None = None,
 ) -> None:
     """Append one exchange to the active recording span. No-op outside one.
 
     The recorded URL prefers ``response.request.url`` — the ground truth
     of what was actually sent (httpx *replaces* a URL-embedded query
     string when ``params`` is passed, so recomposing can lie). Falls
-    back to composing from ``url`` + ``params`` for responses that don't
-    carry a request (e.g. cache stand-ins or test doubles).
+    back to composing from ``url`` + ``params`` when the response
+    carries no request (``httpx.Response.request`` raises
+    ``RuntimeError`` in that case — synthetic responses, test doubles).
+
+    ``fetched_at`` defaults to now (correct for a response recorded at
+    fetch time); the transport passes the stored original fetch time for
+    cache-served responses.
+
+    Recording is an observability concern and must never break the tool
+    call it observes: any failure here (malformed URL, exotic response
+    double) is logged at warning level and the record is dropped.
     """
     records = _RECORDING.get()
     if records is None:
         return
 
-    request_url: httpx.URL | None = None
-    if response is not None:
-        request = getattr(response, "request", None)
-        request_url = getattr(request, "url", None)
-    if request_url is None:
-        request_url = httpx.URL(url, params=params) if params else httpx.URL(url)
+    try:
+        request_url: httpx.URL | None = None
+        if response is not None:
+            try:
+                request = response.request
+            except (AttributeError, RuntimeError):
+                request = None
+            request_url = getattr(request, "url", None)
+        if request_url is None:
+            request_url = httpx.URL(url, params=params) if params else httpx.URL(url)
 
-    if status is None and response is not None:
-        status = getattr(response, "status_code", None)
+        if status is None and response is not None:
+            status = getattr(response, "status_code", None)
 
-    records.append(
-        SourceRecord(
-            provider=provider,
-            url=redact_url(request_url),
-            method=method,
-            status=status,
-            fetched_at=_utc_iso_ms(),
-            cache_hit=cache_hit,
+        records.append(
+            SourceRecord(
+                provider=provider,
+                url=redact_url(request_url),
+                method=method,
+                status=status if isinstance(status, int) else None,
+                fetched_at=fetched_at or utc_iso_ms(),
+                cache_hit=cache_hit,
+            )
         )
-    )
+    except Exception:
+        log.warning(
+            "citations.record: dropping unrecordable exchange for provider "
+            "'%s' (url=%r)",
+            provider,
+            url,
+            exc_info=True,
+        )
 
 
 @contextmanager
 def recording_span() -> Generator[list[SourceRecord], None, None]:
     """Open a fresh recording span for the duration of one tool call.
 
-    Yields the live list that :func:`record` appends to. Spans nest by
+    Yields the list that :func:`record` appends to. Spans nest by
     shadowing: an inner span records into its own list and the outer
-    list resumes on exit.
+    list resumes on exit. When citations are disabled via the env var,
+    the yielded list simply stays empty (the ContextVar is never set),
+    so callers need no separate enabled/disabled code path.
     """
-    token = _RECORDING.set([])
+    records: list[SourceRecord] = []
+    if not is_enabled():
+        yield records
+        return
+    token = _RECORDING.set(records)
     try:
-        yield _RECORDING.get()  # type: ignore[misc]  # set([]) above, never None
+        yield records
     finally:
         _RECORDING.reset(token)
-
-
-def _enrich(record_: SourceRecord) -> dict[str, Any]:
-    """Render one record as a manifest entry, joined with registry metadata.
-
-    The kernel receives the kebab ``server_name`` (e.g. ``eu-eurostat``)
-    while :meth:`Registry.find` keys on the snake ``id`` — resolution
-    goes through :meth:`Registry.find_by_server_name`. Unknown providers
-    (out-of-tree callers) still cite; they just carry no registry fields.
-    """
-    from meta_data_mcp.registry import REGISTRY
-
-    entry: dict[str, Any] = {
-        "provider": record_.provider,
-        "url": record_.url,
-        "method": record_.method,
-        "status": record_.status,
-        "fetched_at": record_.fetched_at,
-        "cache_hit": record_.cache_hit,
-    }
-    provider_entry = REGISTRY.find_by_server_name(record_.provider)
-    if provider_entry is not None:
-        entry["title"] = provider_entry.title
-        entry["homepage"] = provider_entry.homepage
-        if provider_entry.license_note:
-            entry["license"] = provider_entry.license_note
-    return entry
 
 
 def attach(
@@ -254,28 +297,49 @@ def attach(
     the content passes through unchanged — a tool that made no upstream
     calls (pure meta tools, registry lookups) has nothing to cite.
 
-    When ``content`` is empty but records exist, a stub
-    ``TextContent(text="")`` is synthesized to carry the manifest,
-    mirroring :func:`meta_data_mcp.provenance.attach`.
+    Empty content also passes through unchanged (with a warning):
+    synthesizing a stub block to carry the manifest would change the
+    wire shape clients see — e.g. the remote SDK treats empty content as
+    "no result" — and citations must never alter results, only annotate
+    them.
     """
     blocks: list[Content] = list(content)
     if not records:
         return blocks
     if not blocks:
         log.warning(
-            "citations.attach: empty content with %d source record(s); "
-            "synthesizing stub TextContent to carry the manifest",
+            "citations.attach: dropping %d source record(s) — result has "
+            "no content block to carry the manifest",
             len(records),
         )
-        blocks = [types.TextContent(type="text", text="")]
+        return blocks
 
-    payload = {CITATIONS_META_KEY: {"sources": [_enrich(r) for r in records]}}
+    # Lazy import keeps module load light; hoisted out of the per-record
+    # loop. One registry scan per distinct provider, not per record.
+    from meta_data_mcp.registry import REGISTRY
 
-    first = blocks[0]
-    merged_meta = dict(first.meta) if first.meta else {}
-    merged_meta.update(payload)
-    blocks[0] = first.model_copy(update={"meta": merged_meta})
-    return blocks
+    entries: dict[str, Any] = {}
+    sources: list[dict[str, Any]] = []
+    for record_ in records:
+        source: dict[str, Any] = {
+            "provider": record_.provider,
+            "url": record_.url,
+            "method": record_.method,
+            "status": record_.status,
+            "fetched_at": record_.fetched_at,
+            "cache_hit": record_.cache_hit,
+        }
+        if record_.provider not in entries:
+            entries[record_.provider] = REGISTRY.find_by_server_name(record_.provider)
+        provider_entry = entries[record_.provider]
+        if provider_entry is not None:
+            source["title"] = provider_entry.title
+            source["homepage"] = provider_entry.homepage
+            if provider_entry.license_note:
+                source["license"] = provider_entry.license_note
+        sources.append(source)
+
+    return merge_into_first_block(blocks, {CITATIONS_META_KEY: {"sources": sources}})
 
 
 __all__ = [

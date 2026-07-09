@@ -209,8 +209,9 @@ Every tool result carries a machine-readable **citation manifest**: exactly whic
 
 This is what makes an LLM data answer auditable: the exact URL(s) — query parameters included — when they were fetched, whether they came from the transport cache, and the provider's license/attribution terms. Anyone can re-issue the URL and check the claim.
 
-- **Secrets never leak.** Values of sensitive query parameters (`api_key`, `token`, `appid`, …) are replaced with `REDACTED`; parameter names are preserved so the URL stays reproducible with your own credentials. Headers never enter the manifest.
-- **Failed exchanges are cited too** — a 4xx/5xx a handler recovered from is part of how the answer was produced; filter on `status`.
+- **Secrets never leak.** Values of sensitive query parameters are replaced with `REDACTED` — an exact denylist (`api_key`, `token`, `appid`, …) plus conservative heuristics (`*key`, `*token`, `*secret*`, `*signature*`, …) that also cover presigned cloud-storage URLs and plugin-specific key params. Userinfo credentials in the URL itself (`https://user:pass@host`) are redacted too; parameter names are preserved so the URL stays reproducible with your own credentials. Headers never enter the manifest.
+- **Failed exchanges are cited too** — a 4xx/5xx a handler recovered from, and the intermediate 429/5xx attempts the kernel's retry loop absorbed, are part of how the answer was produced; filter on `status`. (A tool call that *errors out* returns the SDK's `isError` result, which carries no manifest.)
+- **Honest timestamps.** `fetched_at` is when the bytes were actually fetched: cache-served exchanges report the original fetch time with `cache_hit: true`, not the cache-read time.
 - **On by default.** Set `META_DATA_MCP_CITATIONS=0` to disable. Complements the opt-in tamper-evidence digest (`META_DATA_MCP_PROVENANCE`); both can coexist on the same result.
 
 ## Bundled plugins (88)

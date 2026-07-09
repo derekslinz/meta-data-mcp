@@ -78,10 +78,15 @@ import hashlib
 import json
 import logging
 import os
-from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from mcp import types
+
+from meta_data_mcp._meta_common import (
+    Content,
+    merge_into_first_block,
+    utc_iso_ms as _utc_iso_ms,
+)
 
 PROVENANCE_META_KEY = "meta-data-mcp/provenance"
 
@@ -89,8 +94,6 @@ _ENV_VAR = "META_DATA_MCP_PROVENANCE"
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 log = logging.getLogger(__name__)
-
-Content = types.TextContent | types.ImageContent | types.EmbeddedResource
 
 
 def is_enabled() -> bool:
@@ -134,12 +137,6 @@ def _canonicalize(
     ).encode("utf-8")
 
 
-def _utc_iso_ms() -> str:
-    """ISO 8601 UTC with millisecond precision and a trailing ``Z``."""
-    now = datetime.now(timezone.utc)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
-
-
 def attach(
     content: Sequence[Content],
     *,
@@ -172,18 +169,15 @@ def attach(
         blocks = [types.TextContent(type="text", text="")]
 
     digest = hashlib.sha256(_canonicalize(tool_name, arguments, blocks)).hexdigest()
-    payload = {
-        PROVENANCE_META_KEY: {
-            "sha256": digest,
-            "timestamp": _utc_iso_ms(),
-        }
-    }
-
-    first = blocks[0]
-    merged_meta = dict(first.meta) if first.meta else {}
-    merged_meta.update(payload)
-    blocks[0] = first.model_copy(update={"meta": merged_meta})
-    return blocks
+    return merge_into_first_block(
+        blocks,
+        {
+            PROVENANCE_META_KEY: {
+                "sha256": digest,
+                "timestamp": _utc_iso_ms(),
+            }
+        },
+    )
 
 
 __all__ = ["PROVENANCE_META_KEY", "attach", "is_enabled"]

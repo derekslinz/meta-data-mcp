@@ -36,6 +36,7 @@ ToolCallResult = (
     ToolUnstructuredContent
     | ToolStructuredContent
     | tuple[ToolUnstructuredContent, ToolStructuredContent]
+    | types.CallToolResult
 )
 
 
@@ -239,37 +240,50 @@ def create_mcp_server(
             log.error(f"Tool {name} not found")
             raise AttributeError(f"Tool {name} not found")
 
-        cite = citations.is_enabled()
-        try:
-            if cite:
-                with citations.recording_span() as source_records:
-                    result = await _tools_handlers[name](arguments)
-            else:
-                source_records = []
+        # recording_span handles the citations env gate internally: when
+        # disabled it yields a list that record() never populates.
+        with citations.recording_span() as source_records:
+            try:
                 result = await _tools_handlers[name](arguments)
-        except Exception as e:
-            log.error(f"Error calling tool {name}: {e}")
-            raise
+            except Exception as e:
+                log.error(f"Error calling tool {name}: {e}")
+                raise
+
+            # Normalize the SDK-permitted return shapes while the span
+            # is still open — materializing lazy iterables here means
+            # any http_get a generator performs is still recorded.
+            structured: dict[str, Any] | None = None
+            content: list[Any] | None = None
+            if isinstance(result, types.CallToolResult):
+                # SDK short-circuit shape (handler controls isError and
+                # friends) — attach layers don't apply; pass through.
+                return result
+            if isinstance(result, dict):
+                structured = result
+            elif isinstance(result, tuple) and len(result) == 2:
+                # (unstructured_content, structured_dict) — the SDK's
+                # CombinationContent shape.
+                content, structured = list(result[0]), result[1]
+            else:
+                content = list(result)
 
         prov = provenance.is_enabled()
         if not (source_records or prov):
-            # Nothing to attach — pass the handler result through
-            # untouched (dicts stay dicts so the SDK builds
+            # Nothing to attach — reassemble the handler's original
+            # shape untouched (dicts stay dicts so the SDK builds
             # structuredContent exactly as before).
-            return result
+            if content is None:
+                assert structured is not None  # dict-shaped result
+                return structured
+            return (content, structured) if structured is not None else content
 
-        # Normalize once so both _meta layers stack on the same content
-        # list. Citations go first, provenance second; the digest hashes
-        # _meta-stripped content, so the order can't perturb it.
-        structured: dict[str, Any] | None = None
-        if isinstance(result, dict):
-            structured = result
-            content: list[Any] = [
-                types.TextContent(type="text", text=json.dumps(result, indent=2))
+        # Both _meta layers stack on the same content list. Citations go
+        # first, provenance second; the digest hashes _meta-stripped
+        # content, so the order can't perturb it.
+        if content is None:
+            content = [
+                types.TextContent(type="text", text=json.dumps(structured, indent=2))
             ]
-        else:
-            content = list(result)
-
         if source_records:
             content = citations.attach(content, source_records)
         if prov:
