@@ -45,12 +45,18 @@ class ConsentRoutes:
         email_gate_enabled: bool,
         magic_store: Any = None,
         emailer: Any = None,
+        ip_rate_limiter: Any = None,
+        email_rate_limiter: Any = None,
     ) -> None:
         self.oauth_provider = oauth_provider
         self.issuer_url = issuer_url.rstrip("/")
         self.email_gate_enabled = email_gate_enabled
         self.magic_store = magic_store
         self.emailer = emailer
+        # Anti-abuse throttles for the request-link endpoint. Both are optional
+        # RateLimiter-shaped objects (``.allow(identity)`` / ``.retry_after``).
+        self.ip_rate_limiter = ip_rate_limiter
+        self.email_rate_limiter = email_rate_limiter
 
     # ------------------------------------------------------------------
     # Helpers
@@ -83,6 +89,37 @@ class ConsentRoutes:
         ]
         merged = existing + list(params.items())
         return urlunsplit(parts._replace(query=urlencode(merged)))
+
+    @staticmethod
+    def _client_ip(request: Request) -> str:
+        """Best-effort client IP for rate limiting.
+
+        The production deployment sits behind a trusted TLS reverse proxy (see
+        docs/hosting.md), so honor the left-most ``X-Forwarded-For`` hop when
+        present; otherwise fall back to the direct peer. XFF is spoofable if the
+        server is exposed without a proxy — the throttle is a courtesy control,
+        not an authz boundary, so that's acceptable.
+        """
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def _check_email_page(self, email: str) -> HTMLResponse:
+        """The 'we sent you a link' page — shown on real sends AND on silent
+        per-email throttling, so an attacker can't tell a bombed address from a
+        delivered one."""
+        email_escaped = _html.escape(email)
+        return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Check your email — meta-data-mcp</title>
+<style>body{{font-family:sans-serif;max-width:480px;margin:3rem auto;padding:0 1rem}}
+  .card{{border:1px solid #ddd;border-radius:8px;padding:1.5rem}}</style>
+</head><body><div class="card">
+  <h2>Check your email</h2>
+  <p>We sent a single-use sign-in link to <strong>{email_escaped}</strong>.
+  Open it on this device to finish connecting. The link expires shortly.</p>
+</div></body></html>""")
 
     # ------------------------------------------------------------------
     # Handlers
@@ -172,6 +209,24 @@ class ConsentRoutes:
                 "<p><a href='javascript:history.back()'>Go back</a></p>",
                 status_code=400,
             )
+        # Anti-abuse: cap requests per client IP (abusive sprayer → 429) and
+        # per target email (email-bombing a victim → silently drop but show the
+        # normal page, so the attacker can't distinguish a bombed address).
+        if self.ip_rate_limiter is not None:
+            ip = self._client_ip(request)
+            if not self.ip_rate_limiter.allow(f"ip:{ip}"):
+                retry_after = self.ip_rate_limiter.retry_after(f"ip:{ip}")
+                return HTMLResponse(
+                    "<h1>Too many sign-in requests.</h1>"
+                    "<p>Please wait a bit and try again.</p>",
+                    status_code=429,
+                    headers={"Retry-After": str(retry_after)},
+                )
+        if self.email_rate_limiter is not None:
+            if not self.email_rate_limiter.allow(f"email:{email.lower()}"):
+                log.warning("Magic-link request throttled for email %s", email)
+                return self._check_email_page(email)
+
         assert self.magic_store is not None and self.emailer is not None
         magic_token = self.magic_store.issue(session_token, email)
         link = f"{self.issuer_url}/oauth/magic?token={magic_token}"
@@ -184,17 +239,7 @@ class ConsentRoutes:
                 "<p>Please try again in a moment.</p>",
                 status_code=502,
             )
-        email_escaped = _html.escape(email)
-        return HTMLResponse(f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<title>Check your email — meta-data-mcp</title>
-<style>body{{font-family:sans-serif;max-width:480px;margin:3rem auto;padding:0 1rem}}
-  .card{{border:1px solid #ddd;border-radius:8px;padding:1.5rem}}</style>
-</head><body><div class="card">
-  <h2>Check your email</h2>
-  <p>We sent a single-use sign-in link to <strong>{email_escaped}</strong>.
-  Open it on this device to finish connecting. The link expires shortly.</p>
-</div></body></html>""")
+        return self._check_email_page(email)
 
     async def magic_get(self, request: Request):
         """GET /oauth/magic?token=<token> — verify the link and complete OAuth."""

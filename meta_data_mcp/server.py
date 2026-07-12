@@ -519,9 +519,14 @@ async def run_server(
             ).strip().lower() in ("1", "true", "yes", "on")
             magic_store = None
             emailer = None
+            magic_link_ip_limiter = None
+            magic_link_email_limiter = None
             if email_gate_enabled:
                 from meta_data_mcp.auth_gate import (
+                    DEFAULT_MAGIC_LINK_PER_EMAIL_MAX,
+                    DEFAULT_MAGIC_LINK_PER_IP_MAX,
                     DEFAULT_RATE_LIMIT_RPM,
+                    MAGIC_LINK_REQUEST_WINDOW_SECONDS,
                     MagicLinkStore,
                     RateLimiter,
                 )
@@ -555,6 +560,16 @@ async def run_server(
                             DEFAULT_RATE_LIMIT_RPM,
                         )
                 rate_limiter = RateLimiter(rpm=rpm)
+                # Separate anti-abuse throttles for the sign-in *request*
+                # endpoint (email-bomb / spray protection), windowed over 15 min.
+                magic_link_ip_limiter = RateLimiter(
+                    rpm=DEFAULT_MAGIC_LINK_PER_IP_MAX,
+                    window_seconds=MAGIC_LINK_REQUEST_WINDOW_SECONDS,
+                )
+                magic_link_email_limiter = RateLimiter(
+                    rpm=DEFAULT_MAGIC_LINK_PER_EMAIL_MAX,
+                    window_seconds=MAGIC_LINK_REQUEST_WINDOW_SECONDS,
+                )
                 log.info(
                     "Email gate enabled — magic-link sign-in via %s backend, %s",
                     emailer.backend.value,
@@ -569,6 +584,8 @@ async def run_server(
                 email_gate_enabled=email_gate_enabled,
                 magic_store=magic_store,
                 emailer=emailer,
+                ip_rate_limiter=magic_link_ip_limiter,
+                email_rate_limiter=magic_link_email_limiter,
             )
 
             configured_resource_public_url = (

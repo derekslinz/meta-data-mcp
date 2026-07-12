@@ -12,7 +12,7 @@ import httpx
 import pytest
 from starlette.applications import Starlette
 
-from meta_data_mcp.auth_gate import MagicLinkStore
+from meta_data_mcp.auth_gate import MagicLinkStore, RateLimiter
 from meta_data_mcp.consent_routes import ConsentRoutes
 from meta_data_mcp.emailer import EmailMessage
 from meta_data_mcp.oauth_provider import InMemoryOAuthProvider
@@ -60,13 +60,23 @@ async def _new_session(provider) -> str:
     return url.split("session=")[1]
 
 
-def _app(provider, *, email_gate=False, emailer=None, magic_store=None):
+def _app(
+    provider,
+    *,
+    email_gate=False,
+    emailer=None,
+    magic_store=None,
+    ip_limiter=None,
+    email_limiter=None,
+):
     routes = ConsentRoutes(
         oauth_provider=provider,
         issuer_url="http://localhost:8000",
         email_gate_enabled=email_gate,
         magic_store=magic_store,
         emailer=emailer,
+        ip_rate_limiter=ip_limiter,
+        email_rate_limiter=email_limiter,
     ).routes()
     return Starlette(routes=routes)
 
@@ -224,6 +234,66 @@ async def test_request_link_email_send_failure_returns_502(provider):
             data={"session": session, "email": "user@example.com"},
         )
     assert r.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# request_link_post — anti-abuse throttles
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_request_link_ip_throttle_returns_429(provider):
+    """A client IP over the request cap gets 429 (abusive sprayer)."""
+    emailer = RecordingEmailer()
+    app = _app(
+        provider,
+        email_gate=True,
+        emailer=emailer,
+        magic_store=MagicLinkStore(),
+        ip_limiter=RateLimiter(rpm=2, window_seconds=900),
+    )
+    headers = {"x-forwarded-for": "9.9.9.9"}
+    async with _client(app) as c:
+        statuses = []
+        for _ in range(3):
+            session = await _new_session(provider)
+            r = await c.post(
+                "/oauth/consent/request-link",
+                data={"session": session, "email": "user@example.com"},
+                headers=headers,
+            )
+            statuses.append(r.status_code)
+    assert statuses == [200, 200, 429]
+    assert len(emailer.sent) == 2  # the 429'd request sent nothing
+
+
+@pytest.mark.anyio
+async def test_request_link_email_throttle_silently_drops(provider):
+    """Over-limit for one email returns the normal page but sends no email, so
+    a victim can't be bombed and an attacker can't detect the throttle."""
+    emailer = RecordingEmailer()
+    app = _app(
+        provider,
+        email_gate=True,
+        emailer=emailer,
+        magic_store=MagicLinkStore(),
+        email_limiter=RateLimiter(rpm=1, window_seconds=900),
+    )
+    async with _client(app) as c:
+        results = []
+        for i in range(3):
+            session = await _new_session(provider)
+            # Vary the source IP so only the per-email limiter can trip.
+            r = await c.post(
+                "/oauth/consent/request-link",
+                data={"session": session, "email": "victim@example.com"},
+                headers={"x-forwarded-for": f"10.0.0.{i}"},
+            )
+            results.append((r.status_code, "Check your email" in r.text))
+    # Every response looks identical (200 + same page)…
+    assert results == [(200, True), (200, True), (200, True)]
+    # …but only the first actually sent a link.
+    assert len(emailer.sent) == 1
 
 
 # ---------------------------------------------------------------------------

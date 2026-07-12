@@ -345,6 +345,14 @@ export META_DATA_MCP_EMAIL_FROM="meta-data-mcp <no-reply@example.com>"
 export META_DATA_MCP_RESEND_API_KEY="re_..."
 ```
 
+**Abuse protection:** the sign-in *request* endpoint is throttled independently
+of the per-user API limit — at most 20 requests per client IP and 3 sign-in
+emails per address per 15-minute window. An IP over its cap gets `429`; an
+address over its cap silently stops receiving emails while still showing the
+normal "check your email" page, so a victim's inbox can't be bombed and an
+attacker can't tell a throttled address from a delivered one. (Client IP honors
+`X-Forwarded-For` from the trusted reverse proxy.)
+
 **Caveats (v1):** the magic-link tokens, the email→token binding, and the
 rate-limit counters are all **in-memory and process-local** — a restart forces
 every user to re-verify, and the limiter does not share state across workers
