@@ -67,7 +67,7 @@ class InMemoryOAuthProvider(
     _DEFAULT_MAX_CLIENTS: int = 1000
     _DEFAULT_TOKEN_TTL: int = 3600  # 1 hour
 
-    def __init__(self, issuer_url: str) -> None:
+    def __init__(self, issuer_url: str, persistence: Any = None) -> None:
         self.issuer_url = issuer_url.rstrip("/")
         self._max_clients = self._read_positive_int_env(
             "META_DATA_MCP_OAUTH_MAX_CLIENTS", self._DEFAULT_MAX_CLIENTS
@@ -91,6 +91,25 @@ class InMemoryOAuthProvider(
         # new access token. Without this, refreshing would drop the identity and
         # let a user escape per-email rate limiting by rotating tokens.
         self._refresh_email: dict[str, str] = {}
+        # Optional durable backend (SqliteOAuthPersistence). The dicts above stay
+        # the working set; when persistence is present we load it on startup and
+        # write-through every durable mutation. None → pure in-memory (default).
+        self._persistence = persistence
+        if persistence is not None:
+            self._clients.update(persistence.load_clients())
+            access_tokens, token_email = persistence.load_access_tokens()
+            self._access_tokens.update(access_tokens)
+            self._token_email.update(token_email)
+            refresh_tokens, refresh_email = persistence.load_refresh_tokens()
+            self._refresh_tokens.update(refresh_tokens)
+            self._refresh_email.update(refresh_email)
+            log.info(
+                "Loaded OAuth state from persistence: %d clients, %d access "
+                "tokens, %d refresh tokens",
+                len(self._clients),
+                len(self._access_tokens),
+                len(self._refresh_tokens),
+            )
 
     @staticmethod
     def _read_positive_int_env(name: str, default: int) -> int:
@@ -127,6 +146,8 @@ class InMemoryOAuthProvider(
                 "unused clients."
             )
         self._clients[client_info.client_id] = client_info
+        if self._persistence is not None:
+            self._persistence.save_client(client_info)
 
     # ------------------------------------------------------------------
     # Authorization (consent page redirect)
@@ -235,20 +256,31 @@ class InMemoryOAuthProvider(
         refresh_token_str = secrets.token_urlsafe(32)
 
         client_id = client.client_id or ""
-        self._access_tokens[access_token_str] = AccessToken(
+        access_token = AccessToken(
             token=access_token_str,
             client_id=client_id,
             scopes=authorization_code.scopes,
             expires_at=int(time.time()) + self._token_ttl,
         )
+        self._access_tokens[access_token_str] = access_token
         if email:
             self._token_email[access_token_str] = email
             self._refresh_email[refresh_token_str] = email
-        self._refresh_tokens[refresh_token_str] = RefreshToken(
+        refresh_token = RefreshToken(
             token=refresh_token_str,
             client_id=client_id,
             scopes=authorization_code.scopes,
         )
+        self._refresh_tokens[refresh_token_str] = refresh_token
+
+        if self._persistence is not None:
+            self._persistence.save_access_token(access_token_str, access_token, email)
+            self._persistence.save_refresh_token(
+                refresh_token_str, refresh_token, email
+            )
+            # A verified-email token issuance is a sign-in — record it for audit.
+            if email:
+                self._persistence.record_signin(email, client_id, time.time())
 
         return OAuthToken(
             access_token=access_token_str,
@@ -289,20 +321,27 @@ class InMemoryOAuthProvider(
         new_refresh = secrets.token_urlsafe(32)
         client_id = client.client_id or ""
 
-        self._access_tokens[new_access] = AccessToken(
+        new_access_token = AccessToken(
             token=new_access,
             client_id=client_id,
             scopes=effective_scopes,
             expires_at=int(time.time()) + self._token_ttl,
         )
-        self._refresh_tokens[new_refresh] = RefreshToken(
+        self._access_tokens[new_access] = new_access_token
+        new_refresh_token = RefreshToken(
             token=new_refresh,
             client_id=client_id,
             scopes=effective_scopes,
         )
+        self._refresh_tokens[new_refresh] = new_refresh_token
         if email:
             self._token_email[new_access] = email
             self._refresh_email[new_refresh] = email
+
+        if self._persistence is not None:
+            self._persistence.delete_refresh_token(refresh_token.token)
+            self._persistence.save_access_token(new_access, new_access_token, email)
+            self._persistence.save_refresh_token(new_refresh, new_refresh_token, email)
 
         return OAuthToken(
             access_token=new_access,
@@ -332,6 +371,8 @@ class InMemoryOAuthProvider(
         ):
             del self._access_tokens[matched_token]
             self._token_email.pop(matched_token, None)
+            if self._persistence is not None:
+                self._persistence.delete_access_token(matched_token)
             return None
         return matched_access_token
 
@@ -355,6 +396,10 @@ class InMemoryOAuthProvider(
         self._refresh_tokens.pop(token.token, None)
         self._token_email.pop(token.token, None)
         self._refresh_email.pop(token.token, None)
+        if self._persistence is not None:
+            # A revoked token could be either kind; clear both stores.
+            self._persistence.delete_access_token(token.token)
+            self._persistence.delete_refresh_token(token.token)
 
 
 # ---------------------------------------------------------------------------

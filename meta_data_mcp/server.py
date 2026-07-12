@@ -505,7 +505,20 @@ async def run_server(
 
             from meta_data_mcp.oauth_provider import InMemoryOAuthProvider
 
-            oauth_provider = InMemoryOAuthProvider(issuer_url=oauth_issuer)
+            # Optional durable OAuth state: set META_DATA_MCP_OAUTH_DB to a
+            # SQLite path and registered clients + issued tokens (with their
+            # email bindings) plus a sign-in audit log survive restarts.
+            oauth_persistence = None
+            oauth_db_path = os.getenv("META_DATA_MCP_OAUTH_DB", "").strip()
+            if oauth_db_path:
+                from meta_data_mcp.oauth_persistence import SqliteOAuthPersistence
+
+                oauth_persistence = SqliteOAuthPersistence(oauth_db_path)
+                log.info("OAuth persistence enabled — SQLite at %s", oauth_db_path)
+
+            oauth_provider = InMemoryOAuthProvider(
+                issuer_url=oauth_issuer, persistence=oauth_persistence
+            )
 
             # ----------------------------------------------------------------
             # Magic-link email gate (optional — META_DATA_MCP_EMAIL_GATE=1)
