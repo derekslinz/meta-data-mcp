@@ -380,6 +380,13 @@ or are ephemeral windows, so a restart just means a client retries. Persistence
 still assumes a [single worker](#single-worker-constraint); the SQLite file is
 opened by one process.
 
+**Protect the DB file like a secret** — tokens are stored in plaintext, so
+anyone who can read it holds valid bearer credentials (plus the user emails
+next to them). `chmod 600` and keep it out of backups you'd share. Expired
+access tokens are purged automatically at startup; the sign-in audit table has
+no automatic retention and grows one row per sign-in — prune it yourself if
+that matters for your privacy posture.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

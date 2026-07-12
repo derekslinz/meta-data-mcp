@@ -106,6 +106,8 @@ async def test_consent_get_gated_shows_email_form(provider):
     assert r.status_code == 200
     assert 'type="email"' in r.text
     assert "/oauth/consent/request-link" in r.text
+    # Deny must bypass the required-email constraint, or it's unclickable.
+    assert "formnovalidate" in r.text
 
 
 @pytest.mark.anyio

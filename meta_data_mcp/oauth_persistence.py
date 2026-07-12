@@ -27,7 +27,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 import threading
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from mcp.server.auth.provider import AccessToken, RefreshToken
 from mcp.shared.auth import OAuthClientInformationFull
@@ -74,6 +76,11 @@ class SqliteOAuthPersistence:
 
     def __init__(self, db_path: str) -> None:
         self._lock = threading.Lock()
+        # Fail with a clear message (and create the parent dir) rather than
+        # sqlite's opaque "unable to open database file" when e.g.
+        # /var/lib/meta-data-mcp/ doesn't exist yet.
+        if db_path != ":memory:":
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         # check_same_thread=False: anyio may run handlers on worker threads; the
         # lock serializes access so the single connection is used safely.
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -81,6 +88,24 @@ class SqliteOAuthPersistence:
         with self._lock, self._conn:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(_SCHEMA)
+        # Expired access tokens are otherwise deleted only if that exact token
+        # is re-presented; refresh rotation strands one dead row per cycle.
+        # Purge on startup so the DB (and the in-memory working set loaded from
+        # it) doesn't grow without bound.
+        purged = self.purge_expired_access_tokens()
+        if purged:
+            log.info("Purged %d expired access token(s) from %s", purged, db_path)
+
+    def purge_expired_access_tokens(self, now: float | None = None) -> int:
+        """Delete access tokens whose ``expires_at`` has passed; return count."""
+        cutoff = time.time() if now is None else now
+        with self._lock, self._conn:
+            cur = self._conn.execute(
+                "DELETE FROM access_tokens "
+                "WHERE expires_at IS NOT NULL AND expires_at < ?",
+                (cutoff,),
+            )
+            return cur.rowcount
 
     def close(self) -> None:
         with self._lock:

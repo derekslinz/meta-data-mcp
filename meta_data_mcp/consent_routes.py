@@ -150,7 +150,7 @@ class ConsentRoutes:
     <input type="hidden" name="session" value="{session_token_escaped}">
     <input type="email" name="email" placeholder="you@example.com" required autofocus>
     <button type="submit" class="approve">Email me a sign-in link</button>
-    <button type="submit" name="deny" value="1" class="deny" formaction="/oauth/consent/approve">Deny</button>
+    <button type="submit" name="deny" value="1" class="deny" formaction="/oauth/consent/approve" formnovalidate>Deny</button>
   </form>
 </div>"""
         else:

@@ -486,6 +486,14 @@ async def run_server(
         rate_limiter = None
 
         oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
+        if not oauth_issuer and os.getenv(
+            "META_DATA_MCP_EMAIL_GATE", ""
+        ).strip().lower() in ("1", "true", "yes", "on"):
+            log.warning(
+                "META_DATA_MCP_EMAIL_GATE is set but META_DATA_MCP_OAUTH_ISSUER "
+                "is not — the email gate rides the OAuth flow and is DISABLED "
+                "until an issuer is configured."
+            )
         if oauth_issuer:
             try:
                 from mcp.server.auth.routes import (

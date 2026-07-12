@@ -159,6 +159,31 @@ def test_persistence_client_roundtrip(db_path):
     p.close()
 
 
+def test_expired_access_tokens_purged_on_startup(db_path):
+    """Dead rows from expiry/rotation must not accumulate or reload on boot."""
+    from mcp.server.auth.provider import AccessToken
+
+    p1 = SqliteOAuthPersistence(db_path)
+    expired = AccessToken(token="old", client_id="c1", scopes=[], expires_at=1)
+    live = AccessToken(token="new", client_id="c1", scopes=[], expires_at=9999999999)
+    p1.save_access_token("old", expired, "e@example.com")
+    p1.save_access_token("new", live, "e@example.com")
+    p1.close()
+
+    p2 = SqliteOAuthPersistence(db_path)  # startup purge runs here
+    tokens, _ = p2.load_access_tokens()
+    assert "old" not in tokens
+    assert "new" in tokens
+    p2.close()
+
+
+def test_db_parent_directory_is_created(tmp_path):
+    nested = tmp_path / "does" / "not" / "exist" / "oauth.db"
+    p = SqliteOAuthPersistence(str(nested))  # must not raise
+    assert nested.exists()
+    p.close()
+
+
 def test_persistence_access_token_roundtrip(db_path):
     from mcp.server.auth.provider import AccessToken
 
