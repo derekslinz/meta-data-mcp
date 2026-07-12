@@ -133,7 +133,9 @@ def test_normalize_period_formats(
     assert period.start_date == start
 
 
-@pytest.mark.parametrize("value", ["", "abc", "2015-13", "2015M13", "2015-Q5", "20155", "2015-02-31"])
+@pytest.mark.parametrize(
+    "value", ["", "abc", "2015-13", "2015M13", "2015-Q5", "20155", "2015-02-31"]
+)
 def test_normalize_period_rejects_garbage(value: str) -> None:
     assert normalize_period(value) is None
 
