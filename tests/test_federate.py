@@ -173,7 +173,7 @@ def test_federate_query_handler_succeeds() -> None:
     loop = asyncio.new_event_loop()
     try:
         result = loop.run_until_complete(
-            mod.TOOLS_HANDLERS["opendata_federate_query"]["handler"](params={})
+            mod.TOOLS_HANDLERS["opendata_federate_query"]({})
         )
         assert result is not None
     finally:
@@ -188,7 +188,7 @@ def test_federate_compare_handler_succeeds() -> None:
     loop = asyncio.new_event_loop()
     try:
         result = loop.run_until_complete(
-            mod.TOOLS_HANDLERS["opendata_federate_compare"]["handler"](params={})
+            mod.TOOLS_HANDLERS["opendata_federate_compare"]({})
         )
         assert result is not None
     finally:

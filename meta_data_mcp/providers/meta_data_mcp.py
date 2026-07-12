@@ -29,7 +29,7 @@ from typing import Any, List, Optional, Sequence
 import mcp.types as types
 from pydantic import AnyUrl, BaseModel, Field
 
-from meta_data_mcp import health
+from meta_data_mcp import federate, health
 
 # Re-export the activation state + loader plumbing. Architecture review §H2
 # moved these into meta_data_mcp.discovery.{state,loader} but the surface
@@ -1983,6 +1983,241 @@ TOOLS.append(
     )
 )
 TOOLS_HANDLERS["opendata_tool_call"] = handle_call_tool
+
+
+###################
+# federate — cross-provider meta tools (v3 Phase 3)
+###################
+
+
+class FederateSubQuery(BaseModel):
+    """One sub-call in a federated request."""
+
+    tool: str = Field(
+        ...,
+        description=(
+            "Exact name of a plugin tool to call (e.g. "
+            "'world-bank-get-indicator-data'). The owning provider is "
+            "auto-activated if inactive."
+        ),
+    )
+    arguments: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments to pass to the tool, matching its inputSchema.",
+    )
+    label: Optional[str] = Field(
+        None,
+        description=(
+            "Human-friendly source label used in the merged output "
+            "(e.g. 'Eurostat'). Defaults to the tool name."
+        ),
+    )
+
+
+class FederateParams(BaseModel):
+    """Parameters shared by the federate query + compare meta tools."""
+
+    queries: List[FederateSubQuery] = Field(
+        default_factory=list,
+        description=(
+            "Sub-calls to run and harmonize. Each names a plugin tool "
+            "and its arguments; results are normalized onto a common "
+            "geography + time axis and merged."
+        ),
+    )
+    harmonize: dict[str, bool] = Field(
+        default_factory=lambda: {"geo": True, "time": True},
+        description=(
+            "Which axes to normalize. {'geo': true, 'time': true} by "
+            "default — set either false to pass that axis through raw."
+        ),
+    )
+
+
+def _autoactivate_owner(tool_name: str) -> None:
+    """Activate the provider whose tool namespace owns ``tool_name``.
+
+    Plugin tools are named ``{server_name}-...`` (e.g. the ``world-bank``
+    provider owns ``world-bank-get-indicator-data``). Match the longest
+    server-name prefix and activate it so the handler becomes callable —
+    the same auto-activation contract the plan specifies for federation.
+    Best-effort: unknown tools are left for the caller to report.
+    """
+    best: Optional[str] = None
+    for entry in iter_registry():
+        server_name = entry.server_name
+        if tool_name == server_name or tool_name.startswith(f"{server_name}-"):
+            if best is None or len(server_name) > len(best):
+                best = entry.id
+    if best is not None:
+        _activate_provider(best)
+
+
+async def _run_federate_subquery(
+    query: FederateSubQuery,
+    *,
+    geo: bool,
+    time: bool,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Execute one sub-call and harmonize its result.
+
+    Returns ``(status, harmonized_rows)``. A missing/unactivatable tool
+    or a raising handler is reported per-query (``status`` carries the
+    reason) rather than failing the whole federation — partial results
+    are more useful than none.
+    """
+    label = query.label or query.tool
+    handler = TOOLS_HANDLERS.get(query.tool)
+    if handler is None:
+        _autoactivate_owner(query.tool)
+        handler = TOOLS_HANDLERS.get(query.tool)
+    if handler is None:
+        return (
+            {
+                "label": label,
+                "tool": query.tool,
+                "status": "not_activated",
+                "hint": "Unknown tool, or its provider could not be activated.",
+            },
+            [],
+        )
+
+    try:
+        result = await handler(query.arguments or {})
+    except Exception as exc:  # noqa: BLE001 — one bad sub-call shouldn't sink the rest
+        log.error("federate sub-call %s failed: %s", query.tool, exc)
+        return (
+            {"label": label, "tool": query.tool, "status": "error", "error": str(exc)},
+            [],
+        )
+
+    raw = _coerce_result_to_dict(result)
+    harmonized = federate.harmonize_result(raw, source=label, geo=geo, time=time)
+    rows = harmonized if isinstance(harmonized, list) else [harmonized]
+    return (
+        {"label": label, "tool": query.tool, "status": "ok", "rows": len(rows)},
+        rows,
+    )
+
+
+def _coerce_result_to_dict(result: Any) -> dict[str, Any]:
+    """Normalize a handler return into a dict envelope for harmonization.
+
+    Handlers return dicts, ``(content, structured)`` tuples, or lists of
+    ``TextContent``. Unwrap each onto a plain dict so
+    :func:`federate.harmonize_result` has one shape to reason about.
+    """
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+        return result[1]
+    if isinstance(result, (list, tuple)) and result and hasattr(result[0], "text"):
+        import json as _json
+
+        try:
+            parsed = _json.loads(result[0].text)
+        except Exception:  # noqa: BLE001
+            return {"_item": {"value": result[0].text}}
+        return parsed if isinstance(parsed, dict) else {"_items": parsed}
+    return {"_item": {"value": result}}
+
+
+async def _gather_federation(
+    params: FederateParams,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Run every sub-query concurrently, returning (sources, all_rows)."""
+    geo = params.harmonize.get("geo", True)
+    time_axis = params.harmonize.get("time", True)
+    outcomes = await asyncio.gather(
+        *(_run_federate_subquery(q, geo=geo, time=time_axis) for q in params.queries)
+    )
+    sources = [status for status, _ in outcomes]
+    all_rows: list[dict[str, Any]] = []
+    for _, rows in outcomes:
+        all_rows.extend(rows)
+    return sources, all_rows
+
+
+async def handle_federate_query(
+    arguments: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run several provider sub-calls and merge them into one harmonized series.
+
+    Each query is executed (auto-activating its provider), its result is
+    normalized onto a common geography + time axis, and rows sharing a
+    geo + period are merged so overlapping series line up. The citation
+    manifest (Phase 1) records every sub-request automatically, so a
+    federated answer stays fully cited.
+    """
+    params = FederateParams(**(arguments or {}))
+    sources, rows = await _gather_federation(params)
+    return {
+        "merged": federate.merge_results(rows),
+        "sources": sources,
+        "harmonization_report": {
+            "geo": params.harmonize.get("geo", True),
+            "time": params.harmonize.get("time", True),
+            "total_rows": len(rows),
+        },
+    }
+
+
+async def handle_federate_compare(
+    arguments: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare coverage across provider sub-calls on a common axis.
+
+    Like ``opendata_federate_query`` but the payload foregrounds a
+    coverage matrix — which sources report which geographies and periods
+    — so gaps and disagreements between sources are visible at a glance.
+    """
+    params = FederateParams(**(arguments or {}))
+    sources, rows = await _gather_federation(params)
+    return {
+        "coverage": federate.coverage_matrix(rows),
+        "merged": federate.merge_results(rows),
+        "sources": sources,
+        "harmonization_report": {
+            "geo": params.harmonize.get("geo", True),
+            "time": params.harmonize.get("time", True),
+            "total_rows": len(rows),
+        },
+    }
+
+
+TOOLS.append(
+    types.Tool(
+        name="opendata_federate_query",
+        title="Federate & Harmonize Across Providers",
+        description=(
+            "Run several plugin tool calls, normalize their results onto a "
+            "common geography + time axis, and merge them into one cited "
+            "series. Auto-activates each query's provider. Use this to "
+            "overlay the same indicator from different open-data sources "
+            "(e.g. Eurostat vs World Bank) in a single answer."
+        ),
+        inputSchema=FederateParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+    )
+)
+TOOLS_HANDLERS["opendata_federate_query"] = handle_federate_query
+
+
+TOOLS.append(
+    types.Tool(
+        name="opendata_federate_compare",
+        title="Compare Coverage Across Providers",
+        description=(
+            "Federate several plugin tool calls and report a coverage "
+            "matrix — which sources cover which geographies and periods — "
+            "alongside the merged series. Use this to spot gaps or "
+            "disagreements between open-data sources."
+        ),
+        inputSchema=FederateParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+    )
+)
+TOOLS_HANDLERS["opendata_federate_compare"] = handle_federate_compare
 
 
 # ---------------------------------------------------------------------------
