@@ -228,8 +228,12 @@ def normalize_period(value: str | int) -> Period | None:
             return None
         return Period("M", f"{year}-{month:02d}", f"{year}-{month:02d}-01")
     if m := _RE_DATE.match(s):
-        year, month, day = m.group(1), int(m.group(2)), int(m.group(3))
-        if not (1 <= month <= 12 and 1 <= day <= 31):
+        import datetime as dt
+
+        year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            dt.date(year, month, day)
+        except ValueError:
             return None
         return Period("D", s, s)
     return None
