@@ -61,7 +61,7 @@ def main() -> None:
     for name, a2, a3, m49 in rows:
         lines.append(f"    ({name!r}, {a2!r}, {a3!r}, {m49!r}),\n")
     lines.append(FOOTER)
-    OUT_PATH.write_text("".join(lines))
+    OUT_PATH.write_text("".join(lines), encoding="utf-8", newline="\n")
     print(f"wrote {OUT_PATH} ({len(rows)} countries)")
 
 
