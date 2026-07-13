@@ -29,6 +29,14 @@ from dataclasses import dataclass
 DEFAULT_MAGIC_LINK_TTL_SECONDS = 600  # 10 minutes
 DEFAULT_RATE_LIMIT_RPM = 30  # matches the Sophymarine free tier
 
+# Anti-abuse limits for the magic-link *request* endpoint (distinct from the
+# per-user API throttle above). These bound how many sign-in emails can be
+# triggered, protecting against email-bombing a victim's inbox and against a
+# single client spraying links to many addresses. Windowed over 15 minutes.
+MAGIC_LINK_REQUEST_WINDOW_SECONDS = 900
+DEFAULT_MAGIC_LINK_PER_EMAIL_MAX = 3  # sign-in emails per address per window
+DEFAULT_MAGIC_LINK_PER_IP_MAX = 20  # requests per client IP per window
+
 
 @dataclass(frozen=True)
 class MagicLinkRecord:

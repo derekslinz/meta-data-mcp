@@ -327,6 +327,7 @@ Requires OAuth to be enabled (`META_DATA_MCP_OAUTH_ISSUER`).
 | `META_DATA_MCP_SMTP_HOST` | Use SMTP (STARTTLS) instead of Resend | — |
 | `META_DATA_MCP_SMTP_PORT` | SMTP port | `587` |
 | `META_DATA_MCP_SMTP_USER` / `META_DATA_MCP_SMTP_PASSWORD` | SMTP auth (omit for unauthenticated relays) | — |
+| `META_DATA_MCP_OAUTH_DB` | SQLite path for durable OAuth state + sign-in audit (see [Durable state](#durable-oauth-state)) | — (in-memory) |
 
 **Email backend precedence:** Resend (if `…_RESEND_API_KEY` set) → SMTP (if
 `…_SMTP_HOST` set) → **console** (neither set). The console backend logs the
@@ -345,13 +346,46 @@ export META_DATA_MCP_EMAIL_FROM="meta-data-mcp <no-reply@example.com>"
 export META_DATA_MCP_RESEND_API_KEY="re_..."
 ```
 
-**Caveats (v1):** the magic-link tokens, the email→token binding, and the
-rate-limit counters are all **in-memory and process-local** — a restart forces
-every user to re-verify, and the limiter does not share state across workers
-(see [Single-worker constraint](#single-worker-constraint)). A durable backend
-(SQLite) is a planned follow-up; the store interfaces are already isolated for
-it. The static `META_DATA_MCP_AUTH_TOKEN`, if also set, continues to work and is
+**Abuse protection:** the sign-in *request* endpoint is throttled independently
+of the per-user API limit — at most 20 requests per client IP and 3 sign-in
+emails per address per 15-minute window. An IP over its cap gets `429`; an
+address over its cap silently stops receiving emails while still showing the
+normal "check your email" page, so a victim's inbox can't be bombed and an
+attacker can't tell a throttled address from a delivered one. (Client IP honors
+`X-Forwarded-For` from the trusted reverse proxy.)
+
+The static `META_DATA_MCP_AUTH_TOKEN`, if also set, continues to work and is
 **not** rate-limited (it's the operator's own key).
+
+### Durable OAuth state
+
+By default all OAuth state is in-memory, so a restart drops every registered
+client and issued token and connected clients must re-authorize. Set
+`META_DATA_MCP_OAUTH_DB` to a SQLite path to persist the durable state:
+
+- registered OAuth clients,
+- access and refresh tokens **with their bound email**, so per-user rate-limit
+  identity survives a restart,
+- a **sign-in audit log** — one row per verified-email token issuance
+  (`email`, `client_id`, timestamp), queryable via
+  `SqliteOAuthPersistence.recent_signins()`.
+
+```bash
+export META_DATA_MCP_OAUTH_DB=/var/lib/meta-data-mcp/oauth.db
+```
+
+Still in-memory (intentionally): short-lived consent sessions, authorization
+codes, magic-link tokens, and the rate-limit counters — these live for minutes
+or are ephemeral windows, so a restart just means a client retries. Persistence
+still assumes a [single worker](#single-worker-constraint); the SQLite file is
+opened by one process.
+
+**Protect the DB file like a secret** — tokens are stored in plaintext, so
+anyone who can read it holds valid bearer credentials (plus the user emails
+next to them). `chmod 600` and keep it out of backups you'd share. Expired
+access tokens are purged automatically at startup; the sign-in audit table has
+no automatic retention and grows one row per sign-in — prune it yourself if
+that matters for your privacy posture.
 
 ## Troubleshooting
 
