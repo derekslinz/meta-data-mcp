@@ -31,6 +31,7 @@ quirks, aliases, aggregates — lives here, where it can be reviewed.
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from dataclasses import dataclass
 
@@ -48,7 +49,9 @@ class GeoMatch:
     ``is_aggregate`` marks statistical groupings (World, EU27, income
     levels) that must not be treated as countries when joining series —
     they're kept so federation can pass them through labeled instead of
-    silently discarding them.
+    silently discarding them. For aggregates, ``iso3`` holds the
+    aggregate code (``EU27_2020``, ``HIC``), not an ISO alpha-3 —
+    don't assume ``len(iso3) == 3``.
     """
 
     iso3: str
@@ -102,6 +105,7 @@ _NAME_ALIASES: dict[str, str] = {
     "america": "USA",
     "bolivia": "BOL",
     "britain": "GBR",
+    "burma": "MMR",
     "brunei": "BRN",
     "cape verde": "CPV",
     "czech republic": "CZE",
@@ -111,12 +115,16 @@ _NAME_ALIASES: dict[str, str] = {
     "iran": "IRN",
     "ivory coast": "CIV",
     "laos": "LAO",
+    "macau": "MAC",
+    "macedonia": "MKD",
     "moldova": "MDA",
+    "netherlands": "NLD",
     "north korea": "PRK",
     "palestine": "PSE",
     "republic of korea": "KOR",
     "russia": "RUS",
     "south korea": "KOR",
+    "swaziland": "SWZ",
     "syria": "SYR",
     "taiwan": "TWN",
     "tanzania": "TZA",
@@ -138,11 +146,18 @@ def _build_geo_index() -> dict[str, GeoMatch]:
         index[alpha2.lower()] = match
         index[alpha3.lower()] = match
         index[m49] = match  # zero-padded, e.g. "004"
-        index[m49.lstrip("0") or "0"] = match  # bare numeric, e.g. "4"
+        index[str(int(m49))] = match  # bare numeric, e.g. "4"
         index[name.lower()] = match
     for alias, iso3 in _NAME_ALIASES.items():
-        if iso3 in by_iso3:
-            index[alias] = by_iso3[iso3]
+        if iso3 not in by_iso3:
+            # Loud failure at import: a concordance regeneration that
+            # drops or reassigns an alpha-3 must not silently orphan an
+            # alias (the country would just vanish from federation).
+            raise LookupError(
+                f"_NAME_ALIASES[{alias!r}] -> {iso3!r} not in the ISO table; "
+                "update the alias or regenerate harmonize_data.py"
+            )
+        index[alias] = by_iso3[iso3]
     for code, (iso3, name) in _QUIRKS.items():
         index[code] = GeoMatch(iso3=iso3, name=name)
     for code, name in _AGGREGATES.items():
@@ -173,7 +188,7 @@ def normalize_geo(value: str) -> GeoMatch | None:
 
 # Coarsest → finest. Alignment picks the coarsest frequency present so
 # every series can be truncated onto it without inventing data.
-FREQUENCIES = ("A", "S", "Q", "M", "D")
+FREQUENCIES = ("A", "S", "Q", "M", "W", "D")
 
 _FREQ_ORDER = {f: i for i, f in enumerate(FREQUENCIES)}
 
@@ -198,6 +213,7 @@ _RE_QUARTER = re.compile(r"^(\d{4})[-\s]?Q([1-4])$", re.IGNORECASE)
 _RE_MONTH_M = re.compile(r"^(\d{4})[-\s]?M(\d{1,2})$", re.IGNORECASE)
 _RE_MONTH_ISO = re.compile(r"^(\d{4})-(\d{2})$")
 _RE_SEMESTER = re.compile(r"^(\d{4})[-\s]?[SH]([12])$", re.IGNORECASE)
+_RE_WEEK = re.compile(r"^(\d{4})[-\s]?W(\d{1,2})$", re.IGNORECASE)
 _RE_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 
 
@@ -207,9 +223,10 @@ def normalize_period(value: str | int) -> Period | None:
     Handles the formats the bundled stats providers actually emit:
     bare years (``2015``, also as int), quarters (``2015-Q1``,
     ``2015Q1``), months (``2015-03``, ``2015M3``, ``2015M03``),
-    semesters (``2015-S1``, SDMX ``2015-H1``), and ISO dates. Returns
-    ``None`` for anything else (callers report unparseable dates, they
-    don't guess).
+    semesters (``2015-S1``, SDMX ``2015-H1``), ISO weeks (SDMX
+    ``2023-W05`` — start date is the ISO week's Monday), and ISO
+    dates. Returns ``None`` for anything else (callers report
+    unparseable dates, they don't guess).
     """
     s = str(value).strip()
 
@@ -227,9 +244,14 @@ def normalize_period(value: str | int) -> Period | None:
         if not 1 <= month <= 12:
             return None
         return Period("M", f"{year}-{month:02d}", f"{year}-{month:02d}-01")
+    if m := _RE_WEEK.match(s):
+        year, week = int(m.group(1)), int(m.group(2))
+        try:
+            monday = dt.date.fromisocalendar(year, week, 1)
+        except ValueError:
+            return None
+        return Period("W", f"{year}-W{week:02d}", monday.isoformat())
     if m := _RE_DATE.match(s):
-        import datetime as dt
-
         year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
         try:
             dt.date(year, month, day)
@@ -266,20 +288,23 @@ def coarsest_frequency(freqs: list[str]) -> str | None:
     return min(known, key=lambda f: _FREQ_ORDER[f])
 
 
-def truncate_period(value: str | int, freq: str) -> str | None:
+def truncate_period(value: str | int | Period, freq: str) -> str | None:
     """Re-express a period at a coarser frequency.
 
     ``truncate_period("2015-03", "A") == "2015"``;
-    ``truncate_period("2015-07-15", "Q") == "2015-Q3"``. Truncating to
-    a *finer* frequency than the input carries returns ``None`` — that
-    would be inventing data.
+    ``truncate_period("2015-07-15", "Q") == "2015-Q3"``. Accepts an
+    already-parsed :class:`Period` so bulk callers don't pay the regex
+    parse twice. Truncating to a *finer* frequency than the input
+    carries returns ``None`` — that would be inventing data. Weekly
+    periods truncate via their start date (a week straddling a month
+    boundary belongs to its Monday's month).
     """
-    period = normalize_period(value)
+    period = value if isinstance(value, Period) else normalize_period(value)
     if period is None or freq not in _FREQ_ORDER:
         return None
     if _FREQ_ORDER[freq] > _FREQ_ORDER[period.freq]:
         return None
-    year, month, _day = period.start_date.split("-")
+    year, month, day = period.start_date.split("-")
     if freq == "A":
         return year
     if freq == "S":
@@ -288,6 +313,13 @@ def truncate_period(value: str | int, freq: str) -> str | None:
         return f"{year}-Q{(int(month) - 1) // 3 + 1}"
     if freq == "M":
         return f"{year}-{month}"
+    if freq == "W":
+        if period.freq == "W":
+            return period.canonical
+        # Daily input: assign the ISO week (week-year may differ from
+        # the calendar year around January 1st).
+        iso = dt.date(int(year), int(month), int(day)).isocalendar()
+        return f"{iso.year}-W{iso.week:02d}"
     return period.canonical  # freq == "D" implies input was daily
 
 

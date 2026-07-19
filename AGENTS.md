@@ -21,6 +21,10 @@ meta_data_mcp/
   registry.py       — REGISTRY list of ProviderEntry dataclasses; DOMAINS/REGIONS vocabs
   routing.py        — RoutingEngine: multi-criteria provider ranking (token, fuzzy, semantic, metadata)
   utils.py          — http_get(), TTL cache, MCP server factory, to_json_text()
+  citations.py      — Per-call source-citation manifest (recording spans, URL redaction)
+  harmonize.py      — Cross-provider normalization: geo (ISO 3166) + period + frequency
+  harmonize_data.py — Generated ISO 3166 concordance (via tools/generate_concordance.py)
+  federate.py       — Pure federation transforms behind opendata_federate_query/compare
   providers/
     __template__.py — Canonical pattern every plugin must follow
     {id}.py         — One file per plugin (66 total)
@@ -28,6 +32,7 @@ meta_data_mcp/
 
 tools/
   generate_provider.py        — CLI generator: YAML spec → provider module + test file
+  generate_concordance.py     — Regenerates meta_data_mcp/harmonize_data.py from ISO 3166 source
   specs/                      — YAML specs for generated plugins
 
 tests/
