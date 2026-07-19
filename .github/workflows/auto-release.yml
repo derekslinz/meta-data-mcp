@@ -1,0 +1,65 @@
+name: Auto Release
+
+# Cuts a release automatically whenever a version bump lands on main:
+# reads __version__, and if the matching vX.Y.Z tag doesn't exist yet,
+# creates a GitHub Release (tag + auto-generated notes) and chains the
+# build/publish via the reusable Release workflow.
+#
+# Why the explicit chain: releases created with GITHUB_TOKEN don't emit
+# `release: published` events (GitHub's recursion guard), so relying on
+# release.yml's release trigger here would silently do nothing — the
+# exact failure mode this workflow exists to eliminate.
+on:
+  push:
+    branches: [main]
+    paths:
+      - meta_data_mcp/__init__.py
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      created: ${{ steps.release.outputs.created }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read package version
+        id: version
+        run: |
+          VERSION=$(sed -nE 's/^__version__ = "(.*)"$/\1/p' meta_data_mcp/__init__.py)
+          if [ -z "$VERSION" ]; then
+            echo "Could not parse __version__ from meta_data_mcp/__init__.py" >&2
+            exit 1
+          fi
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release if tag is new
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists — nothing to release."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+          else
+            gh release create "${TAG}" \
+              --target "${GITHUB_SHA}" \
+              --title "${TAG}" \
+              --generate-notes
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: cut
+    if: needs.cut.outputs.created == 'true'
+    permissions:
+      id-token: write
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.cut.outputs.tag }}
