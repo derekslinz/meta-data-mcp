@@ -1,8 +1,21 @@
 name: npm Publish
 
+# Publishes @meta-data-mcp/sdk when ITS version changes — the SDK is
+# versioned independently of the Python server, so the old design
+# (trigger on repo releases, compare package.json against the release
+# tag) failed on every single release ever cut: the tag is the server's
+# version, never the SDK's.
+#
+# The npm registry itself is the idempotence check: if the version in
+# package.json is already published, the run is a clean no-op. That
+# makes re-runs, merges that touch the file without bumping, and manual
+# dispatches all safe.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - packages/typescript-sdk/package.json
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -19,27 +32,33 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Check whether this version is already on npm
+        id: check
+        working-directory: packages/typescript-sdk
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VERSION} already published — nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
+        if: steps.check.outputs.publish == 'true'
         working-directory: packages/typescript-sdk
         run: npm ci
 
       - name: Build
+        if: steps.check.outputs.publish == 'true'
         working-directory: packages/typescript-sdk
         run: npm run build
 
-      - name: Check package version matches release tag
-        working-directory: packages/typescript-sdk
-        env:
-          TAG_REF: ${{ github.ref }}
-        run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${TAG_REF#refs/tags/v}"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "Version mismatch: package.json ($PKG_VERSION) vs tag ($TAG_VERSION)"
-            exit 1
-          fi
-
       - name: Publish to npm
+        if: steps.check.outputs.publish == 'true'
         working-directory: packages/typescript-sdk
         run: npm publish --access public
         env:
