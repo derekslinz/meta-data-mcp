@@ -76,6 +76,11 @@ def test_normalize_geo_provider_quirks(value: str, iso3: str) -> None:
         ("vietnam", "VNM"),
         ("Czech Republic", "CZE"),
         ("ivory coast", "CIV"),
+        ("netherlands", "NLD"),
+        ("Macau", "MAC"),
+        ("burma", "MMR"),
+        ("swaziland", "SWZ"),
+        ("Macedonia", "MKD"),
     ],
 )
 def test_normalize_geo_aliases(value: str, iso3: str) -> None:
@@ -102,6 +107,16 @@ def test_normalize_geo_greece_native_codes_still_work() -> None:
     assert normalize_geo("GRC").iso3 == "GRC"
 
 
+def test_orphaned_alias_fails_loudly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A concordance regeneration that drops an alias target must fail
+    at index build, not silently orphan the alias."""
+    from meta_data_mcp import harmonize
+
+    monkeypatch.setitem(harmonize._NAME_ALIASES, "atlantis", "ATL")
+    with pytest.raises(LookupError, match="atlantis"):
+        harmonize._build_geo_index()
+
+
 # ---------------------------------------------------------------------------
 # normalize_period
 # ---------------------------------------------------------------------------
@@ -120,6 +135,8 @@ def test_normalize_geo_greece_native_codes_still_work() -> None:
         ("2015M11", "M", "2015-11", "2015-11-01"),
         ("2015-S1", "S", "2015-S1", "2015-01-01"),
         ("2015-H2", "S", "2015-S2", "2015-07-01"),  # SDMX half-years
+        ("2023-W05", "W", "2023-W05", "2023-01-30"),  # SDMX weeks
+        ("2023W5", "W", "2023-W05", "2023-01-30"),
         ("2015-06-15", "D", "2015-06-15", "2015-06-15"),
     ],
 )
@@ -134,7 +151,8 @@ def test_normalize_period_formats(
 
 
 @pytest.mark.parametrize(
-    "value", ["", "abc", "2015-13", "2015M13", "2015-Q5", "20155", "2015-02-31"]
+    "value",
+    ["", "abc", "2015-13", "2015M13", "2015-Q5", "20155", "2015-02-31", "2023-W54"],
 )
 def test_normalize_period_rejects_garbage(value: str) -> None:
     assert normalize_period(value) is None
@@ -153,7 +171,7 @@ def test_start_dates_sort_across_frequencies() -> None:
 
 
 def test_frequencies_ordering_constant() -> None:
-    assert FREQUENCIES == ("A", "S", "Q", "M", "D")
+    assert FREQUENCIES == ("A", "S", "Q", "M", "W", "D")
 
 
 def test_detect_frequency_majority_vote() -> None:
@@ -188,11 +206,27 @@ def test_truncate_period_to_coarser(value: str, freq: str, expected: str) -> Non
     assert truncate_period(value, freq) == expected
 
 
+def test_truncate_period_weekly() -> None:
+    # A week truncates via its Monday; a day truncates to its ISO week
+    # (whose week-year can differ from the calendar year in January).
+    assert truncate_period("2023-W05", "M") == "2023-01"
+    assert truncate_period("2023-W05", "W") == "2023-W05"
+    assert truncate_period("2023-02-01", "W") == "2023-W05"
+    assert truncate_period("2027-01-01", "W") == "2026-W53"
+
+
+def test_truncate_period_accepts_parsed_period() -> None:
+    period = normalize_period("2015-07-15")
+    assert truncate_period(period, "Q") == "2015-Q3"
+
+
 def test_truncate_period_refuses_to_invent_finer_data() -> None:
     # An annual figure has no quarterly truth — truncating "down" must
     # fail rather than fabricate.
     assert truncate_period("2015", "Q") is None
     assert truncate_period("2015-Q1", "M") is None
+    assert truncate_period("2015-03", "W") is None
+    assert truncate_period("2023-W05", "D") is None
 
 
 def test_truncate_period_unknown_inputs() -> None:
