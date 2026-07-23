@@ -145,3 +145,85 @@ def test_render_pr_body_tolerates_missing_meta():
     body = contribute.render_pr_body("acme", {})
     assert "acme" in body
     assert "META_DATA_MCP_AUTO_CONTRIBUTE=0" in body
+
+
+@pytest.fixture
+def fake_repo(monkeypatch, tmp_path):
+    """Force resolve_target_repo + gh presence deterministic."""
+    monkeypatch.setenv("META_DATA_MCP_CONTRIBUTE_REPO", "derekslinz/meta-data-mcp")
+    monkeypatch.setattr(contribute.shutil, "which", lambda _: "/usr/bin/gh")
+    return tmp_path
+
+
+@pytest.mark.asyncio
+async def test_contribute_plugin_gh_missing_degrades(monkeypatch, tmp_path):
+    monkeypatch.setattr(contribute.shutil, "which", lambda _: None)
+    monkeypatch.setattr(
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
+    )
+    res = await contribute.contribute_plugin("acme", [], repo_root=tmp_path)
+    assert res.status == "degraded"
+    assert "gh" in res.message
+    assert res.branch == "contribute/plugin-acme"
+
+
+@pytest.mark.asyncio
+async def test_contribute_plugin_skips_when_pr_exists(monkeypatch, fake_repo):
+    calls = {}
+
+    def fake_gh(args):
+        if args[:2] == ["pr", "list"]:
+            return '[{"url": "https://github.com/x/y/pull/7"}]'
+        calls["created"] = True
+        return ""
+
+    monkeypatch.setattr(contribute, "_gh", lambda *a, **k: fake_gh(list(a)))
+    res = await contribute.contribute_plugin("acme", [], repo_root=fake_repo)
+    assert res.status == "skipped_exists"
+    assert res.pr_url == "https://github.com/x/y/pull/7"
+    assert "created" not in calls
+
+
+@pytest.mark.asyncio
+async def test_contribute_plugin_happy_path_opens_pr(monkeypatch, fake_repo):
+    monkeypatch.setattr(
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
+    )
+    monkeypatch.setattr(contribute, "_git_push", lambda *a, **k: None)
+
+    def fake_gh(*args, **kwargs):
+        if args[0] == "pr" and args[1] == "list":
+            return "[]"
+        if args[0] == "pr" and args[1] == "create":
+            return "https://github.com/derekslinz/meta-data-mcp/pull/42\n"
+        return ""
+
+    monkeypatch.setattr(contribute, "_gh", fake_gh)
+    res = await contribute.contribute_plugin(
+        "acme", [], repo_root=fake_repo, meta={"description": "d"}
+    )
+    assert res.status == "opened"
+    assert res.pr_url == "https://github.com/derekslinz/meta-data-mcp/pull/42"
+    assert res.branch == "contribute/plugin-acme"
+
+
+@pytest.mark.asyncio
+async def test_contribute_plugin_push_failure_degrades(monkeypatch, fake_repo):
+    monkeypatch.setattr(
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
+    )
+
+    def boom(*a, **k):
+        raise contribute.ContributionGitError("no push access")
+
+    monkeypatch.setattr(contribute, "_gh", lambda *a, **k: "[]")
+    monkeypatch.setattr(contribute, "_git_push", boom)
+    res = await contribute.contribute_plugin("acme", [], repo_root=fake_repo)
+    assert res.status == "degraded"
+    assert "gh pr create" in res.message  # runnable manual command

@@ -8,13 +8,19 @@ the ``gh`` CLI. Every failure is non-fatal and reported via ``ContributionResult
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import anyio
 
 log = logging.getLogger(__name__)
 
@@ -173,3 +179,163 @@ def render_pr_body(plugin_id: str, meta: dict[str, Any]) -> str:
         "_Opened automatically. Set `META_DATA_MCP_AUTO_CONTRIBUTE=0` to disable._",
     ]
     return "\n".join(lines)
+
+
+def _gh(*args: str, repo_root: Path | None = None) -> str:
+    """Run a gh command, returning stdout. Raises ContributionGitError on failure."""
+    proc = subprocess.run(
+        ["gh", *args],
+        cwd=str(repo_root) if repo_root else None,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise ContributionGitError(f"gh {' '.join(args)} failed: {proc.stderr.strip()}")
+    return proc.stdout
+
+
+def _git_push(repo_root: Path, branch: str) -> None:
+    _run_git(repo_root, "push", "origin", f"refs/heads/{branch}:refs/heads/{branch}")
+
+
+def _manual_command(target: str, branch: str) -> str:
+    return (
+        f"gh pr create --repo {target} --head {branch} "
+        f"--title '<title>' --body '<body>' --label auto-contributed"
+    )
+
+
+def _contribute_sync(
+    plugin_id: str,
+    files: list[Path],
+    *,
+    repo_root: Path,
+    meta: dict[str, Any],
+) -> ContributionResult:
+    branch = branch_name(plugin_id)
+
+    if shutil.which("gh") is None:
+        try:
+            build_contribution_branch(plugin_id, files, repo_root=repo_root)
+        except ContributionGitError as exc:
+            return ContributionResult(status="error", message=str(exc))
+        return ContributionResult(
+            status="degraded",
+            branch=branch,
+            message=(
+                "gh CLI not found; branch committed locally. Finish with: "
+                f"git push origin {branch} && "
+                f"gh pr create --head {branch} --label auto-contributed"
+            ),
+        )
+
+    target = resolve_target_repo(repo_root)
+    if not target:
+        return ContributionResult(
+            status="degraded",
+            message="Could not determine target repo from origin remote.",
+        )
+
+    # Dedup on the head branch.
+    try:
+        existing = _gh(
+            "pr",
+            "list",
+            "--repo",
+            target,
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "url",
+            repo_root=repo_root,
+        )
+        rows = json.loads(existing or "[]")
+        if rows:
+            return ContributionResult(
+                status="skipped_exists",
+                branch=branch,
+                pr_url=rows[0].get("url"),
+                message="A contribution PR for this plugin is already open.",
+            )
+    except (ContributionGitError, json.JSONDecodeError) as exc:
+        log.warning("dedup check failed, continuing: %s", exc)
+
+    # Build + push + create.
+    try:
+        # Best-effort refresh of base; ignore fetch failures (offline).
+        try:
+            _run_git(repo_root, "fetch", "origin", "main")
+        except ContributionGitError as exc:
+            log.warning("git fetch failed, using local origin/main: %s", exc)
+        build_contribution_branch(plugin_id, files, repo_root=repo_root)
+        _git_push(repo_root, branch)
+    except ContributionGitError as exc:
+        return ContributionResult(
+            status="degraded",
+            branch=branch,
+            message=f"{exc} — finish manually: {_manual_command(target, branch)}",
+        )
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".md", delete=False, encoding="utf-8"
+        ) as fh:
+            fh.write(render_pr_body(plugin_id, meta))
+            body_path = fh.name
+        try:
+            out = _gh(
+                "pr",
+                "create",
+                "--repo",
+                target,
+                "--head",
+                branch,
+                "--title",
+                render_pr_title(plugin_id),
+                "--body-file",
+                body_path,
+                "--label",
+                "auto-contributed",
+                repo_root=repo_root,
+            )
+        finally:
+            with contextlib.suppress(OSError):
+                os.remove(body_path)
+    except ContributionGitError as exc:
+        return ContributionResult(
+            status="degraded",
+            branch=branch,
+            message=f"{exc} — finish manually: {_manual_command(target, branch)}",
+        )
+
+    pr_url = out.strip().splitlines()[-1].strip() if out.strip() else None
+    return ContributionResult(
+        status="opened",
+        branch=branch,
+        pr_url=pr_url,
+        message=(
+            f"Opened contribution PR {pr_url} — thanks for growing the catalogue. "
+            "Set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
+        ),
+    )
+
+
+async def contribute_plugin(
+    plugin_id: str,
+    files: list[Path],
+    *,
+    repo_root: Path,
+    meta: dict[str, Any] | None = None,
+) -> ContributionResult:
+    """Open a contribution PR for a freshly-created plugin. Never raises."""
+    try:
+        return await anyio.to_thread.run_sync(
+            lambda: _contribute_sync(
+                plugin_id, files, repo_root=repo_root, meta=meta or {}
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — contribution is always non-fatal
+        log.error("contribution failed unexpectedly: %s", exc)
+        return ContributionResult(status="error", message=str(exc))
