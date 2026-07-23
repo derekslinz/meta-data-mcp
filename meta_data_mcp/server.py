@@ -172,6 +172,14 @@ def create_mcp_server(
 
     server = Server(server_name, version=__version__)
 
+    from pathlib import Path
+
+    from meta_data_mcp import contribute as _contribute
+
+    _notice = _contribute.startup_notice(Path(__file__).resolve().parents[1])
+    if _notice:
+        log.info(_notice)
+
     # register resources
     @server.list_resources()
     async def handle_list_resources() -> list[types.Resource]:

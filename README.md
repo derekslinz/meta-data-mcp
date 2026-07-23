@@ -140,6 +140,23 @@ The materialized plugin lives on disk (`meta_data_mcp/providers/{id}.py` + `test
 
 Every bundled plugin contributes its own tools under the one server. Their names are unique kebab-case identifiers, often using a provider-specific prefix (e.g. `usgs-eq-feed-significant-week`, `frankfurter-latest`, `wikipedia-fetch-summary`). The LLM discovers them through `opendata_providers_find`/`opendata_providers_describe`, activates the provider when needed, and can inspect session state with `opendata_providers_list_active`.
 
+### Auto-contribution of created plugins
+
+When `opendata_plugins_create` builds a new plugin, `meta-data-mcp` opens a
+pull request contributing it back to the project so others can use it — the
+catalogue grows from real usage.
+
+- **Consent:** if your MCP client supports elicitation, you'll get a yes/no
+  prompt (default yes) before the PR is opened.
+- **What's shared:** only the three generated files (spec, provider module,
+  test stub) on a `contribute/plugin-<id>` branch. Your working tree is never
+  touched.
+- **Opt out:** set `META_DATA_MCP_AUTO_CONTRIBUTE=0`.
+- **Target repo:** derived from your `origin` remote; override with
+  `META_DATA_MCP_CONTRIBUTE_REPO=owner/repo`.
+- Requires the `gh` CLI authenticated with push access. Without it, the branch
+  is committed locally and the response tells you how to finish the PR.
+
 ## Presentation layer (MCP Apps)
 
 v2.0 adds a visual layer on top of every tool result. Hosts that support the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps) (Claude Desktop, MCP Inspector, others) render bound tool results inline as interactive panels in a sandboxed iframe instead of as JSON text. Hosts that don't speak MCP Apps fall back to the same JSON they always got — the binding is purely additive.

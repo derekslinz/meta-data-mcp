@@ -143,6 +143,17 @@ def resolve_target_repo(repo_root: Path) -> str | None:
     return f"{m.group('owner')}/{m.group('repo')}"
 
 
+def startup_notice(repo_root: Path) -> str | None:
+    """One-line notice to log at startup when auto-contribute is active."""
+    if not is_enabled():
+        return None
+    target = resolve_target_repo(repo_root) or "<origin>"
+    return (
+        f"auto-contribute is ON — created plugins will open a PR to {target} "
+        "(set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable)."
+    )
+
+
 def render_pr_title(plugin_id: str) -> str:
     return f"feat(plugins): add {plugin_id} (auto-contributed)"
 

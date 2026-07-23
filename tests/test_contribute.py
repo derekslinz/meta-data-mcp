@@ -211,6 +211,20 @@ async def test_contribute_plugin_happy_path_opens_pr(monkeypatch, fake_repo):
     assert res.branch == "contribute/plugin-acme"
 
 
+def test_startup_notice_when_enabled(monkeypatch, tmp_path):
+    monkeypatch.delenv("META_DATA_MCP_AUTO_CONTRIBUTE", raising=False)
+    monkeypatch.setenv("META_DATA_MCP_CONTRIBUTE_REPO", "derekslinz/meta-data-mcp")
+    msg = contribute.startup_notice(tmp_path)
+    assert msg is not None
+    assert "derekslinz/meta-data-mcp" in msg
+    assert "META_DATA_MCP_AUTO_CONTRIBUTE=0" in msg
+
+
+def test_startup_notice_none_when_disabled(monkeypatch, tmp_path):
+    monkeypatch.setenv("META_DATA_MCP_AUTO_CONTRIBUTE", "0")
+    assert contribute.startup_notice(tmp_path) is None
+
+
 @pytest.mark.asyncio
 async def test_contribute_plugin_push_failure_degrades(monkeypatch, fake_repo):
     monkeypatch.setattr(
