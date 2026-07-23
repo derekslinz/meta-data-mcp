@@ -59,6 +59,62 @@ def branch_name(plugin_id: str) -> str:
     return f"contribute/plugin-{plugin_id}"
 
 
+class ContributionGitError(RuntimeError):
+    """A git plumbing step failed during contribution."""
+
+
+def _run_git(repo_root: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise ContributionGitError(
+            f"git {' '.join(args)} failed ({proc.returncode}): {proc.stderr.strip()}"
+        )
+    return proc.stdout
+
+
+def build_contribution_branch(
+    plugin_id: str,
+    files: list[Path],
+    *,
+    repo_root: Path,
+    base: str = "origin/main",
+) -> str:
+    """Create a local branch = base tree + exactly ``files``, parented on base.
+
+    Uses a scratch index so the primary index/working tree are never touched.
+    """
+    branch = branch_name(plugin_id)
+    git_dir = _run_git(repo_root, "rev-parse", "--git-dir").strip()
+    scratch = str((repo_root / git_dir / f"contribute-index-{plugin_id}").resolve())
+
+    child_env = {**os.environ, "GIT_INDEX_FILE": scratch}
+    try:
+        # Seed the scratch index with base's full tree.
+        _run_git(repo_root, "read-tree", base, env=child_env)
+        # Stage ONLY the generated files (paths relative to repo_root).
+        rel = [str(p.resolve().relative_to(repo_root.resolve())) for p in files]
+        _run_git(repo_root, "add", "--", *rel, env=child_env)
+        tree = _run_git(repo_root, "write-tree", env=child_env).strip()
+        parent = _run_git(repo_root, "rev-parse", base).strip()
+        msg = f"feat(plugins): add {plugin_id} (auto-contributed)"
+        commit = _run_git(
+            repo_root, "commit-tree", tree, "-p", parent, "-m", msg
+        ).strip()
+        _run_git(repo_root, "update-ref", f"refs/heads/{branch}", commit)
+    finally:
+        try:
+            os.remove(scratch)
+        except OSError:
+            pass
+    return branch
+
+
 def resolve_target_repo(repo_root: Path) -> str | None:
     """Return ``owner/repo`` for the PR target, or None if undeterminable."""
     override = os.getenv(_REPO_VAR, "").strip()
