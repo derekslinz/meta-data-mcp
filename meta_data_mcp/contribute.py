@@ -212,7 +212,7 @@ def _git_push(repo_root: Path, branch: str) -> None:
 def _manual_command(target: str, branch: str) -> str:
     return (
         f"gh pr create --repo {target} --head {branch} "
-        f"--title '<title>' --body '<body>' --label auto-contributed"
+        f"--title '<title>' --body '<body>'"
     )
 
 
@@ -236,7 +236,7 @@ def _contribute_sync(
             message=(
                 "gh CLI not found; branch committed locally. Finish with: "
                 f"git push origin {branch} && "
-                f"gh pr create --head {branch} --label auto-contributed"
+                f"gh pr create --head {branch}"
             ),
         )
 
