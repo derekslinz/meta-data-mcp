@@ -244,6 +244,7 @@ def _contribute_sync(
     if not target:
         return ContributionResult(
             status="degraded",
+            branch=branch,
             message="Could not determine target repo from origin remote.",
         )
 
@@ -273,7 +274,88 @@ def _contribute_sync(
     except (ContributionGitError, json.JSONDecodeError) as exc:
         log.warning("dedup check failed, continuing: %s", exc)
 
-    # Build + push + create.
+    def _open_pr() -> ContributionResult:
+        """Create the PR (no label), best-effort label it, and report the url.
+
+        Shared by the existing-branch (self-heal) and fresh-branch paths so the
+        create/label/parse logic lives in exactly one place. Labeling failures
+        are swallowed — a missing ``auto-contributed`` label must never block a
+        PR that is already open.
+        """
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".md", delete=False, encoding="utf-8"
+            ) as fh:
+                fh.write(render_pr_body(plugin_id, meta))
+                body_path = fh.name
+            try:
+                out = _gh(
+                    "pr",
+                    "create",
+                    "--repo",
+                    target,
+                    "--head",
+                    branch,
+                    "--title",
+                    render_pr_title(plugin_id),
+                    "--body-file",
+                    body_path,
+                    repo_root=repo_root,
+                )
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(body_path)
+        except ContributionGitError as exc:
+            return ContributionResult(
+                status="degraded",
+                branch=branch,
+                message=f"{exc} — finish manually: {_manual_command(target, branch)}",
+            )
+
+        pr_url = out.strip().splitlines()[-1].strip() if out.strip() else None
+
+        # Best-effort labeling AFTER the PR exists. Any failure (label absent on
+        # the repo, gh error, etc.) is logged and ignored — the PR still opened.
+        if pr_url:
+            try:
+                _gh(
+                    "pr",
+                    "edit",
+                    pr_url,
+                    "--repo",
+                    target,
+                    "--add-label",
+                    "auto-contributed",
+                    repo_root=repo_root,
+                )
+            except ContributionGitError as exc:
+                log.warning("labeling PR failed, ignoring: %s", exc)
+
+        return ContributionResult(
+            status="opened",
+            branch=branch,
+            pr_url=pr_url,
+            message=(
+                f"Opened contribution PR {pr_url} — thanks for growing the catalogue. "
+                "Set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
+            ),
+        )
+
+    # Does the branch already exist on origin? (Step 3 already ruled out an open
+    # PR.) If so, self-heal: open a PR from the existing branch WITHOUT rebuilding
+    # or re-pushing — a non-force push would be rejected non-fast-forward, which
+    # is exactly how a pushed-but-no-PR branch gets stranded.
+    remote_branch_exists = False
+    try:
+        ls = _run_git(repo_root, "ls-remote", "--heads", "origin", branch)
+        remote_branch_exists = bool(ls.strip())
+    except ContributionGitError as exc:
+        log.warning("ls-remote check failed, assuming branch absent: %s", exc)
+
+    if remote_branch_exists:
+        return _open_pr()
+
+    # Fresh path: build a local branch, push it, then open the PR.
     try:
         # Best-effort refresh of base; ignore fetch failures (offline).
         try:
@@ -289,48 +371,7 @@ def _contribute_sync(
             message=f"{exc} — finish manually: {_manual_command(target, branch)}",
         )
 
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".md", delete=False, encoding="utf-8"
-        ) as fh:
-            fh.write(render_pr_body(plugin_id, meta))
-            body_path = fh.name
-        try:
-            out = _gh(
-                "pr",
-                "create",
-                "--repo",
-                target,
-                "--head",
-                branch,
-                "--title",
-                render_pr_title(plugin_id),
-                "--body-file",
-                body_path,
-                "--label",
-                "auto-contributed",
-                repo_root=repo_root,
-            )
-        finally:
-            with contextlib.suppress(OSError):
-                os.remove(body_path)
-    except ContributionGitError as exc:
-        return ContributionResult(
-            status="degraded",
-            branch=branch,
-            message=f"{exc} — finish manually: {_manual_command(target, branch)}",
-        )
-
-    pr_url = out.strip().splitlines()[-1].strip() if out.strip() else None
-    return ContributionResult(
-        status="opened",
-        branch=branch,
-        pr_url=pr_url,
-        message=(
-            f"Opened contribution PR {pr_url} — thanks for growing the catalogue. "
-            "Set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
-        ),
-    )
+    return _open_pr()
 
 
 async def contribute_plugin(

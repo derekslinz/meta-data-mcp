@@ -226,6 +226,81 @@ def test_startup_notice_none_when_disabled(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_contribute_plugin_existing_remote_branch_self_heals(
+    monkeypatch, fake_repo
+):
+    """Branch exists on origin but no open PR: open a PR from it, never re-push."""
+    called = {"build": False, "push": False, "create": False}
+
+    def fake_build(*a, **k):
+        called["build"] = True
+        return "contribute/plugin-acme"
+
+    def fake_push(*a, **k):
+        called["push"] = True
+
+    def fake_run_git(repo_root, *args, **kwargs):
+        if args[:1] == ("ls-remote",):
+            # Non-empty stdout => branch exists remotely.
+            return "deadbeef\trefs/heads/contribute/plugin-acme\n"
+        raise contribute.ContributionGitError(f"unexpected git {args}")
+
+    def fake_gh(*args, **kwargs):
+        if args[0] == "pr" and args[1] == "list":
+            return "[]"
+        if args[0] == "pr" and args[1] == "create":
+            called["create"] = True
+            return "https://github.com/derekslinz/meta-data-mcp/pull/55\n"
+        return ""  # pr edit (best-effort label)
+
+    monkeypatch.setattr(contribute, "build_contribution_branch", fake_build)
+    monkeypatch.setattr(contribute, "_git_push", fake_push)
+    monkeypatch.setattr(contribute, "_run_git", fake_run_git)
+    monkeypatch.setattr(contribute, "_gh", fake_gh)
+
+    res = await contribute.contribute_plugin(
+        "acme", [], repo_root=fake_repo, meta={"description": "d"}
+    )
+    assert res.status == "opened"
+    assert res.pr_url == "https://github.com/derekslinz/meta-data-mcp/pull/55"
+    assert res.branch == "contribute/plugin-acme"
+    assert called["create"] is True
+    # The self-heal path must NOT rebuild or re-push the existing branch.
+    assert called["build"] is False
+    assert called["push"] is False
+
+
+@pytest.mark.asyncio
+async def test_contribute_plugin_label_failure_still_opens(monkeypatch, fake_repo):
+    """gh pr create succeeds but the best-effort label edit fails: still opened."""
+    monkeypatch.setattr(
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
+    )
+    monkeypatch.setattr(contribute, "_git_push", lambda *a, **k: None)
+
+    def fake_gh(*args, **kwargs):
+        if args[0] == "pr" and args[1] == "list":
+            return "[]"
+        if args[0] == "pr" and args[1] == "create":
+            return "https://github.com/derekslinz/meta-data-mcp/pull/77\n"
+        if args[0] == "pr" and args[1] == "edit":
+            raise contribute.ContributionGitError(
+                "could not add label: 'auto-contributed' not found"
+            )
+        return ""
+
+    monkeypatch.setattr(contribute, "_gh", fake_gh)
+    res = await contribute.contribute_plugin(
+        "acme", [], repo_root=fake_repo, meta={"description": "d"}
+    )
+    assert res.status == "opened"
+    assert res.pr_url == "https://github.com/derekslinz/meta-data-mcp/pull/77"
+    assert res.branch == "contribute/plugin-acme"
+
+
+@pytest.mark.asyncio
 async def test_contribute_plugin_push_failure_degrades(monkeypatch, fake_repo):
     monkeypatch.setattr(
         contribute,
