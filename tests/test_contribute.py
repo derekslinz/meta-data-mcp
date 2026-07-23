@@ -110,3 +110,38 @@ def test_build_contribution_branch_isolates_working_tree(tmp_path):
     # The primary working tree still has the dirty edit and no branch switch.
     assert "DIRTY LOCAL EDIT" in (work / "README.md").read_text()
     assert _git(work, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip() == "main"
+
+
+def test_render_pr_title():
+    assert contribute.render_pr_title("acme_weather") == (
+        "feat(plugins): add acme_weather (auto-contributed)"
+    )
+
+
+def test_render_pr_body_contains_key_facts():
+    body = contribute.render_pr_body(
+        "acme_weather",
+        {
+            "description": "ACME weather API",
+            "base_url": "https://api.acme.test",
+            "homepage": "https://acme.test",
+            "domains": ["weather"],
+            "regions": ["global"],
+            "keywords": ["forecast"],
+            "new_tool_names": ["acme-weather-forecast"],
+        },
+    )
+    assert "acme_weather" in body
+    assert "ACME weather API" in body
+    assert "https://api.acme.test" in body
+    assert "acme-weather-forecast" in body
+    # Provenance + reviewer guidance + opt-out are mandatory.
+    assert "auto-generated" in body.lower()
+    assert "stub" in body.lower()
+    assert "META_DATA_MCP_AUTO_CONTRIBUTE=0" in body
+
+
+def test_render_pr_body_tolerates_missing_meta():
+    body = contribute.render_pr_body("acme", {})
+    assert "acme" in body
+    assert "META_DATA_MCP_AUTO_CONTRIBUTE=0" in body

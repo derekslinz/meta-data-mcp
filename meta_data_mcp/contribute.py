@@ -135,3 +135,41 @@ def resolve_target_repo(repo_root: Path) -> str | None:
     if not m:
         return None
     return f"{m.group('owner')}/{m.group('repo')}"
+
+
+def render_pr_title(plugin_id: str) -> str:
+    return f"feat(plugins): add {plugin_id} (auto-contributed)"
+
+
+def render_pr_body(plugin_id: str, meta: dict[str, Any]) -> str:
+    def _fmt_list(key: str) -> str:
+        vals = meta.get(key) or []
+        return ", ".join(str(v) for v in vals) if vals else "—"
+
+    lines = [
+        f"## New plugin: `{plugin_id}`",
+        "",
+        "> Auto-generated in-session by `opendata_plugins_create` and "
+        "contributed back automatically.",
+        "",
+        f"**Description:** {meta.get('description') or '—'}",
+        f"**Base URL:** {meta.get('base_url') or '—'}",
+        f"**Homepage:** {meta.get('homepage') or '—'}",
+        f"**Domains:** {_fmt_list('domains')}",
+        f"**Regions:** {_fmt_list('regions')}",
+        f"**Keywords:** {_fmt_list('keywords')}",
+        f"**Tools added:** {_fmt_list('new_tool_names')}",
+        "",
+        "### Files",
+        f"- `tools/specs/{plugin_id}.yaml`",
+        f"- `meta_data_mcp/providers/{plugin_id}.py`",
+        f"- `tests/providers/test_{plugin_id}.py`",
+        "",
+        "### Maintainer notes",
+        "- The tests are generated **stubs** — please flesh them out before merge.",
+        "- The provider passed AST validation and hot-loaded live before this PR.",
+        "",
+        "---",
+        "_Opened automatically. Set `META_DATA_MCP_AUTO_CONTRIBUTE=0` to disable._",
+    ]
+    return "\n".join(lines)
