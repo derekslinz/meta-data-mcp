@@ -27,7 +27,7 @@ The catalogue grows from real usage instead of only from maintainer effort.
 | Trigger | **Auto on create** (side effect of `opendata_plugins_create`) | No separate step; the plugin someone just needed becomes a PR immediately. |
 | Verification gate | **None** | Create already AST-validates and hot-loads; CI on the PR is the real test surface. |
 | Mechanism | **git + `gh` CLI** | The 3 files are already in the working tree; git commits them natively. Zero new secrets — no `GITHUB_TOKEN` handling surface. Correct authorship. |
-| Enablement default | **ON**, opt-out via `META_MCP_AUTO_CONTRIBUTE=0` | Paired with clear messaging (below); transparency does the safety work. |
+| Enablement default | **ON**, opt-out via `META_DATA_MCP_AUTO_CONTRIBUTE=0` | Paired with clear messaging (below); transparency does the safety work. |
 | Consent | **Yes/no, default yes**, via MCP elicitation | Native consent dialog when the client supports it; falls back to auto-proceed when it doesn't. |
 
 ## Out of scope
@@ -100,7 +100,7 @@ response under a new `contribution` key.
 Resolved in `handle_create_plugin` *before* calling `contribute_plugin`, so the
 contribute module stays free of MCP session concerns:
 
-1. If `META_MCP_AUTO_CONTRIBUTE=0` → `disabled`, skip entirely (no elicitation,
+1. If `META_DATA_MCP_AUTO_CONTRIBUTE=0` → `disabled`, skip entirely (no elicitation,
    no PR). Reported in the response.
 2. Otherwise read the active request context's session via the low-level SDK
    contextvar (`mcp.server.lowlevel.server.request_ctx` → `.session`) and check
@@ -140,7 +140,7 @@ stale.
 ### Target repo & dedup
 
 - **Target:** `git remote get-url origin`, parsed to `owner/repo`. Never
-  hardcoded. Optional `META_MCP_CONTRIBUTE_REPO=owner/repo` overrides, so a fork
+  hardcoded. Optional `META_DATA_MCP_CONTRIBUTE_REPO=owner/repo` overrides, so a fork
   checkout can target upstream.
 - **Dedup:** branch `contribute/plugin-<id>`. If the branch already exists on
   origin, or `gh pr list --head contribute/plugin-<id>` returns an open PR →
@@ -157,14 +157,14 @@ raise.
 
 1. **Tool description** of `opendata_plugins_create` states up front: *"On
    success this also opens a public contribution PR of the generated plugin to
-   the project. Set `META_MCP_AUTO_CONTRIBUTE=0` to disable."*
+   the project. Set `META_DATA_MCP_AUTO_CONTRIBUTE=0` to disable."*
 2. **Create response** carries `contribution: {status, pr_url?, branch?,
    message}`. On success the message reads plainly, e.g. *"Opened contribution
    PR <url> — thanks for growing the catalogue. Set
-   `META_MCP_AUTO_CONTRIBUTE=0` to disable."*
+   `META_DATA_MCP_AUTO_CONTRIBUTE=0` to disable."*
 3. **Startup log** emits one INFO line when auto-contribute is active:
    *"auto-contribute is ON — created plugins will open a PR to <target> (set
-   META_MCP_AUTO_CONTRIBUTE=0 to disable)."*
+   META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable)."*
 4. **PR body** identifies it as auto-contributed from an in-session creation,
    includes the plugin description / base_url / homepage / domains / regions /
    keywords, and flags that the tests are generated stubs for maintainer review.
@@ -188,7 +188,7 @@ unchanged:
     "status": "opened",
     "pr_url": "https://github.com/derekslinz/meta-data-mcp/pull/NNN",
     "branch": "contribute/plugin-acme_weather",
-    "message": "Opened contribution PR … — set META_MCP_AUTO_CONTRIBUTE=0 to disable."
+    "message": "Opened contribution PR … — set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
   }
 }
 ```
@@ -200,7 +200,7 @@ of create:
 
 | Situation | status | Response effect |
 |---|---|---|
-| `META_MCP_AUTO_CONTRIBUTE=0` | `disabled` | create ok; contribution notes disabled |
+| `META_DATA_MCP_AUTO_CONTRIBUTE=0` | `disabled` | create ok; contribution notes disabled |
 | User declines elicitation | `declined` | create ok; plugin live, no PR |
 | Branch/PR already exists | `skipped_exists` | create ok; existing pr_url returned |
 | `gh` missing / no push / offline | `degraded` | create ok; branch + manual command returned |
@@ -228,7 +228,7 @@ of create:
   opens a PR whose diff is exactly the three generated files on top of `main`.
 - The primary working tree and index are byte-for-byte unchanged afterward.
 - A second create of the same id returns `skipped_exists` with the first PR url.
-- With `META_MCP_AUTO_CONTRIBUTE=0`, no branch, no PR, no elicitation.
+- With `META_DATA_MCP_AUTO_CONTRIBUTE=0`, no branch, no PR, no elicitation.
 - A client that supports elicitation shows a yes/no dialog defaulting to yes; a
   client that does not still contributes and says so in the response.
 - `gh` removed from PATH → create still returns `ok` with a `degraded`
