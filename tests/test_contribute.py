@@ -316,3 +316,37 @@ async def test_contribute_plugin_push_failure_degrades(monkeypatch, fake_repo):
     res = await contribute.contribute_plugin("acme", [], repo_root=fake_repo)
     assert res.status == "degraded"
     assert "gh pr create" in res.message  # runnable manual command
+
+
+def test_run_git_timeout_maps_to_contribution_error(monkeypatch, tmp_path):
+    # A hanging git call (e.g. a credential prompt) must surface as a
+    # ContributionGitError so the orchestrator degrades instead of hanging.
+    def timeout(*a, **k):
+        raise _sp.TimeoutExpired(cmd="git", timeout=60)
+
+    monkeypatch.setattr(contribute.subprocess, "run", timeout)
+    with pytest.raises(contribute.ContributionGitError):
+        contribute._run_git(tmp_path, "status")
+
+
+def test_run_git_closes_stdin_and_disables_prompt(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured.update(kwargs)
+        return _sp.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(contribute.subprocess, "run", fake_run)
+    contribute._run_git(tmp_path, "status")
+    assert captured["stdin"] is _sp.DEVNULL
+    assert captured["timeout"] == contribute._SUBPROCESS_TIMEOUT
+    assert captured["env"]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_gh_timeout_maps_to_contribution_error(monkeypatch):
+    def timeout(*a, **k):
+        raise _sp.TimeoutExpired(cmd="gh", timeout=60)
+
+    monkeypatch.setattr(contribute.subprocess, "run", timeout)
+    with pytest.raises(contribute.ContributionGitError):
+        contribute._gh("pr", "list")

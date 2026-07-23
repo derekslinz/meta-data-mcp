@@ -54,7 +54,17 @@ async def resolve_consent(plugin_id: str) -> str:
         cap = mcp_types.ClientCapabilities(
             elicitation=mcp_types.ElicitationCapability()
         )
-        if not await session.check_client_capability(cap):
+        # NB: check_client_capability is a synchronous method in the mcp SDK
+        # (returns bool). Do NOT await it — awaiting the bool raises TypeError,
+        # which the broad except below would swallow into a silent "proceed",
+        # killing the consent prompt for every real client.
+        result = session.check_client_capability(cap)
+        # Hardening: if someone adds `await`, the sync mock in tests returns
+        # bool, not awaitable; this assertion catches the regression locally.
+        assert not hasattr(result, "__await__"), (
+            "check_client_capability must not be awaited"
+        )
+        if not result:
             return "proceed"
     except Exception as exc:  # noqa: BLE001 — capability probing is best-effort
         log.warning("capability probe failed, proceeding: %s", exc)

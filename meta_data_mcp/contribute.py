@@ -29,7 +29,9 @@ _REPO_VAR = "META_DATA_MCP_CONTRIBUTE_REPO"
 _FALSY = frozenset({"0", "false", "no", "off", ""})
 
 # github.com/<owner>/<repo>(.git) from https or ssh remotes.
-_ORIGIN_RE = re.compile(r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/.\n]+)")
+# github.com/<owner>/<repo>(.git) from https, ssh, or git@ remotes.
+# Handles: https://github.com/o/r, git@github.com:o/r, ssh://git@github.com:22/o/r.git, etc.
+_ORIGIN_RE = re.compile(r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/\n.]+)(?:\.git)?")
 
 
 @dataclass
@@ -69,14 +71,28 @@ class ContributionGitError(RuntimeError):
     """A git plumbing step failed during contribution."""
 
 
+# Bound every git/gh call: they run awaited inline in the create handler, so a
+# hang (e.g. a credential prompt over the network) would stall the whole MCP
+# tool response. stdin is closed and GIT_TERMINAL_PROMPT=0 forces git to fail
+# fast instead of prompting — and stops any child from reading the MCP stdio
+# channel. The timeout is the backstop for a network stall.
+_SUBPROCESS_TIMEOUT = 60
+
+
 def _run_git(repo_root: Path, *args: str, env: dict[str, str] | None = None) -> str:
-    proc = subprocess.run(
-        ["git", *args],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    run_env = {**os.environ, **(env or {}), "GIT_TERMINAL_PROMPT": "0"}
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            env=run_env,
+            stdin=subprocess.DEVNULL,
+            timeout=_SUBPROCESS_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ContributionGitError(f"git {' '.join(args)} timed out") from exc
     if proc.returncode != 0:
         raise ContributionGitError(
             f"git {' '.join(args)} failed ({proc.returncode}): {proc.stderr.strip()}"
@@ -132,8 +148,11 @@ def resolve_target_repo(repo_root: Path) -> str | None:
             cwd=str(repo_root),
             capture_output=True,
             text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            stdin=subprocess.DEVNULL,
+            timeout=_SUBPROCESS_TIMEOUT,
         )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return None
     if proc.returncode != 0:
         return None
@@ -194,12 +213,17 @@ def render_pr_body(plugin_id: str, meta: dict[str, Any]) -> str:
 
 def _gh(*args: str, repo_root: Path | None = None) -> str:
     """Run a gh command, returning stdout. Raises ContributionGitError on failure."""
-    proc = subprocess.run(
-        ["gh", *args],
-        cwd=str(repo_root) if repo_root else None,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            ["gh", *args],
+            cwd=str(repo_root) if repo_root else None,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=_SUBPROCESS_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ContributionGitError(f"gh {' '.join(args)} timed out") from exc
     if proc.returncode != 0:
         raise ContributionGitError(f"gh {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc.stdout
