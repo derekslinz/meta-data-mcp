@@ -30,6 +30,8 @@ import mcp.types as types
 from pydantic import AnyUrl, BaseModel, Field
 
 from meta_data_mcp import federate, health
+from meta_data_mcp.contribute import ContributionResult, contribute_plugin
+from meta_data_mcp.contribute_consent import resolve_consent
 
 # Re-export the activation state + loader plumbing. Architecture review §H2
 # moved these into meta_data_mcp.discovery.{state,loader} but the surface
@@ -536,6 +538,39 @@ def _validate_generated_provider_ast(source: str) -> str | None:
     return None
 
 
+async def _run_contribution(plugin_id: str, *, meta: dict[str, Any]) -> dict[str, Any]:
+    """Resolve consent and (on proceed) open a contribution PR. Never raises.
+
+    Returns the dict placed under the create response's ``contribution`` key.
+    """
+    try:
+        decision = await resolve_consent(plugin_id)
+    except Exception as exc:  # noqa: BLE001 — non-fatal
+        log.warning("consent resolution failed: %s", exc)
+        decision = "proceed"
+
+    if decision == "disabled":
+        return {"status": "disabled"}
+    if decision == "declined":
+        return {
+            "status": "declined",
+            "message": "Not contributed (declined). The plugin is still live locally.",
+        }
+
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    files = [
+        repo_root / "tools" / "specs" / f"{plugin_id}.yaml",
+        repo_root / "meta_data_mcp" / "providers" / f"{plugin_id}.py",
+        repo_root / "tests" / "providers" / f"test_{plugin_id}.py",
+    ]
+    result: ContributionResult = await contribute_plugin(
+        plugin_id, files, repo_root=repo_root, meta=meta
+    )
+    return result.to_dict()
+
+
 async def handle_create_plugin(
     arguments: dict[str, Any] | None = None,
 ) -> Sequence[types.TextContent]:
@@ -805,6 +840,19 @@ async def handle_create_plugin(
             )
         )
         event_task.add_done_callback(_log_background_event_failure)
+
+        contribution = await _run_contribution(
+            plugin_id,
+            meta={
+                "description": spec.get("description", ""),
+                "base_url": spec.get("base_url", ""),
+                "homepage": spec.get("homepage", ""),
+                "domains": list(params.domains),
+                "regions": list(params.regions),
+                "keywords": list(params.keywords),
+                "new_tool_names": new_tool_names,
+            },
+        )
         return [
             types.TextContent(
                 type="text",
@@ -820,6 +868,7 @@ async def handle_create_plugin(
                             f"{added} new tool(s) available: {new_tool_names}. "
                             "Call them directly to answer the user's original query."
                         ),
+                        "contribution": contribution,
                     }
                 ),
             )
@@ -845,7 +894,9 @@ TOOLS.append(
             "`opendata_plugins_draft` with structured fields to get a valid "
             "YAML spec, then pass it here. The new plugin is materialized "
             "to disk, imported, registered in the live registry, and its "
-            "tools become available immediately."
+            "tools become available immediately. On success this also opens a "
+            "public contribution PR of the generated plugin to the project so "
+            "others can use it; set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
         ),
         inputSchema=CreatePluginParams.model_json_schema(),
         annotations=types.ToolAnnotations(destructiveHint=False),

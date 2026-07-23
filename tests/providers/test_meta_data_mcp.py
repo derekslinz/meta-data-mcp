@@ -271,6 +271,12 @@ async def test_create_plugin_end_to_end(tmp_path, monkeypatch):
     generate_provider.py → import module → register in dynamic registry →
     hot-load tools onto the running server.
     """
+    # This test runs handle_create_plugin's full success path, which now also
+    # attempts a contribution PR (auto-contribute defaults ON). Disable it here
+    # so this test never pushes a real branch / opens a real PR against the
+    # project's origin remote.
+    monkeypatch.setenv("META_DATA_MCP_AUTO_CONTRIBUTE", "0")
+
     import meta_data_mcp.providers.meta_data_mcp as srv
     from meta_data_mcp.providers.meta_data_mcp import (
         handle_create_plugin,
@@ -320,6 +326,8 @@ tools:
         assert "finance" in entry.domains
         # Tool should be live in the running server's handler table
         assert "autotest-fetch-thing" in live_handlers
+        # Auto-contribute is disabled above; confirm no real PR was attempted.
+        assert payload["contribution"] == {"status": "disabled"}
     finally:
         # Tear down to keep other tests hermetic.
         REGISTRY.restore(saved_registry)
