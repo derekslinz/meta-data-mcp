@@ -35,7 +35,9 @@
   },
   "homepage": "https://github.com/derekslinz/meta-data-mcp",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "hono": "^4.12.27",
+    "@hono/node-server": "^2.0.5"
   },
   "devDependencies": {
     "@jest/globals": "^29.0.0",
