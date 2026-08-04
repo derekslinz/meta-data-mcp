@@ -5,15 +5,15 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from meta_data_mcp.providers.meta_data_mcp import (
-    RESOURCES,
     PROMPTS,
     PROMPTS_HANDLERS,
+    RESOURCES,
     RESOURCES_HANDLERS,
     TOOLS,
     TOOLS_HANDLERS,
     _owner_by_tool,
-    handle_describe_provider,
     handle_call_tool,
+    handle_describe_provider,
     handle_discover_providers,
     handle_explain_choice,
     handle_find_providers,
@@ -51,7 +51,8 @@ def anyio_backend():
 
 def test_meta_tools_registered():
     """The discovery + autonomous-creation meta tools must be registered at
-    module-import time (before main() merges plugins)."""
+    module-import time (before main() merges plugins).
+    """
     names = {tool.name for tool in TOOLS}
     expected = {
         "opendata_explain_choice",
@@ -99,7 +100,7 @@ async def test_draft_spec_emits_valid_yaml_for_simple_api():
                     ],
                 },
             ],
-        }
+        },
     )
     payload = _parse(result)
     assert payload.get("status") == "ok", payload
@@ -108,9 +109,9 @@ async def test_draft_spec_emits_valid_yaml_for_simple_api():
 
     # Round-trip the YAML through the generator's validator to prove it's
     # actually consumable by `opendata_plugins_create`.
+    import importlib.util
     import tempfile
     from pathlib import Path as _P
-    import importlib.util
 
     with tempfile.TemporaryDirectory() as temp_dir:
         spec_path = _P(temp_dir) / "draft.yaml"
@@ -145,9 +146,9 @@ async def test_draft_spec_rejects_path_placeholder_without_required_param():
                     "description": "x",
                     "endpoint": "/v1/{missing_id}",
                     "params": [],
-                }
+                },
             ],
-        }
+        },
     )
     payload = _parse(result)
     assert "error" in payload
@@ -171,9 +172,9 @@ async def test_draft_spec_rejects_bad_id_casing():
                     "description": "x",
                     "endpoint": "/x",
                     "params": [],
-                }
+                },
             ],
-        }
+        },
     )
     payload = _parse(result)
     assert "error" in payload
@@ -218,7 +219,7 @@ async def test_call_tool_reports_only_plugin_tools_when_missing():
             {
                 "opendata_providers_list": "meta",
                 "example-plugin-tool": "example_provider",
-            }
+            },
         )
         payload = await handle_call_tool({"tool_name": "missing-tool"})
     finally:
@@ -246,7 +247,7 @@ async def test_explain_choice_includes_breakdown():
 @pytest.mark.anyio
 async def test_find_providers_combined_filters():
     result = await handle_find_providers(
-        {"query": "exchange rates", "domain": "finance", "limit": 5}
+        {"query": "exchange rates", "domain": "finance", "limit": 5},
     )
     text = json.dumps(result, default=str)
     assert "frankfurter" in text.lower() or "ecb" in text.lower()
@@ -279,8 +280,10 @@ async def test_create_plugin_end_to_end(tmp_path, monkeypatch):
 
     import meta_data_mcp.providers.meta_data_mcp as srv
     from meta_data_mcp.providers.meta_data_mcp import (
-        handle_create_plugin,
         TOOLS_HANDLERS as live_handlers,
+    )
+    from meta_data_mcp.providers.meta_data_mcp import (
+        handle_create_plugin,
     )
     from meta_data_mcp.registry import (
         REGISTRY,
@@ -314,7 +317,7 @@ tools:
                 "domains": ["finance"],
                 "regions": ["global"],
                 "keywords": ["test", "autonomous"],
-            }
+            },
         )
         payload = _parse(result)
         assert payload.get("status") == "ok", payload
@@ -442,6 +445,7 @@ def _cleanup_artifacts(paths):
 async def test_create_plugin_rejects_path_traversal_id():
     """Malicious id like '../../../tmp/pwn' is rejected before any disk write."""
     from pathlib import Path as _P
+
     from meta_data_mcp.providers.meta_data_mcp import handle_create_plugin
 
     result = await handle_create_plugin({"spec_yaml": _MALICIOUS_ID_SPEC})
@@ -1010,7 +1014,7 @@ async def test_academic_literature_use_case():
 async def test_explain_choice_with_domain_filter():
     """Test explain_choice with domain filter."""
     result = await handle_explain_choice(
-        {"query": "epidemic", "domain": "health", "limit": 3}
+        {"query": "epidemic", "domain": "health", "limit": 3},
     )
     payload = _parse(result)
     assert payload["domain_filter"] == "health"
@@ -1021,7 +1025,7 @@ async def test_explain_choice_with_domain_filter():
 async def test_explain_choice_with_region_filter():
     """Test explain_choice with region filter."""
     result = await handle_explain_choice(
-        {"query": "open data", "region": "us", "limit": 3}
+        {"query": "open data", "region": "us", "limit": 3},
     )
     payload = _parse(result)
     assert payload["region_filter"] == "us"
@@ -1079,7 +1083,9 @@ async def test_main_function_creates_server():
 from meta_data_mcp.providers.meta_data_mcp import (  # noqa: E402
     DISCOVERY_TOOL_NAMES as _DISCOVERY_BOUND_TOOLS,
 )
-from meta_data_mcp.ui_resources.app_discovery_v1 import URI as _DISCOVERY_URI  # noqa: E402
+from meta_data_mcp.ui_resources.app_discovery_v1 import (  # noqa: E402
+    URI as _DISCOVERY_URI,
+)
 
 
 @pytest.mark.parametrize("tool_name", _DISCOVERY_BOUND_TOOLS)
@@ -1111,7 +1117,8 @@ def test_health_snapshot_tool_registered():
 async def test_health_snapshot_default_returns_full_registry():
     """Called with no arguments, the handler returns a snapshot for every
     registered provider — i.e. the discovery app can fetch all badges in
-    one call."""
+    one call.
+    """
     from meta_data_mcp.providers.meta_data_mcp import handle_health_snapshot
     from meta_data_mcp.registry import iter_registry
 
@@ -1142,7 +1149,7 @@ async def test_health_snapshot_with_explicit_ids_filters_response():
     from meta_data_mcp.providers.meta_data_mcp import handle_health_snapshot
 
     result = await handle_health_snapshot(
-        {"provider_ids": ["us_nasa", "global_frankfurter"]}
+        {"provider_ids": ["us_nasa", "global_frankfurter"]},
     )
     payload = _parse(result)
     snap = payload["snapshot"]
@@ -1154,7 +1161,8 @@ async def test_health_snapshot_unknown_provider_returns_baseline():
     """Asking for a provider that's never been routed through ``http_get``
     must return the healthy baseline rather than dropping the key. The
     discovery app relies on this for "first-load" rendering before any
-    real traffic has touched the provider."""
+    real traffic has touched the provider.
+    """
     from meta_data_mcp.providers.meta_data_mcp import handle_health_snapshot
 
     result = await handle_health_snapshot({"provider_ids": ["zzz_never_seen"]})
@@ -1170,7 +1178,8 @@ async def test_health_snapshot_unknown_provider_returns_baseline():
 async def test_find_providers_includes_breakdowns_per_provider():
     """Phase 3: handle_find_providers now passes ``explain=True`` to the
     routing engine and surfaces ``breakdowns`` in the payload so the
-    discovery app can render per-strategy bars."""
+    discovery app can render per-strategy bars.
+    """
     result = await handle_find_providers({"query": "weather", "limit": 5})
     payload = _parse(result)
     assert "breakdowns" in payload
@@ -1194,7 +1203,8 @@ async def test_find_providers_omits_breakdowns_when_no_query():
     contribution. Returning an all-zero breakdown would lie ("every
     scorer rated this provider 0%"), so the handler omits ``breakdowns``
     entirely. The discovery app's row renderer treats absence as 'no
-    per-strategy data' rather than drawing zero-height bars."""
+    per-strategy data' rather than drawing zero-height bars.
+    """
     result = await handle_find_providers({"limit": 3})
     payload = _parse(result)
     assert "breakdowns" not in payload, (
@@ -1209,7 +1219,8 @@ async def test_find_providers_omits_breakdowns_when_no_query():
 
 def test_discovery_app_resource_registered_at_boot():
     """``register_apps()`` ran during module import, so the discovery app
-    URI must already be in RESOURCES_HANDLERS by the time tests load."""
+    URI must already be in RESOURCES_HANDLERS by the time tests load.
+    """
     assert _DISCOVERY_URI in RESOURCES_HANDLERS
     uris = [str(r.uri) for r in RESOURCES]
     assert _DISCOVERY_URI in uris

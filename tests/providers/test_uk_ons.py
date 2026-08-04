@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.uk_ons import (
     TOOLS,
     _ons_get_observations_to_shape_payload,
-    handle_list_datasets,
+    handle_get_codelist,
     handle_get_dataset,
-    handle_list_editions,
     handle_get_edition,
-    handle_list_versions,
     handle_get_observations,
     handle_list_codelists,
-    handle_get_codelist,
+    handle_list_datasets,
+    handle_list_editions,
+    handle_list_versions,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -116,7 +116,7 @@ async def test_ons_get_observations_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "observations": [
-                {"observation": "123.4", "dimensions": {"time": "2023-Jan"}}
+                {"observation": "123.4", "dimensions": {"time": "2023-Jan"}},
             ],
             "total_observations": 1,
         }
@@ -129,7 +129,7 @@ async def test_ons_get_observations_success():
                 "version": "1",
                 "time": "2023-Jan",
                 "geography": "K02000001",
-            }
+            },
         )
         assert "123.4" in result[0].text
         assert "points" in result[0].text
@@ -157,7 +157,7 @@ def test_ons_adapter_flattens_observations_with_dict_dims():
                     "geography": {"id": "K02000001", "label": "UK"},
                 },
             },
-        ]
+        ],
     }
     payload = _ons_get_observations_to_shape_payload(raw)
     assert payload["axes"] == {"x": "Time", "y": "Observation"}
@@ -181,7 +181,7 @@ def test_ons_adapter_skips_non_numeric():
         "observations": [
             {"observation": "bad", "dimensions": {"time": "2023-01"}},
             {"observation": "2.0", "dimensions": {"time": "2023-02"}},
-        ]
+        ],
     }
     payload = _ons_get_observations_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -198,12 +198,14 @@ def test_ons_get_observations_tool_bound_to_timeseries_shape():
 async def test_ons_get_observations_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "observations": [{"observation": "1.5", "dimensions": {"time": "2023-Jan"}}]
+            "observations": [
+                {"observation": "1.5", "dimensions": {"time": "2023-Jan"}}
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_observations(
-            {"id": "x", "edition": "y", "version": "1"}
+            {"id": "x", "edition": "y", "version": "1"},
         )
         body = json.loads(result[0].text)
         assert body["points"][0]["value"] == 1.5

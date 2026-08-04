@@ -23,7 +23,7 @@ URI = "ui://meta-data-mcp/shape/geofeatures/v1"
 # editable installs and wheel installs (hatch packages the .html into
 # the wheel because it sits inside the ``meta_data_mcp`` package tree).
 _HTML = (files("meta_data_mcp.ui_resources") / "shape_geofeatures_v1.html").read_text(
-    encoding="utf-8"
+    encoding="utf-8",
 )
 
 _DESCRIPTION = (

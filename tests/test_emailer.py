@@ -7,8 +7,8 @@ import pytest
 
 from meta_data_mcp.emailer import (
     EmailBackend,
-    EmailMessage,
     Emailer,
+    EmailMessage,
     magic_link_message,
 )
 
@@ -133,7 +133,7 @@ async def test_resend_send_posts_and_succeeds():
         http_client=client,
     )
     await e.send(
-        EmailMessage(to="u@example.com", subject="Hi", text="body", html="<b>x</b>")
+        EmailMessage(to="u@example.com", subject="Hi", text="body", html="<b>x</b>"),
     )
     await client.aclose()
 

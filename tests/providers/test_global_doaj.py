@@ -37,7 +37,7 @@ def test_fetch_doaj_search_articles_maps_page_size_to_upstream_param():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"results": [{"id": "article-1"}]})
         result = fetch_doaj_search_articles(
-            DoajSearchArticlesParams(q="climate", page=2, page_size=5)
+            DoajSearchArticlesParams(q="climate", page=2, page_size=5),
         )
         assert result["results"][0]["id"] == "article-1"
         assert mock_get.call_args[0][0].endswith("/articles/")
@@ -49,7 +49,7 @@ def test_fetch_doaj_search_journals_maps_page_size_to_upstream_param():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"results": [{"id": "journal-1"}]})
         result = fetch_doaj_search_journals(
-            DoajSearchJournalsParams(q="biology", page=3, page_size=10)
+            DoajSearchJournalsParams(q="biology", page=3, page_size=10),
         )
         assert result["results"][0]["id"] == "journal-1"
         assert mock_get.call_args[0][0].endswith("/journals/")

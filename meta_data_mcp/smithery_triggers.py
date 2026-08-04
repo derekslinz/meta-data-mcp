@@ -111,7 +111,7 @@ EVENTS = [
         "name": "provider.activated",
         "description": "Fires when a provider is activated via opendata_providers_activate.",
         "delivery": ["webhook"],
-        "inputSchema": {"type": "object", "properties": {}},
+        "input_schema": {"type": "object", "properties": {}},
         "payloadSchema": {
             "type": "object",
             "properties": {
@@ -126,7 +126,7 @@ EVENTS = [
         "name": "provider.deactivated",
         "description": "Fires when a provider is deactivated via opendata_providers_deactivate.",
         "delivery": ["webhook"],
-        "inputSchema": {"type": "object", "properties": {}},
+        "input_schema": {"type": "object", "properties": {}},
         "payloadSchema": {
             "type": "object",
             "properties": {
@@ -292,7 +292,8 @@ async def handle_smithery_rpc(body: dict) -> dict:
             {
                 "id": sub.id,
                 "refreshBefore": time.strftime(
-                    "%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(sub.refresh_before)
+                    "%Y-%m-%dT%H:%M:%S.000Z",
+                    time.gmtime(sub.refresh_before),
                 ),
             },
         )
@@ -347,7 +348,7 @@ class SmitheryTriggersMiddleware:
             chunk = event.get("body", b"")
             more_body = event.get("more_body", False)
             replay_events.append(
-                {"type": "http.request", "body": chunk, "more_body": more_body}
+                {"type": "http.request", "body": chunk, "more_body": more_body},
             )
             remaining = max(self._MAX_INSPECT_BYTES - inspected, 0)
             if remaining:
@@ -380,7 +381,7 @@ class SmitheryTriggersMiddleware:
                                 [b"content-type", b"application/json"],
                                 [b"content-length", str(len(response_body)).encode()],
                             ],
-                        }
+                        },
                     )
                     await send({"type": "http.response.body", "body": response_body})
                     return
@@ -401,14 +402,16 @@ class SmitheryTriggersMiddleware:
                 event = replay_events[replay_index]
                 replay_index += 1
                 if event.get("type") == "http.request" and not event.get(
-                    "more_body", False
+                    "more_body",
+                    False,
                 ):
                     upstream_body_complete = True
                 return event
             if too_large and not upstream_body_complete:
                 event = await receive()
                 if event.get("type") == "http.request" and not event.get(
-                    "more_body", False
+                    "more_body",
+                    False,
                 ):
                     upstream_body_complete = True
                 return event
@@ -420,7 +423,8 @@ class SmitheryTriggersMiddleware:
         async def send_wrapper(event: dict) -> None:
             await send(event)
             if event.get("type") == "http.response.body" and not event.get(
-                "more_body", False
+                "more_body",
+                False,
             ):
                 response_done.set()
 

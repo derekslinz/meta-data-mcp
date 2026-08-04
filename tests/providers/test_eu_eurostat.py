@@ -1,19 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.eu_eurostat import (
     TOOLS,
-    _eurostat_dataset_to_shape_payload,
-    list_eurostat_datasets,
-    EurostatListDatasetsParams,
-    handle_eurostat_list_datasets,
-    fetch_eurostat_data,
     EurostatDataParams,
-    handle_eurostat_get_dataset,
-    fetch_eurostat_metadata,
+    EurostatListDatasetsParams,
     EurostatMetadataParams,
+    _eurostat_dataset_to_shape_payload,
+    fetch_eurostat_data,
+    fetch_eurostat_metadata,
+    handle_eurostat_get_dataset,
     handle_eurostat_get_metadata,
+    handle_eurostat_list_datasets,
+    list_eurostat_datasets,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -55,7 +56,7 @@ def mock_eurostat_data_response():
             "time": {
                 "label": "Time period",
                 "category": {"index": {"2020": 0, "2021": 1}},
-            }
+            },
         },
         "value": [100.5, 102.3],
     }
@@ -185,7 +186,7 @@ def test_eurostat_adapter_no_time_dim_defers():
             "size": [1],
             "dimension": {"geo": {"category": {"index": {"DE": 0}}}},
             "value": [1.0],
-        }
+        },
     )
     assert payload["points"] == []
 

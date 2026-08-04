@@ -1,5 +1,4 @@
-"""
-US Census Bureau Geocoding Services Provider
+"""US Census Bureau Geocoding Services Provider
 
 This module exposes the US Census Bureau's public Geocoding Services API,
 a keyless web service that converts street addresses to geographic coordinates
@@ -24,9 +23,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -40,9 +40,9 @@ PROVIDER_ID = "us-census-geocoder"
 BASE_URL = "https://geocoding.geo.census.gov/geocoder"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -98,8 +98,8 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-oneline",
         description="Forward-geocode a free-form (one-line) US address using the Census Geocoder.",
-        inputSchema=CensusGeocodeOnelineParams.model_json_schema(),
-    )
+        input_schema=CensusGeocodeOnelineParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["census-geocode-oneline"] = handle_census_geocode_oneline
 
@@ -113,13 +113,15 @@ class CensusGeocodeAddressParams(BaseModel):
     """Parameters for structured address forward geocoding."""
 
     street: str = Field(
-        ..., description="Street number and name, e.g. '1600 Pennsylvania Ave NW'."
+        ...,
+        description="Street number and name, e.g. '1600 Pennsylvania Ave NW'.",
     )
-    city: Optional[str] = Field(None, description="City name, e.g. 'Washington'.")
-    state: Optional[str] = Field(
-        None, description="USPS state abbreviation, e.g. 'DC'."
+    city: str | None = Field(None, description="City name, e.g. 'Washington'.")
+    state: str | None = Field(
+        None,
+        description="USPS state abbreviation, e.g. 'DC'.",
     )
-    zip: Optional[str] = Field(None, description="ZIP or ZIP+4 code.")
+    zip: str | None = Field(None, description="ZIP or ZIP+4 code.")
     benchmark: str = Field(
         default="Public_AR_Current",
         description="Census Geocoder benchmark name.",
@@ -140,7 +142,9 @@ def fetch_census_geocode_address(params: CensusGeocodeAddressParams) -> dict:
     if params.zip:
         query_params["zip"] = params.zip
     response = http_get(
-        f"{BASE_URL}/locations/address", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/locations/address",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -203,12 +207,12 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-address",
         description="Forward-geocode a structured US address (street/city/state/zip) using the Census Geocoder.",
-        inputSchema=CensusGeocodeAddressParams.model_json_schema(),
+        input_schema=CensusGeocodeAddressParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["census-geocode-address"] = handle_census_geocode_address
 
@@ -243,7 +247,9 @@ def fetch_census_geocode_coordinates(params: CensusGeocodeCoordinatesParams) -> 
         "format": "json",
     }
     response = http_get(
-        f"{BASE_URL}/geographies/coordinates", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/geographies/coordinates",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -267,8 +273,8 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-coordinates",
         description="Reverse-geocode an (x=longitude, y=latitude) pair to Census geographies (state/county/tract/block).",
-        inputSchema=CensusGeocodeCoordinatesParams.model_json_schema(),
-    )
+        input_schema=CensusGeocodeCoordinatesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["census-geocode-coordinates"] = handle_census_geocode_coordinates
 
@@ -283,7 +289,8 @@ class CensusGeocodeOnelineGeoParams(BaseModel):
 
     address: str = Field(..., description="Free-form (one-line) US street address.")
     benchmark: str = Field(
-        default="Public_AR_Current", description="Census Geocoder benchmark."
+        default="Public_AR_Current",
+        description="Census Geocoder benchmark.",
     )
     vintage: str = Field(
         default="Current_Current",
@@ -328,8 +335,8 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-onelineaddress-geographies",
         description="Forward-geocode a one-line US address and return coordinates plus Census geographies.",
-        inputSchema=CensusGeocodeOnelineGeoParams.model_json_schema(),
-    )
+        input_schema=CensusGeocodeOnelineGeoParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["census-geocode-onelineaddress-geographies"] = (
     handle_census_geocode_oneline_geographies
@@ -345,11 +352,12 @@ class CensusGeocodeAddressGeoParams(BaseModel):
     """Parameters for structured address geocoding with geographies output."""
 
     street: str = Field(..., description="Street number and name.")
-    city: Optional[str] = Field(None, description="City name.")
-    state: Optional[str] = Field(None, description="USPS state abbreviation.")
-    zip: Optional[str] = Field(None, description="ZIP or ZIP+4 code.")
+    city: str | None = Field(None, description="City name.")
+    state: str | None = Field(None, description="USPS state abbreviation.")
+    zip: str | None = Field(None, description="ZIP or ZIP+4 code.")
     benchmark: str = Field(
-        default="Public_AR_Current", description="Census Geocoder benchmark."
+        default="Public_AR_Current",
+        description="Census Geocoder benchmark.",
     )
     vintage: str = Field(
         default="Current_Current",
@@ -374,7 +382,9 @@ def fetch_census_geocode_address_geographies(
     if params.zip:
         query_params["zip"] = params.zip
     response = http_get(
-        f"{BASE_URL}/geographies/address", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/geographies/address",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -391,7 +401,7 @@ async def handle_census_geocode_address_geographies(
         return [types.TextContent(type="text", text=serialize_for_llm(data))]
     except Exception as e:
         log.error(
-            f"Error geocoding structured address with geographies via Census: {e}"
+            f"Error geocoding structured address with geographies via Census: {e}",
         )
         raise
 
@@ -400,8 +410,8 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-address-geographies",
         description="Forward-geocode a structured US address and return coordinates plus Census geographies.",
-        inputSchema=CensusGeocodeAddressGeoParams.model_json_schema(),
-    )
+        input_schema=CensusGeocodeAddressGeoParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["census-geocode-address-geographies"] = (
     handle_census_geocode_address_geographies
@@ -420,7 +430,9 @@ class CensusBenchmarksParams(BaseModel):
 def fetch_census_benchmarks(params: CensusBenchmarksParams) -> dict:
     """Call /benchmarks on the Census Geocoder."""
     response = http_get(
-        f"{BASE_URL}/benchmarks", params={"format": "json"}, provider=PROVIDER_ID
+        f"{BASE_URL}/benchmarks",
+        params={"format": "json"},
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -442,8 +454,8 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-benchmarks",
         description="List available Census Geocoder benchmarks (e.g. Public_AR_Current).",
-        inputSchema=CensusBenchmarksParams.model_json_schema(),
-    )
+        input_schema=CensusBenchmarksParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["census-geocode-benchmarks"] = handle_census_benchmarks
 
@@ -469,7 +481,9 @@ def fetch_census_vintages(params: CensusVintagesParams) -> dict:
         "format": "json",
     }
     response = http_get(
-        f"{BASE_URL}/vintages", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/vintages",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -493,8 +507,8 @@ TOOLS.append(
     types.Tool(
         name="census-geocode-vintages",
         description="List Census geography vintages valid for a given benchmark.",
-        inputSchema=CensusVintagesParams.model_json_schema(),
-    )
+        input_schema=CensusVintagesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["census-geocode-vintages"] = handle_census_vintages
 

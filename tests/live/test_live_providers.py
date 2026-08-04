@@ -1,5 +1,4 @@
-"""
-Live integration tests — real HTTP calls, no mocking.
+"""Live integration tests — real HTTP calls, no mocking.
 
 Tests are tagged ``live`` and excluded from the default pytest run.
 Run with: ``pytest tests/live/ -m live -v``
@@ -19,7 +18,6 @@ Providers covered (10 stable, keyless endpoints):
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # global_frankfurter — ECB FX rates
 # ---------------------------------------------------------------------------
@@ -27,7 +25,7 @@ import pytest
 
 @pytest.mark.live
 def test_live_frankfurter_latest():
-    from meta_data_mcp.providers.global_frankfurter import fetch_latest, LatestParams
+    from meta_data_mcp.providers.global_frankfurter import LatestParams, fetch_latest
 
     data = fetch_latest(LatestParams(base="USD"))
     assert "rates" in data
@@ -38,8 +36,8 @@ def test_live_frankfurter_latest():
 @pytest.mark.live
 def test_live_frankfurter_currencies():
     from meta_data_mcp.providers.global_frankfurter import (
-        fetch_currencies,
         CurrenciesParams,
+        fetch_currencies,
     )
 
     data = fetch_currencies(CurrenciesParams())
@@ -55,7 +53,7 @@ def test_live_frankfurter_currencies():
 
 @pytest.mark.live
 def test_live_wikipedia_summary():
-    from meta_data_mcp.providers.global_wikipedia import fetch_summary, SummaryParams
+    from meta_data_mcp.providers.global_wikipedia import SummaryParams, fetch_summary
 
     data = fetch_summary(SummaryParams(title="Python_(programming_language)"))
     assert data.get("title") or data.get("displaytitle")
@@ -65,8 +63,8 @@ def test_live_wikipedia_summary():
 @pytest.mark.live
 def test_live_wikipedia_onthisday():
     from meta_data_mcp.providers.global_wikipedia import (
-        fetch_onthisday,
         OnThisDayParams,
+        fetch_onthisday,
     )
 
     data = fetch_onthisday(OnThisDayParams(month="01", day="01"))
@@ -81,13 +79,14 @@ def test_live_wikipedia_onthisday():
 
 @pytest.mark.live
 def test_live_usgs_significant_day_feed():
+    import asyncio
+
     from meta_data_mcp.providers.us_usgs_earthquake import (
         handle_usgs_eq_feed_significant_week,
     )
-    import asyncio
 
     result = asyncio.get_event_loop().run_until_complete(
-        handle_usgs_eq_feed_significant_week()
+        handle_usgs_eq_feed_significant_week(),
     )
     assert len(result) == 1
     text = result[0].text
@@ -97,10 +96,10 @@ def test_live_usgs_significant_day_feed():
 
 @pytest.mark.live
 def test_live_usgs_query_count():
-    from meta_data_mcp.providers.us_usgs_earthquake import fetch_count, CountParams
+    from meta_data_mcp.providers.us_usgs_earthquake import CountParams, fetch_count
 
     data = fetch_count(
-        CountParams(starttime="2024-01-01", endtime="2024-01-07", minmagnitude=5.0)
+        CountParams(starttime="2024-01-01", endtime="2024-01-07", minmagnitude=5.0),
     )
     assert "count" in data or isinstance(data, dict)
 
@@ -113,8 +112,8 @@ def test_live_usgs_query_count():
 @pytest.mark.live
 def test_live_open_library_search():
     from meta_data_mcp.providers.global_open_library import (
-        fetch_search_books,
         SearchBooksParams,
+        fetch_search_books,
     )
 
     data = fetch_search_books(SearchBooksParams(title="Moby Dick", limit=3))
@@ -124,8 +123,8 @@ def test_live_open_library_search():
 @pytest.mark.live
 def test_live_open_library_isbn():
     from meta_data_mcp.providers.global_open_library import (
-        fetch_isbn_lookup,
         IsbnLookupParams,
+        fetch_isbn_lookup,
     )
 
     data = fetch_isbn_lookup(IsbnLookupParams(isbn="9780140328721"))
@@ -140,8 +139,8 @@ def test_live_open_library_isbn():
 @pytest.mark.live
 def test_live_who_gho_list_indicators():
     from meta_data_mcp.providers.global_who_gho import (
-        fetch_list_indicators,
         ListIndicatorsParams,
+        fetch_list_indicators,
     )
 
     data = fetch_list_indicators(ListIndicatorsParams())
@@ -156,8 +155,8 @@ def test_live_who_gho_list_indicators():
 @pytest.mark.live
 def test_live_world_bank_list_countries():
     from meta_data_mcp.providers.global_world_bank import (
-        fetch_list_countries,
         ListCountriesParams,
+        fetch_list_countries,
     )
 
     data = fetch_list_countries(ListCountriesParams())
@@ -171,14 +170,16 @@ def test_live_world_bank_list_countries():
 @pytest.mark.live
 def test_live_world_bank_indicator():
     from meta_data_mcp.providers.global_world_bank import (
-        fetch_get_indicator_data,
         GetIndicatorDataParams,
+        fetch_get_indicator_data,
     )
 
     data = fetch_get_indicator_data(
         GetIndicatorDataParams(
-            country_code="USA", indicator="NY.GDP.MKTP.CD", date_range="2020:2023"
-        )
+            country_code="USA",
+            indicator="NY.GDP.MKTP.CD",
+            date_range="2020:2023",
+        ),
     )
     assert isinstance(data, list)
 
@@ -191,8 +192,8 @@ def test_live_world_bank_indicator():
 @pytest.mark.live
 def test_live_clinicaltrials_search():
     from meta_data_mcp.providers.us_clinicaltrials import (
-        fetch_search_studies,
         SearchStudiesParams,
+        fetch_search_studies,
     )
 
     data = fetch_search_studies(SearchStudiesParams(query_term="diabetes", page_size=3))
@@ -206,7 +207,7 @@ def test_live_clinicaltrials_search():
 
 @pytest.mark.live
 def test_live_disease_sh_global():
-    from meta_data_mcp.providers.global_disease_sh import fetch_global, GlobalParams
+    from meta_data_mcp.providers.global_disease_sh import GlobalParams, fetch_global
 
     data = fetch_global(GlobalParams())
     assert "cases" in data
@@ -215,7 +216,7 @@ def test_live_disease_sh_global():
 
 @pytest.mark.live
 def test_live_disease_sh_country():
-    from meta_data_mcp.providers.global_disease_sh import fetch_country, CountryParams
+    from meta_data_mcp.providers.global_disease_sh import CountryParams, fetch_country
 
     data = fetch_country(CountryParams(country="USA"))
     assert "country" in data or "cases" in data
@@ -229,8 +230,8 @@ def test_live_disease_sh_country():
 @pytest.mark.live
 def test_live_met_museum_get_object():
     from meta_data_mcp.providers.global_met_museum import (
-        fetch_get_object,
         GetObjectParams,
+        fetch_get_object,
     )
 
     data = fetch_get_object(GetObjectParams(object_id=45734))
@@ -241,8 +242,8 @@ def test_live_met_museum_get_object():
 @pytest.mark.live
 def test_live_met_museum_departments():
     from meta_data_mcp.providers.global_met_museum import (
-        fetch_list_departments,
         ListDepartmentsParams,
+        fetch_list_departments,
     )
 
     data = fetch_list_departments(ListDepartmentsParams())
@@ -257,7 +258,7 @@ def test_live_met_museum_departments():
 
 @pytest.mark.live
 def test_live_nominatim_search():
-    from meta_data_mcp.providers.global_osm_nominatim import fetch_search, SearchParams
+    from meta_data_mcp.providers.global_osm_nominatim import SearchParams, fetch_search
 
     data = fetch_search(SearchParams(q="Bern, Switzerland", limit=1))
     assert isinstance(data, list)
@@ -269,8 +270,8 @@ def test_live_nominatim_search():
 @pytest.mark.live
 def test_live_nominatim_reverse():
     from meta_data_mcp.providers.global_osm_nominatim import (
-        fetch_reverse,
         ReverseParams,
+        fetch_reverse,
     )
 
     data = fetch_reverse(ReverseParams(lat=46.9481, lon=7.4474))

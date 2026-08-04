@@ -1,5 +1,4 @@
-"""
-Australia Open Data Catalog (data.gov.au) Provider
+"""Australia Open Data Catalog (data.gov.au) Provider
 
 This module exposes the public CKAN API hosted at data.gov.au, the Australian
 Government's open data portal. The catalog aggregates datasets published by
@@ -24,12 +23,14 @@ Usage:
 Note:
     The data.gov.au CKAN endpoint is mounted under a `/data/` path prefix
     (https://data.gov.au/data/api/3/action/...), unlike most CKAN portals.
+
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.provider_config import ProviderConfig
@@ -51,9 +52,9 @@ CONFIG = ProviderConfig(
 )
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -65,7 +66,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class AUDataGovSearchDatasetsParams(BaseModel):
     """Parameters for searching datasets in the data.gov.au CKAN catalog."""
 
-    q: Optional[str] = Field(
+    q: str | None = Field(
         None,
         description="Free-text search query (CKAN 'q' parameter). Leave blank to list all.",
     )
@@ -87,7 +88,9 @@ def fetch_au_datagov_search_datasets(params: AUDataGovSearchDatasetsParams) -> d
         "start": params.start,
     }
     response = http_get(
-        f"{CONFIG.base_url}/package_search", params=query_params, provider=PROVIDER_ID
+        f"{CONFIG.base_url}/package_search",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -123,7 +126,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                 (r.get("format") or "").upper()
                 for r in resources
                 if isinstance(r, dict) and r.get("format")
-            }
+            },
         )
         notes = pkg.get("notes") or ""
         if isinstance(notes, str) and len(notes) > _MAX_NOTES_CHARS:
@@ -142,7 +145,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                 "metadata_created": pkg.get("metadata_created"),
                 "metadata_modified": pkg.get("metadata_modified"),
                 "notes": notes,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -187,7 +190,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Description (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["organization", "license", "formats"],
     }
@@ -217,9 +220,9 @@ TOOLS.append(
     types.Tool(
         name="au-data-gov-search-datasets",
         description="Search the Australia data.gov.au catalog (CKAN package_search).",
-        inputSchema=AUDataGovSearchDatasetsParams.model_json_schema(),
+        input_schema=AUDataGovSearchDatasetsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["au-data-gov-search-datasets"] = handle_au_datagov_search_datasets
 
@@ -264,8 +267,8 @@ TOOLS.append(
     types.Tool(
         name="au-data-gov-get-dataset",
         description="Fetch full metadata for a data.gov.au dataset by id or slug.",
-        inputSchema=AUDataGovGetDatasetParams.model_json_schema(),
-    )
+        input_schema=AUDataGovGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["au-data-gov-get-dataset"] = handle_au_datagov_get_dataset
 
@@ -317,8 +320,8 @@ TOOLS.append(
     types.Tool(
         name="au-data-gov-list-organizations",
         description="List publishing organisations on data.gov.au with full fields.",
-        inputSchema=AUDataGovListOrganizationsParams.model_json_schema(),
-    )
+        input_schema=AUDataGovListOrganizationsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["au-data-gov-list-organizations"] = handle_au_datagov_list_organizations
 
@@ -363,8 +366,8 @@ TOOLS.append(
     types.Tool(
         name="au-data-gov-get-organization",
         description="Fetch full details for a data.gov.au publishing organisation.",
-        inputSchema=AUDataGovGetOrganizationParams.model_json_schema(),
-    )
+        input_schema=AUDataGovGetOrganizationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["au-data-gov-get-organization"] = handle_au_datagov_get_organization
 
@@ -389,7 +392,9 @@ def fetch_au_datagov_list_groups(params: AUDataGovListGroupsParams) -> dict:
         "all_fields": "true" if params.all_fields else "false",
     }
     response = http_get(
-        f"{CONFIG.base_url}/group_list", params=query_params, provider=PROVIDER_ID
+        f"{CONFIG.base_url}/group_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -411,8 +416,8 @@ TOOLS.append(
     types.Tool(
         name="au-data-gov-list-groups",
         description="List groups defined on data.gov.au.",
-        inputSchema=AUDataGovListGroupsParams.model_json_schema(),
-    )
+        input_schema=AUDataGovListGroupsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["au-data-gov-list-groups"] = handle_au_datagov_list_groups
 
@@ -425,7 +430,7 @@ TOOLS_HANDLERS["au-data-gov-list-groups"] = handle_au_datagov_list_groups
 class AUDataGovListTagsParams(BaseModel):
     """Parameters for listing or searching tags."""
 
-    query: Optional[str] = Field(
+    query: str | None = Field(
         None,
         description="Optional substring to filter tag names (CKAN 'query').",
     )
@@ -437,7 +442,9 @@ def fetch_au_datagov_list_tags(params: AUDataGovListTagsParams) -> dict:
     if params.query:
         query_params["query"] = params.query
     response = http_get(
-        f"{CONFIG.base_url}/tag_list", params=query_params, provider=PROVIDER_ID
+        f"{CONFIG.base_url}/tag_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -459,8 +466,8 @@ TOOLS.append(
     types.Tool(
         name="au-data-gov-list-tags",
         description="List or search tag names on data.gov.au.",
-        inputSchema=AUDataGovListTagsParams.model_json_schema(),
-    )
+        input_schema=AUDataGovListTagsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["au-data-gov-list-tags"] = handle_au_datagov_list_tags
 
@@ -469,7 +476,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "au-data-gov", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "au-data-gov",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

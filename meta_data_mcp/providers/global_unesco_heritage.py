@@ -1,5 +1,4 @@
-"""
-UNESCO World Heritage Centre Provider
+"""UNESCO World Heritage Centre Provider
 
 This module exposes the UNESCO World Heritage Centre (WHC) API, providing
 free access to data about UNESCO World Heritage Sites, including natural,
@@ -21,9 +20,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -34,9 +34,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-unesco-heritage"
 BASE_URL = "https://whc.unesco.org/api/sites"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -48,7 +48,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class UNESCOHeritageListSitesParams(BaseModel):
     """Parameters for listing UNESCO World Heritage Sites."""
 
-    region: Optional[str] = Field(
+    region: str | None = Field(
         None,
         description=(
             "Filter by UNESCO region code. One of: 'afr' (Africa), 'ara' (Arab States), "
@@ -56,28 +56,31 @@ class UNESCOHeritageListSitesParams(BaseModel):
             "'sas' (South Asia)."
         ),
     )
-    iso: Optional[str] = Field(
+    iso: str | None = Field(
         None,
         description="Filter by ISO 3166-1 alpha-2 country code (e.g. 'FR', 'CN', 'IT').",
     )
-    category: Optional[str] = Field(
+    category: str | None = Field(
         None,
         description=(
             "Filter by inscription category: 'Cultural' (C), 'Natural' (N), "
             "or 'Mixed' (C/N)."
         ),
     )
-    danger: Optional[int] = Field(
+    danger: int | None = Field(
         None,
         description="Set to 1 to return only sites on the List of World Heritage in Danger.",
     )
-    order: Optional[str] = Field(
+    order: str | None = Field(
         None,
         description="Sort order field (e.g. 'name', 'date_inscribed', 'id_number').",
     )
     page: int = Field(default=1, ge=1, description="Results page (1-indexed).")
     per_page: int = Field(
-        default=30, ge=1, le=100, description="Results per page (1-100)."
+        default=30,
+        ge=1,
+        le=100,
+        description="Results per page (1-100).",
     )
 
 
@@ -160,12 +163,12 @@ TOOLS.append(
             "List UNESCO World Heritage Sites, optionally filtered by region, country, "
             "category (Cultural/Natural/Mixed), or danger status."
         ),
-        inputSchema=UNESCOHeritageListSitesParams.model_json_schema(),
+        input_schema=UNESCOHeritageListSitesParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["unesco-heritage-list-sites"] = handle_unesco_heritage_list_sites
 
@@ -187,7 +190,9 @@ class UNESCOHeritageGetSiteParams(BaseModel):
 def fetch_unesco_heritage_get_site(params: UNESCOHeritageGetSiteParams) -> dict:
     """Fetch a specific UNESCO World Heritage Site by ID."""
     response = http_get(
-        f"{BASE_URL}/{params.site_id}", params={"format": "json"}, provider=PROVIDER_ID
+        f"{BASE_URL}/{params.site_id}",
+        params={"format": "json"},
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -214,8 +219,8 @@ TOOLS.append(
             "Get detailed information about a specific UNESCO World Heritage Site by its WHC ID, "
             "including name, country, category, inscription year, coordinates, and description."
         ),
-        inputSchema=UNESCOHeritageGetSiteParams.model_json_schema(),
-    )
+        input_schema=UNESCOHeritageGetSiteParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["unesco-heritage-get-site"] = handle_unesco_heritage_get_site
 
@@ -234,7 +239,10 @@ class UNESCOHeritageSearchParams(BaseModel):
     )
     page: int = Field(default=1, ge=1, description="Results page (1-indexed).")
     per_page: int = Field(
-        default=30, ge=1, le=100, description="Results per page (1-100)."
+        default=30,
+        ge=1,
+        le=100,
+        description="Results per page (1-100).",
     )
 
 
@@ -269,8 +277,8 @@ TOOLS.append(
     types.Tool(
         name="unesco-heritage-search",
         description="Search UNESCO World Heritage Sites by name or keyword.",
-        inputSchema=UNESCOHeritageSearchParams.model_json_schema(),
-    )
+        input_schema=UNESCOHeritageSearchParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["unesco-heritage-search"] = handle_unesco_heritage_search
 

@@ -17,7 +17,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -86,11 +86,15 @@ _response_cache = _TTLCache(maxsize=_CACHE_MAX_SIZE, ttl=max(_CACHE_DEFAULT_TTL,
 
 
 def _cache_key(
-    url: str, params: dict | None, accept: str, has_auth: bool = False
+    url: str,
+    params: dict | None,
+    accept: str,
+    has_auth: bool = False,
 ) -> str:
     """Hash a stable cache key. ``has_auth`` partitions authenticated and
     anonymous responses so they never share a cache entry — see the
-    auth-aware cache key rationale in ``http_get``."""
+    auth-aware cache key rationale in ``http_get``.
+    """
     payload = json.dumps(
         {
             "url": url,
@@ -138,8 +142,8 @@ def _parse_retry_after(value: str | None) -> float | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    delta = (dt - datetime.now(timezone.utc)).total_seconds()
+        dt = dt.replace(tzinfo=UTC)
+    delta = (dt - datetime.now(UTC)).total_seconds()
     return max(0.0, delta)
 
 
@@ -224,6 +228,7 @@ def http_get(
             failure mode (``BadRequestError``, ``NotFoundError``,
             ``AuthError``, ``RateLimitError``, ``UpstreamError``, or
             ``NetworkError``). Never raises raw ``httpx`` exceptions.
+
     """
     # Lazy imports to avoid a circular at module load (health & errors
     # both import logging-only constants from this module's siblings).
@@ -244,7 +249,10 @@ def http_get(
     cache_key: str | None = None
     if effective_ttl > 0:
         cache_key = _cache_key(
-            url, params, merged_headers.get("Accept", ""), has_auth=has_auth
+            url,
+            params,
+            merged_headers.get("Accept", ""),
+            has_auth=has_auth,
         )
         cached = _response_cache.get(cache_key)
         if cached is not None:
@@ -263,7 +271,7 @@ def http_get(
     _DEFAULT_HTTP_RETRIES = 2
     try:
         _configured = int(
-            os.getenv("OPENDATA_MCP_HTTP_RETRIES", str(_DEFAULT_HTTP_RETRIES))
+            os.getenv("OPENDATA_MCP_HTTP_RETRIES", str(_DEFAULT_HTTP_RETRIES)),
         )
         max_attempts = max(0, _configured) + 1
     except (ValueError, TypeError):
@@ -379,6 +387,7 @@ def http_post(
     Raises:
         meta_data_mcp.errors.ProviderError: subclass appropriate to the
             failure mode. Never raises raw ``httpx`` exceptions.
+
     """
     from meta_data_mcp import health
     from meta_data_mcp.errors import translate_http_error
@@ -393,7 +402,7 @@ def http_post(
     _DEFAULT_HTTP_RETRIES = 2
     try:
         _configured = int(
-            os.getenv("OPENDATA_MCP_HTTP_RETRIES", str(_DEFAULT_HTTP_RETRIES))
+            os.getenv("OPENDATA_MCP_HTTP_RETRIES", str(_DEFAULT_HTTP_RETRIES)),
         )
         max_attempts = max(0, _configured) + 1
     except (ValueError, TypeError):

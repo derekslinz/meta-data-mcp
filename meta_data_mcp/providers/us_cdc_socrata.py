@@ -1,5 +1,4 @@
-"""
-US CDC Open Data Provider (Socrata)
+"""US CDC Open Data Provider (Socrata)
 
 This module provides interfaces to the US Centers for Disease Control and
 Prevention open data catalog hosted on the Socrata Open Data API (SODA) at
@@ -24,9 +23,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -43,9 +43,9 @@ BASE_URL = "https://data.cdc.gov"
 _MAX_DESC_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,7 +57,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class CDCSearchDatasetsParams(BaseModel):
     """Parameters for searching the CDC Socrata catalog."""
 
-    q: Optional[str] = Field(None, description="Free-text search query")
+    q: str | None = Field(None, description="Free-text search query")
     limit: int = Field(default=20, description="Number of results per page")
     page: int = Field(default=1, description="Page number (1-indexed)")
 
@@ -69,14 +69,17 @@ def fetch_search_datasets(params: CDCSearchDatasetsParams) -> Any:
         query_params["q"] = params.q
 
     response = http_get(
-        f"{BASE_URL}/api/views", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/api/views",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
 
 def _socrata_views_to_shape_payload(data: Any) -> dict:
     """Adapt a Socrata ``/api/views`` response to the records shape
-    primitive's payload (identical to the city Socrata adapters)."""
+    primitive's payload (identical to the city Socrata adapters).
+    """
     raw_rows = data if isinstance(data, list) else []
     rows: list[dict[str, Any]] = []
     for view in raw_rows:
@@ -109,7 +112,7 @@ def _socrata_views_to_shape_payload(data: Any) -> dict:
                 "rowsUpdatedAt": view.get("rowsUpdatedAt"),
                 "createdAt": view.get("createdAt"),
                 "description": desc,
-            }
+            },
         )
     return {
         "rows": rows,
@@ -149,7 +152,7 @@ def _socrata_views_to_shape_payload(data: Any) -> dict:
                     "type": "string",
                     "description": "Description (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["category", "viewType", "attribution"],
     }
@@ -176,9 +179,9 @@ TOOLS.append(
     types.Tool(
         name="cdc-search-datasets",
         description="Search the CDC Socrata data catalog for datasets.",
-        inputSchema=CDCSearchDatasetsParams.model_json_schema(),
+        input_schema=CDCSearchDatasetsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["cdc-search-datasets"] = handle_search_datasets
 
@@ -192,14 +195,16 @@ class CDCGetDatasetMetadataParams(BaseModel):
     """Parameters for fetching a CDC dataset's metadata."""
 
     dataset_id: str = Field(
-        ..., description="The 4x4 Socrata dataset id (e.g. '9bhg-hcku')"
+        ...,
+        description="The 4x4 Socrata dataset id (e.g. '9bhg-hcku')",
     )
 
 
 def fetch_get_dataset_metadata(params: CDCGetDatasetMetadataParams) -> Any:
     """Fetch metadata for a CDC dataset."""
     response = http_get(
-        f"{BASE_URL}/api/views/{params.dataset_id}", provider=PROVIDER_ID
+        f"{BASE_URL}/api/views/{params.dataset_id}",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -223,8 +228,8 @@ TOOLS.append(
     types.Tool(
         name="cdc-get-dataset-metadata",
         description="Fetch metadata for a specific CDC Socrata dataset by 4x4 id.",
-        inputSchema=CDCGetDatasetMetadataParams.model_json_schema(),
-    )
+        input_schema=CDCGetDatasetMetadataParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cdc-get-dataset-metadata"] = handle_get_dataset_metadata
 
@@ -238,11 +243,12 @@ class CDCQueryDatasetParams(BaseModel):
     """Parameters for SoQL queries against a CDC dataset."""
 
     dataset_id: str = Field(
-        ..., description="The 4x4 Socrata dataset id (e.g. '9bhg-hcku')"
+        ...,
+        description="The 4x4 Socrata dataset id (e.g. '9bhg-hcku')",
     )
     limit: int = Field(default=100, description="Maximum rows to return ($limit)")
     offset: int = Field(default=0, description="Row offset for pagination ($offset)")
-    where: Optional[str] = Field(None, description="SoQL $where filter expression")
+    where: str | None = Field(None, description="SoQL $where filter expression")
 
 
 def fetch_query_dataset(params: CDCQueryDatasetParams) -> Any:
@@ -281,8 +287,8 @@ TOOLS.append(
     types.Tool(
         name="cdc-query-dataset",
         description="Query a CDC dataset using Socrata SoQL ($where/$limit/$offset).",
-        inputSchema=CDCQueryDatasetParams.model_json_schema(),
-    )
+        input_schema=CDCQueryDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cdc-query-dataset"] = handle_query_dataset
 
@@ -296,7 +302,8 @@ class CDCCountDatasetRowsParams(BaseModel):
     """Parameters for counting rows in a CDC dataset."""
 
     dataset_id: str = Field(
-        ..., description="The 4x4 Socrata dataset id (e.g. '9bhg-hcku')"
+        ...,
+        description="The 4x4 Socrata dataset id (e.g. '9bhg-hcku')",
     )
 
 
@@ -330,8 +337,8 @@ TOOLS.append(
     types.Tool(
         name="cdc-count-dataset-rows",
         description="Count the rows in a CDC dataset via SoQL count(*) aggregate.",
-        inputSchema=CDCCountDatasetRowsParams.model_json_schema(),
-    )
+        input_schema=CDCCountDatasetRowsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cdc-count-dataset-rows"] = handle_count_dataset_rows
 
@@ -351,7 +358,9 @@ def fetch_get_metadata_v1(params: CDCGetMetadataV1Params) -> Any:
     """Fetch CDC catalog metadata via the v1 metadata API."""
     query_params = {"limit": params.limit}
     response = http_get(
-        f"{BASE_URL}/api/views/metadata/v1", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/api/views/metadata/v1",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -373,8 +382,8 @@ TOOLS.append(
     types.Tool(
         name="cdc-get-metadata-v1",
         description="Fetch CDC catalog metadata via the Socrata v1 metadata view.",
-        inputSchema=CDCGetMetadataV1Params.model_json_schema(),
-    )
+        input_schema=CDCGetMetadataV1Params.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cdc-get-metadata-v1"] = handle_get_metadata_v1
 
@@ -383,7 +392,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-cdc-socrata", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-cdc-socrata",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

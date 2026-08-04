@@ -46,7 +46,7 @@ def test_search_custom_dataset():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"results": []})
         fetch_opensanctions_search(
-            OpenSanctionsSearchParams(query="acme corp", dataset="us_ofac_sdn")
+            OpenSanctionsSearchParams(query="acme corp", dataset="us_ofac_sdn"),
         )
         assert "/search/us_ofac_sdn" in mock_get.call_args[0][0]
 
@@ -57,7 +57,7 @@ def test_search_schema_alias_threads_through():
         mock_get.return_value = _ok({"results": []})
         # By alias 'schema'
         params = OpenSanctionsSearchParams.model_validate(
-            {"query": "x", "schema": "Person"}
+            {"query": "x", "schema": "Person"},
         )
         fetch_opensanctions_search(params)
         assert mock_get.call_args[1]["params"]["schema"] == "Person"
@@ -77,7 +77,7 @@ async def test_handle_search_accepts_schema_alias_from_mcp_args():
         mock_get.return_value = _ok({"results": []})
         # Simulate an MCP client passing the alias name as the LLM saw it.
         result = await handle_opensanctions_search(
-            {"query": "putin", "schema": "Person", "countries": "ru"}
+            {"query": "putin", "schema": "Person", "countries": "ru"},
         )
         # Handler now adapts the response to the entity-graph payload —
         # the test's goal is to assert the wire received the right params
@@ -92,8 +92,10 @@ def test_search_countries_and_topics():
         mock_get.return_value = _ok({"results": []})
         fetch_opensanctions_search(
             OpenSanctionsSearchParams(
-                query="x", countries="ru,by", topics="sanction,role.pep"
-            )
+                query="x",
+                countries="ru,by",
+                topics="sanction,role.pep",
+            ),
         )
         sent = mock_get.call_args[1]["params"]
         assert sent["countries"] == "ru,by"
@@ -113,7 +115,7 @@ def test_get_entity_path_param():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"id": "NK-abc", "schema": "Person"})
         result = fetch_opensanctions_get_entity(
-            OpenSanctionsGetEntityParams(entity_id="NK-abc")
+            OpenSanctionsGetEntityParams(entity_id="NK-abc"),
         )
         assert result["id"] == "NK-abc"
         assert "/entities/NK-abc" in mock_get.call_args[0][0]
@@ -147,7 +149,7 @@ async def test_handle_search_translates_404():
         mock_get.return_value.headers = {}
         with pytest.raises(NotFoundError) as exc_info:
             await handle_opensanctions_search(
-                {"query": "x", "dataset": "no_such_dataset"}
+                {"query": "x", "dataset": "no_such_dataset"},
             )
         assert exc_info.value.provider == "global-opensanctions"
 
@@ -159,7 +161,8 @@ async def test_handle_search_translates_404():
 
 def test_opensanctions_entity_graph_adapter_top_level_results():
     """Each search result becomes a node; the schema drives node type
-    (Person → ``author`` slot for color contrast against ``entity``)."""
+    (Person → ``author`` slot for color contrast against ``entity``).
+    """
     raw = {
         "results": [
             {
@@ -174,7 +177,7 @@ def test_opensanctions_entity_graph_adapter_top_level_results():
                 "caption": "ACME Co",
                 "schema": "Company",
             },
-        ]
+        ],
     }
     payload = _opensanctions_search_to_entity_graph_payload(raw)
     node_ids = {n["id"] for n in payload["nodes"]}
@@ -190,7 +193,8 @@ def test_opensanctions_entity_graph_adapter_top_level_results():
 def test_opensanctions_entity_graph_adapter_emits_property_edges():
     """Nested entity references in ``properties`` (familyMembers,
     associates, directorOf, …) become edges back to the parent. That's
-    what gives the bundle its relationship surface."""
+    what gives the bundle its relationship surface.
+    """
     raw = {
         "results": [
             {
@@ -207,8 +211,8 @@ def test_opensanctions_entity_graph_adapter_emits_property_edges():
                     # Scalar property values (dates, strings) should be skipped.
                     "birthDate": ["1952-10-07"],
                 },
-            }
-        ]
+            },
+        ],
     }
     payload = _opensanctions_search_to_entity_graph_payload(raw)
     edge_pairs = {(e["source"], e["target"], e["label"]) for e in payload["edges"]}
@@ -236,7 +240,7 @@ def test_opensanctions_search_tool_binds_to_entity_graph():
 async def test_opensanctions_search_returns_entity_graph_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok(
-            {"results": [{"id": "NK-x", "caption": "X", "schema": "Person"}]}
+            {"results": [{"id": "NK-x", "caption": "X", "schema": "Person"}]},
         )
         result = await handle_opensanctions_search({"query": "x"})
         parsed = json.loads(result[0].text)

@@ -1,21 +1,21 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.eu_copernicus import (
     TOOLS,
-    _copernicus_search_results_to_shape_payload,
-    list_copernicus_collections,
     ListCollectionsParams,
-    handle_list_collections,
-    search_copernicus_products,
-    SearchProductsParams,
-    handle_search_products,
-    fetch_product_metadata,
     ProductMetadataParams,
+    SearchProductsParams,
+    _copernicus_search_results_to_shape_payload,
+    fetch_product_metadata,
     handle_get_product_metadata,
+    handle_list_collections,
+    handle_search_products,
+    list_copernicus_collections,
+    search_copernicus_products,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -39,7 +39,7 @@ def mock_stac_collections():
                 "title": "Sentinel-1 GRD",
                 "description": "Radar imaging",
             },
-        ]
+        ],
     }
 
 
@@ -54,8 +54,8 @@ def mock_stac_search_results():
                     "datetime": "2023-01-01T12:00:00Z",
                     "eo:cloud_cover": 10.5,
                 },
-            }
-        ]
+            },
+        ],
     }
 
 
@@ -175,8 +175,8 @@ def test_adapter_collapses_bbox_to_centroid():
                     "datetime": "2023-01-01T12:00:00Z",
                     "eo:cloud_cover": 10.5,
                 },
-            }
-        ]
+            },
+        ],
     }
     payload = _copernicus_search_results_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -208,7 +208,7 @@ def test_adapter_skips_features_without_valid_bbox():
             {"id": "bad-bbox", "bbox": ["x", 0, 1, 1]},
             {"id": "out-of-range", "bbox": [0, 200, 1, 300]},
             {"id": "ok", "bbox": [0.0, 0.0, 1.0, 1.0]},
-        ]
+        ],
     }
     payload = _copernicus_search_results_to_shape_payload(raw)
     assert len(payload["features"]) == 1

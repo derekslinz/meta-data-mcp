@@ -10,8 +10,8 @@ import httpx
 import pytest
 
 from meta_data_mcp.providers.global_mcp_registry import (
-    handle_mcp_registry_search,
     handle_mcp_registry_list,
+    handle_mcp_registry_search,
 )
 
 

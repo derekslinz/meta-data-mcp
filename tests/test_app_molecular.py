@@ -35,7 +35,7 @@ def _fresh_state():
 
 def _load_bundle() -> str:
     return (files("meta_data_mcp.ui_resources") / "app_molecular_v1.html").read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
 
@@ -56,7 +56,7 @@ def test_register_apps_registers_canonical_resource_metadata():
     # hosts reject the resource as "Unsupported UI resource content
     # format". See tests/test_ui_resource.py for the regression that
     # pins this end-to-end through the read_resource envelope.
-    assert res.mimeType == "text/html;profile=mcp-app"
+    assert res.mime_type == "text/html;profile=mcp-app"
     assert res.name == "app/molecular/v1"
     # Description should signal what the app is and what it wraps.
     desc = res.description.lower()
@@ -75,7 +75,8 @@ def test_register_apps_returns_molecular_mapping():
     """``register_apps`` returns ``{name: uri}`` so callers can log or
     surface the wiring. Pin the molecular/v1 entry so a future refactor
     that drops the return value (or renames the key) is caught at
-    unit-test time."""
+    unit-test time.
+    """
     resources, handlers = _fresh_state()
     result = register_apps(resources, handlers)
     assert result.get("molecular/v1") == MOLECULAR_URI
@@ -92,7 +93,8 @@ def test_bundle_contains_script_tag():
 def test_bundle_has_identifier_input():
     """The identifier input (PDB id / compound name) is the primary
     user input. Pin its existence so a redesign that drops the input
-    has to update tests + provider expectations together."""
+    has to update tests + provider expectations together.
+    """
     html = _load_bundle().lower()
     assert 'id="ident-input"' in html, "bundle has no #ident-input"
 
@@ -100,7 +102,8 @@ def test_bundle_has_identifier_input():
 def test_bundle_has_source_selector():
     """The user picks PubChem vs PDB before entering an identifier;
     pin the selector so the dual-source UX can't silently degrade to a
-    PDB-only or PubChem-only flow on refactor."""
+    PDB-only or PubChem-only flow on refactor.
+    """
     html = _load_bundle().lower()
     assert 'id="source-select"' in html, "bundle has no #source-select"
 
@@ -109,7 +112,8 @@ def test_bundle_advertises_tool_call_envelope():
     """The molecular app reuses the Phase 3 ``tool_call`` envelope.
     If a refactor switches envelope shapes, the matching tests on the
     discovery and vulnerability apps also fail — pin one per app so a
-    divergence between them is impossible silently."""
+    divergence between them is impossible silently.
+    """
     html = _load_bundle()
     assert "type: 'tool_call'" in html or 'type: "tool_call"' in html, (
         "bundle has no tool_call envelope construction"
@@ -130,7 +134,8 @@ def test_bundle_listens_for_tool_result_from_parent():
 def test_bundle_loads_3dmol_viewer():
     """3Dmol.js is the only library this bundle leans on; pin its
     presence so a refactor that drops it (or swaps in a non-WebGL
-    viewer) has to explicitly update the test + the description."""
+    viewer) has to explicitly update the test + the description.
+    """
     html = _load_bundle()
     assert "$3Dmol" in html, "bundle doesn't reference the 3Dmol.js global"
 
@@ -157,7 +162,8 @@ def test_bundle_has_only_3dmol_cdn_script():
 def test_bundle_documents_cdn_origin_in_html_comment():
     """Host operators reviewing CSP / CDN allowlists need to find the
     3dmol.org origin in the bundle source quickly. Pin that we
-    document it in an HTML comment alongside the <script> tag."""
+    document it in an HTML comment alongside the <script> tag.
+    """
     html = _load_bundle()
     # The HTML comment block at the top of the bundle should mention
     # the CDN origin so a host operator grepping for "3dmol" lands
@@ -178,7 +184,8 @@ def test_bundle_supports_base64_data_url_param():
     """The ``?data=<base64-JSON>`` ingress is how host-less previews
     and the Phase 6c smoke get a payload into the bundle without a
     real postMessage envelope. Pin both the param name and the UTF-8
-    decode path so a refactor doesn't silently break previews."""
+    decode path so a refactor doesn't silently break previews.
+    """
     html = _load_bundle()
     assert "URLSearchParams" in html
     assert "params.get('data')" in html or 'params.get("data")' in html
@@ -191,7 +198,8 @@ def test_bundle_supports_base64_data_url_param():
 def test_bundle_supports_window_app_data_fallback():
     """The Phase 6c smoke seeds ``window.__app_data__`` so the
     headless browser can hydrate the panel without postMessage. Pin
-    the global so future bundles can't silently drop the contract."""
+    the global so future bundles can't silently drop the contract.
+    """
     html = _load_bundle()
     assert "window.__app_data__" in html
 
@@ -207,7 +215,8 @@ def test_handler_returns_same_bytes_as_file_on_disk():
 def test_bundle_size_under_100kb():
     """Phase 6b bundle-budget enforcement. 3Dmol.js itself is
     CDN-loaded so it doesn't count against this budget — only the
-    inline HTML / CSS / JS does."""
+    inline HTML / CSS / JS does.
+    """
     html = _load_bundle()
     size_kb = len(html.encode("utf-8")) / 1024
     assert size_kb < 100, f"molecular bundle is {size_kb:.1f}KB (budget: <100KB)"
@@ -219,7 +228,8 @@ def test_bundle_does_not_use_dangerous_html_assignment():
     DOM property whose name is ``"inner"`` + ``"HTML"`` anywhere — all
     DOM mutation has to go through ``textContent`` / ``replaceChildren``
     / explicit element creation so markup injection is impossible by
-    construction."""
+    construction.
+    """
     html = _load_bundle()
     forbidden = "." + "inner" + "HTML"
     pattern = re.compile(re.escape(forbidden) + r"\s*[+]?=")
@@ -235,7 +245,8 @@ def test_bundle_picks_cartoon_style_for_chains():
     and small molecules. The substantive design choice is cartoon-on-
     chains, stick-on-small-molecules — pin both so a refactor can't
     silently regress to an all-ball-and-stick viewer that's illegible
-    for >5kDa proteins."""
+    for >5kDa proteins.
+    """
     html = _load_bundle().lower()
     assert "cartoon" in html, (
         "bundle doesn't apply cartoon style to chains — proteins will "

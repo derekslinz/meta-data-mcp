@@ -34,7 +34,7 @@ def test_fetch_crtsh_search_certificates_forces_json_output():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"common_name": "example.com"}])
         result = fetch_crtsh_search_certificates(
-            CrtshSearchCertificatesParams(q="example.com", exclude="expired")
+            CrtshSearchCertificatesParams(q="example.com", exclude="expired"),
         )
         assert result[0]["common_name"] == "example.com"
         assert mock_get.call_args[1]["params"] == {

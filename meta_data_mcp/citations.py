@@ -81,10 +81,11 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Generator, Sequence
+from typing import Any
 
 import httpx
 
@@ -120,13 +121,14 @@ _SENSITIVE_PARAMS = frozenset(
         "token",
         "appid",
         "app_id",
-    }
+    },
 )
 
 log = logging.getLogger(__name__)
 
-_RECORDING: ContextVar[list["SourceRecord"] | None] = ContextVar(
-    "meta_data_mcp_citations_recording", default=None
+_RECORDING: ContextVar[list[SourceRecord] | None] = ContextVar(
+    "meta_data_mcp_citations_recording",
+    default=None,
 )
 
 
@@ -164,8 +166,7 @@ def _is_sensitive_param(name: str) -> bool:
     n = name.lower()
     return (
         n in _SENSITIVE_PARAMS
-        or n.endswith("key")
-        or n.endswith("token")
+        or n.endswith(("key", "token"))
         or "secret" in n
         or "signature" in n
         or "password" in n
@@ -192,7 +193,7 @@ def redact_url(url: str | httpx.URL) -> str:
     if not any(_is_sensitive_param(k) for k, _ in items):
         return str(u)
     redacted = httpx.QueryParams(
-        [(k, REDACTED if _is_sensitive_param(k) else v) for k, v in items]
+        [(k, REDACTED if _is_sensitive_param(k) else v) for k, v in items],
     )
     return str(u.copy_with(query=str(redacted).encode()))
 
@@ -251,7 +252,7 @@ def record(
                 status=status if isinstance(status, int) else None,
                 fetched_at=fetched_at or utc_iso_ms(),
                 cache_hit=cache_hit,
-            )
+            ),
         )
     except Exception:
         log.warning(

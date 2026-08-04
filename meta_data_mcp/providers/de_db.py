@@ -1,5 +1,4 @@
-"""
-Deutsche Bahn (DB) Open Data Provider
+"""Deutsche Bahn (DB) Open Data Provider
 
 This module provides interfaces to access Deutsche Bahn's public APIs.
 It focuses on station data (StaDa) and timetable information.
@@ -13,9 +12,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -30,9 +30,9 @@ PROVIDER_ID = "de-db"
 BASE_URL = "https://v6.db.transport.rest"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -44,7 +44,8 @@ class DBStationParams(BaseModel):
     """Parameters for searching Deutsche Bahn stations."""
 
     search: str = Field(
-        ..., description="Search term for the station name (e.g., 'Berlin')"
+        ...,
+        description="Search term for the station name (e.g., 'Berlin')",
     )
 
 
@@ -119,12 +120,12 @@ TOOLS.append(
     types.Tool(
         name="db-list-stations",
         description="Search for stations in the Deutsche Bahn rail network (live data).",
-        inputSchema=DBStationParams.model_json_schema(),
+        input_schema=DBStationParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["db-list-stations"] = handle_list_stations
 
@@ -137,10 +138,12 @@ class DBTimetableParams(BaseModel):
     """Parameters for getting station timetables."""
 
     station_id: str = Field(
-        ..., description="The EVA ID of the station (e.g., '8011160' for Berlin Hbf)"
+        ...,
+        description="The EVA ID of the station (e.g., '8011160' for Berlin Hbf)",
     )
     mode: str = Field(
-        "departures", description="Whether to fetch 'departures' or 'arrivals'"
+        "departures",
+        description="Whether to fetch 'departures' or 'arrivals'",
     )
     duration: int = Field(15, description="Duration in minutes to fetch (default 15)")
 
@@ -150,7 +153,10 @@ def fetch_db_timetable(params: DBTimetableParams) -> list:
     endpoint = f"{BASE_URL}/stops/{params.station_id}/{params.mode}"
     query_params = {"duration": params.duration}
     response = http_get(
-        endpoint, params=query_params, timeout=10.0, provider=PROVIDER_ID
+        endpoint,
+        params=query_params,
+        timeout=10.0,
+        provider=PROVIDER_ID,
     )
     # If the response is a dict containing the list, extract it. The v6 API usually returns a list or a list inside an object.
     data = response.json()
@@ -185,7 +191,7 @@ async def handle_get_timetable(
                     "planned": planned_time,
                     "actual": actual_time,
                     "tripId": trip,
-                }
+                },
             )
 
         return [types.TextContent(type="text", text=to_json_text(summary))]
@@ -198,8 +204,8 @@ TOOLS.append(
     types.Tool(
         name="db-get-timetable",
         description="Get live departures or arrivals for a specific station EVA ID.",
-        inputSchema=DBTimetableParams.model_json_schema(),
-    )
+        input_schema=DBTimetableParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["db-get-timetable"] = handle_get_timetable
 
@@ -208,7 +214,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "de-db", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "de-db",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

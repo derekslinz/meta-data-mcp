@@ -12,9 +12,9 @@ import pytest
 from meta_data_mcp.providers.eu_euvd import (
     EuvdSearchVulnerabilitiesParams,
     fetch_euvd_search_vulnerabilities,
-    handle_euvd_latest_vulnerabilities,
-    handle_euvd_exploited_vulnerabilities,
     handle_euvd_critical_vulnerabilities,
+    handle_euvd_exploited_vulnerabilities,
+    handle_euvd_latest_vulnerabilities,
     handle_euvd_search_vulnerabilities,
 )
 
@@ -51,7 +51,7 @@ def test_fetch_euvd_search_vulnerabilities_maps_query_params():
                 to_updated_date="2025-12-30",
                 page=2,
                 size=50,
-            )
+            ),
         )
         assert result["items"][0]["id"] == "EUVD-1"
         sent = mock_get.call_args[1]["params"]

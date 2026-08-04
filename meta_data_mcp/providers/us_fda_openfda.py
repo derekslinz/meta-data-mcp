@@ -1,5 +1,4 @@
-"""
-US openFDA Provider
+"""US openFDA Provider
 
 This module provides interfaces to the openFDA API published by the US
 Food and Drug Administration. openFDA exposes harmonized data on drugs,
@@ -28,9 +27,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -47,14 +47,16 @@ BASE_URL = "https://api.fda.gov"
 _MAX_REASON_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
 def _build_query(
-    search: Optional[str], limit: int, skip: Optional[int] = None
+    search: str | None,
+    limit: int,
+    skip: int | None = None,
 ) -> dict[str, Any]:
     """Build the standard openFDA query parameter dict."""
     query_params: dict[str, Any] = {"limit": limit}
@@ -73,7 +75,7 @@ def _build_query(
 class OpenFDADrugEventsParams(BaseModel):
     """Parameters for openFDA drug adverse-event queries."""
 
-    search: Optional[str] = Field(
+    search: str | None = Field(
         None,
         description="openFDA search query (Lucene-style, e.g. 'patient.drug.medicinalproduct:aspirin')",
     )
@@ -85,7 +87,9 @@ def fetch_drug_events(params: OpenFDADrugEventsParams) -> Any:
     """Fetch drug adverse-event reports from openFDA."""
     query_params = _build_query(params.search, params.limit, params.skip)
     response = http_get(
-        f"{BASE_URL}/drug/event.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/drug/event.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -107,8 +111,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-drug-events",
         description="Query openFDA drug adverse-event reports (FAERS).",
-        inputSchema=OpenFDADrugEventsParams.model_json_schema(),
-    )
+        input_schema=OpenFDADrugEventsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-drug-events"] = handle_drug_events
 
@@ -121,8 +125,9 @@ TOOLS_HANDLERS["openfda-drug-events"] = handle_drug_events
 class OpenFDADrugLabelsParams(BaseModel):
     """Parameters for openFDA drug labeling queries."""
 
-    search: Optional[str] = Field(
-        None, description="openFDA search query (e.g. 'openfda.brand_name:tylenol')"
+    search: str | None = Field(
+        None,
+        description="openFDA search query (e.g. 'openfda.brand_name:tylenol')",
     )
     limit: int = Field(default=10, description="Number of results to return (max 100)")
 
@@ -131,7 +136,9 @@ def fetch_drug_labels(params: OpenFDADrugLabelsParams) -> Any:
     """Fetch structured drug labeling from openFDA."""
     query_params = _build_query(params.search, params.limit)
     response = http_get(
-        f"{BASE_URL}/drug/label.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/drug/label.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -153,8 +160,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-drug-labels",
         description="Query openFDA structured drug labeling.",
-        inputSchema=OpenFDADrugLabelsParams.model_json_schema(),
-    )
+        input_schema=OpenFDADrugLabelsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-drug-labels"] = handle_drug_labels
 
@@ -167,8 +174,9 @@ TOOLS_HANDLERS["openfda-drug-labels"] = handle_drug_labels
 class OpenFDADrugEnforcementParams(BaseModel):
     """Parameters for openFDA drug enforcement (recall) queries."""
 
-    search: Optional[str] = Field(
-        None, description="openFDA search query (e.g. 'classification:Class I')"
+    search: str | None = Field(
+        None,
+        description="openFDA search query (e.g. 'classification:Class I')",
     )
     limit: int = Field(default=10, description="Number of results to return (max 100)")
 
@@ -177,7 +185,9 @@ def fetch_drug_enforcement(params: OpenFDADrugEnforcementParams) -> Any:
     """Fetch drug enforcement (recall) records from openFDA."""
     query_params = _build_query(params.search, params.limit)
     response = http_get(
-        f"{BASE_URL}/drug/enforcement.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/drug/enforcement.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -220,7 +230,7 @@ def _openfda_drug_enforcement_to_shape_payload(data: dict) -> dict:
                 "report_date": rec.get("report_date"),
                 "termination_date": rec.get("termination_date"),
                 "reason_for_recall": reason,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -270,7 +280,7 @@ def _openfda_drug_enforcement_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Recall reason (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["classification", "status", "country"],
     }
@@ -302,9 +312,9 @@ TOOLS.append(
     types.Tool(
         name="openfda-drug-enforcement",
         description="Query openFDA drug enforcement (recall) records.",
-        inputSchema=OpenFDADrugEnforcementParams.model_json_schema(),
+        input_schema=OpenFDADrugEnforcementParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["openfda-drug-enforcement"] = handle_drug_enforcement
 
@@ -317,8 +327,9 @@ TOOLS_HANDLERS["openfda-drug-enforcement"] = handle_drug_enforcement
 class OpenFDADeviceEventsParams(BaseModel):
     """Parameters for openFDA device adverse-event queries."""
 
-    search: Optional[str] = Field(
-        None, description="openFDA search query (e.g. 'device.brand_name:pacemaker')"
+    search: str | None = Field(
+        None,
+        description="openFDA search query (e.g. 'device.brand_name:pacemaker')",
     )
     limit: int = Field(default=10, description="Number of results to return (max 100)")
 
@@ -327,7 +338,9 @@ def fetch_device_events(params: OpenFDADeviceEventsParams) -> Any:
     """Fetch device adverse-event (MAUDE) reports from openFDA."""
     query_params = _build_query(params.search, params.limit)
     response = http_get(
-        f"{BASE_URL}/device/event.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/device/event.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -349,8 +362,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-device-events",
         description="Query openFDA medical-device adverse event reports (MAUDE).",
-        inputSchema=OpenFDADeviceEventsParams.model_json_schema(),
-    )
+        input_schema=OpenFDADeviceEventsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-device-events"] = handle_device_events
 
@@ -363,8 +376,9 @@ TOOLS_HANDLERS["openfda-device-events"] = handle_device_events
 class OpenFDADeviceRecallsParams(BaseModel):
     """Parameters for openFDA device recall queries."""
 
-    search: Optional[str] = Field(
-        None, description="openFDA search query (e.g. 'classification:Class I')"
+    search: str | None = Field(
+        None,
+        description="openFDA search query (e.g. 'classification:Class I')",
     )
     limit: int = Field(default=10, description="Number of results to return (max 100)")
 
@@ -373,7 +387,9 @@ def fetch_device_recalls(params: OpenFDADeviceRecallsParams) -> Any:
     """Fetch device recall records from openFDA."""
     query_params = _build_query(params.search, params.limit)
     response = http_get(
-        f"{BASE_URL}/device/recall.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/device/recall.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -395,8 +411,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-device-recalls",
         description="Query openFDA medical-device recall records.",
-        inputSchema=OpenFDADeviceRecallsParams.model_json_schema(),
-    )
+        input_schema=OpenFDADeviceRecallsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-device-recalls"] = handle_device_recalls
 
@@ -409,8 +425,9 @@ TOOLS_HANDLERS["openfda-device-recalls"] = handle_device_recalls
 class OpenFDADevice510kParams(BaseModel):
     """Parameters for openFDA device 510(k) clearance queries."""
 
-    search: Optional[str] = Field(
-        None, description="openFDA search query (e.g. 'applicant:Medtronic')"
+    search: str | None = Field(
+        None,
+        description="openFDA search query (e.g. 'applicant:Medtronic')",
     )
     limit: int = Field(default=10, description="Number of results to return (max 100)")
 
@@ -419,7 +436,9 @@ def fetch_device_510k(params: OpenFDADevice510kParams) -> Any:
     """Fetch 510(k) device clearance records from openFDA."""
     query_params = _build_query(params.search, params.limit)
     response = http_get(
-        f"{BASE_URL}/device/510k.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/device/510k.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -441,8 +460,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-device-510k",
         description="Query openFDA 510(k) medical-device clearance records.",
-        inputSchema=OpenFDADevice510kParams.model_json_schema(),
-    )
+        input_schema=OpenFDADevice510kParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-device-510k"] = handle_device_510k
 
@@ -455,8 +474,9 @@ TOOLS_HANDLERS["openfda-device-510k"] = handle_device_510k
 class OpenFDAFoodEnforcementParams(BaseModel):
     """Parameters for openFDA food enforcement (recall) queries."""
 
-    search: Optional[str] = Field(
-        None, description="openFDA search query (e.g. 'reason_for_recall:salmonella')"
+    search: str | None = Field(
+        None,
+        description="openFDA search query (e.g. 'reason_for_recall:salmonella')",
     )
     limit: int = Field(default=10, description="Number of results to return (max 100)")
 
@@ -465,7 +485,9 @@ def fetch_food_enforcement(params: OpenFDAFoodEnforcementParams) -> Any:
     """Fetch food enforcement (recall) records from openFDA."""
     query_params = _build_query(params.search, params.limit)
     response = http_get(
-        f"{BASE_URL}/food/enforcement.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/food/enforcement.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -487,8 +509,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-food-enforcement",
         description="Query openFDA food enforcement (recall) records.",
-        inputSchema=OpenFDAFoodEnforcementParams.model_json_schema(),
-    )
+        input_schema=OpenFDAFoodEnforcementParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-food-enforcement"] = handle_food_enforcement
 
@@ -501,7 +523,7 @@ TOOLS_HANDLERS["openfda-food-enforcement"] = handle_food_enforcement
 class OpenFDAAnimalVeterinaryEventsParams(BaseModel):
     """Parameters for openFDA animal & veterinary adverse-event queries."""
 
-    search: Optional[str] = Field(
+    search: str | None = Field(
         None,
         description="openFDA search query (e.g. 'animal.species:dog')",
     )
@@ -538,8 +560,8 @@ TOOLS.append(
     types.Tool(
         name="openfda-animalandveterinary-events",
         description="Query openFDA animal & veterinary adverse event reports.",
-        inputSchema=OpenFDAAnimalVeterinaryEventsParams.model_json_schema(),
-    )
+        input_schema=OpenFDAAnimalVeterinaryEventsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openfda-animalandveterinary-events"] = handle_animal_veterinary_events
 
@@ -548,7 +570,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-fda-openfda", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-fda-openfda",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

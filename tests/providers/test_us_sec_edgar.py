@@ -1,21 +1,21 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_sec_edgar import (
     TOOLS,
     TOOLS_HANDLERS,
     _edgar_company_concept_to_shape_payload,
-    handle_edgar_get_company_submissions,
+    _pad_cik,
     handle_edgar_get_company_concept,
     handle_edgar_get_company_facts,
+    handle_edgar_get_company_submissions,
     handle_edgar_get_frames,
     handle_edgar_list_tickers,
-    handle_edgar_search_by_ticker,
     handle_edgar_search_by_name,
-    _pad_cik,
+    handle_edgar_search_by_ticker,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -68,13 +68,13 @@ async def test_edgar_get_company_concept_success():
                 "USD": [
                     {"end": "2022-09-24", "val": 394328000000, "fy": 2022},
                     {"end": "2023-09-30", "val": 383285000000, "fy": 2023},
-                ]
+                ],
             },
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_edgar_get_company_concept(
-            {"cik": "320193", "concept": "Revenues"}
+            {"cik": "320193", "concept": "Revenues"},
         )
         assert "Revenues" in result[0].text
         assert "points" in result[0].text
@@ -94,7 +94,7 @@ def test_edgar_concept_adapter_flattens_units_to_points():
             "USD": [
                 {"end": "2022-09-24", "val": 394328000000},
                 {"end": "2023-09-30", "val": 383285000000},
-            ]
+            ],
         },
     }
     payload = _edgar_company_concept_to_shape_payload(raw)
@@ -129,8 +129,8 @@ def test_edgar_concept_adapter_skips_non_numeric():
                 {"end": "2023-09-30", "val": None},
                 {"end": "2024-09-30", "val": "bad"},
                 {"end": "2025-09-30", "val": 1.0},
-            ]
-        }
+            ],
+        },
     }
     payload = _edgar_company_concept_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -153,7 +153,7 @@ async def test_edgar_get_company_concept_returns_shape_payload():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_edgar_get_company_concept(
-            {"cik": "320193", "concept": "Revenues"}
+            {"cik": "320193", "concept": "Revenues"},
         )
         body = json.loads(result[0].text)
         assert body["points"][0] == {
@@ -186,7 +186,7 @@ async def test_edgar_get_frames_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_edgar_get_frames(
-            {"concept": "Revenues", "year": 2023, "quarter": 1}
+            {"concept": "Revenues", "year": 2023, "quarter": 1},
         )
         assert "Revenues" in result[0].text
 
@@ -195,7 +195,7 @@ async def test_edgar_get_frames_success():
 async def test_edgar_list_tickers_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}
+            "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -221,7 +221,7 @@ async def test_edgar_search_by_ticker_success():
 async def test_edgar_search_by_ticker_not_found():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}
+            "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},
         }
         mock_get.return_value.raise_for_status = Mock()
 

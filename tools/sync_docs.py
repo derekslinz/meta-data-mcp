@@ -108,14 +108,13 @@ def main() -> int:
 
     if all_changes:
         print(
-            f"sync_docs: patched {len(all_changes)} value(s) (providers={count}, version={version})"
+            f"sync_docs: patched {len(all_changes)} value(s) (providers={count}, version={version})",
         )
         for change in all_changes:
             print(f"  {change}")
         return 1  # signal pre-commit to re-stage the modified files
-    else:
-        print(f"sync_docs: all docs consistent (providers={count}, version={version})")
-        return 0
+    print(f"sync_docs: all docs consistent (providers={count}, version={version})")
+    return 0
 
 
 if __name__ == "__main__":

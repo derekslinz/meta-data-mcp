@@ -1,5 +1,4 @@
-"""
-Eurostat Data API Client
+"""Eurostat Data API Client
 
 This module provides interfaces to access the Eurostat Statistics API and Catalogue API.
 It allows querying various European statistical datasets, including economic,
@@ -17,9 +16,10 @@ Usage:
 
 import logging
 import xml.etree.ElementTree as ET
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -40,9 +40,9 @@ METADATA_URL = f"{BASE_URL}/statistics/1.0/metadata/dataset"
 NAMESPACES = {"nt": "urn:eu.europa.ec.eurostat.navtree"}
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -53,8 +53,9 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class EurostatListDatasetsParams(BaseModel):
     """Parameters for listing or searching Eurostat datasets."""
 
-    search: Optional[str] = Field(
-        None, description="Keyword to search in dataset titles or codes"
+    search: str | None = Field(
+        None,
+        description="Keyword to search in dataset titles or codes",
     )
     limit: int = Field(default=20, description="Maximum number of datasets to return")
 
@@ -65,13 +66,13 @@ class EurostatDatasetInfo(BaseModel):
     code: str = Field(..., description="The unique code of the dataset")
     title: str = Field(..., description="The title of the dataset")
     type: str = Field(..., description="Type of the node (table, dataset, etc.)")
-    last_update: Optional[str] = Field(None, description="Last update of the metadata")
-    last_data_update: Optional[str] = Field(None, description="Last update of the data")
+    last_update: str | None = Field(None, description="Last update of the metadata")
+    last_data_update: str | None = Field(None, description="Last update of the data")
 
 
 def list_eurostat_datasets(
     params: EurostatListDatasetsParams,
-) -> List[EurostatDatasetInfo]:
+) -> list[EurostatDatasetInfo]:
     """Search or list available Eurostat datasets from the TOC XML."""
     # TOC is XML — override the kernel's default Accept: application/json
     # so eurostat doesn't refuse content negotiation.
@@ -113,7 +114,7 @@ def list_eurostat_datasets(
                 type=node_type,
                 last_update=last_update,
                 last_data_update=last_data_update,
-            )
+            ),
         )
 
         if len(datasets) >= params.limit:
@@ -131,8 +132,9 @@ async def handle_eurostat_list_datasets(
         datasets = list_eurostat_datasets(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text([d.model_dump() for d in datasets])
-            )
+                type="text",
+                text=to_json_text([d.model_dump() for d in datasets]),
+            ),
         ]
     except Exception as e:
         log.error(f"Error listing Eurostat datasets: {e}")
@@ -143,8 +145,8 @@ TOOLS.append(
     types.Tool(
         name="eurostat-list-datasets",
         description="Search or list available Eurostat datasets from the Table of Contents.",
-        inputSchema=EurostatListDatasetsParams.model_json_schema(),
-    )
+        input_schema=EurostatListDatasetsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["eurostat-list-datasets"] = handle_eurostat_list_datasets
 
@@ -157,10 +159,12 @@ class EurostatDataParams(BaseModel):
     """Parameters for fetching data from a Eurostat dataset."""
 
     dataset_code: str = Field(
-        ..., description="The code of the dataset (e.g., 'nama_10_gdp')"
+        ...,
+        description="The code of the dataset (e.g., 'nama_10_gdp')",
     )
     lang: str = Field(
-        default="en", description="Language of labels: 'en', 'fr', or 'de'"
+        default="en",
+        description="Language of labels: 'en', 'fr', or 'de'",
     )
 
 
@@ -170,7 +174,10 @@ def fetch_eurostat_data(params: EurostatDataParams) -> dict:
     query_params = {"format": "JSON", "lang": params.lang}
 
     response = http_get(
-        endpoint, params=query_params, timeout=30.0, provider=PROVIDER_ID
+        endpoint,
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -319,9 +326,9 @@ TOOLS.append(
     types.Tool(
         name="eurostat-get-dataset",
         description="Fetch data from a specific Eurostat dataset (JSON-stat).",
-        inputSchema=EurostatDataParams.model_json_schema(),
+        input_schema=EurostatDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["eurostat-get-dataset"] = handle_eurostat_get_dataset
 
@@ -334,7 +341,8 @@ class EurostatMetadataParams(BaseModel):
     """Parameters for fetching metadata for a Eurostat dataset."""
 
     dataset_code: str = Field(
-        ..., description="The code of the dataset (e.g., 'nama_10_gdp')"
+        ...,
+        description="The code of the dataset (e.g., 'nama_10_gdp')",
     )
     lang: str = Field(default="en", description="Language: 'en', 'fr', or 'de'")
 
@@ -350,7 +358,10 @@ def fetch_eurostat_metadata(params: EurostatMetadataParams) -> dict:
     query_params = {"format": "JSON", "lang": params.lang}
 
     response = http_get(
-        endpoint, params=query_params, timeout=30.0, provider=PROVIDER_ID
+        endpoint,
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     data = response.json()
     # Return only structural metadata, not the full data values
@@ -384,8 +395,8 @@ TOOLS.append(
     types.Tool(
         name="eurostat-get-metadata",
         description="Fetch metadata (dimensions, labels) for a specific Eurostat dataset.",
-        inputSchema=EurostatMetadataParams.model_json_schema(),
-    )
+        input_schema=EurostatMetadataParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["eurostat-get-metadata"] = handle_eurostat_get_metadata
 
@@ -394,7 +405,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "eu-eurostat", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "eu-eurostat",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

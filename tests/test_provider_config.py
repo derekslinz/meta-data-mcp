@@ -30,7 +30,8 @@ def test_auth_headers_empty_when_env_var_unset(monkeypatch):
     """If the configured env var is not set, return ``{}``."""
     monkeypatch.delenv("MY_PROVIDER_TOKEN", raising=False)
     cfg = ProviderConfig(
-        base_url="https://example.test/api", auth_env_var="MY_PROVIDER_TOKEN"
+        base_url="https://example.test/api",
+        auth_env_var="MY_PROVIDER_TOKEN",
     )
     assert cfg.auth_headers() == {}
 
@@ -39,7 +40,8 @@ def test_auth_headers_present_when_env_var_set(monkeypatch):
     """When the env var is set, return a ``Token``-style Authorization header."""
     monkeypatch.setenv("MY_PROVIDER_TOKEN", "secret-xyz")
     cfg = ProviderConfig(
-        base_url="https://example.test/api", auth_env_var="MY_PROVIDER_TOKEN"
+        base_url="https://example.test/api",
+        auth_env_var="MY_PROVIDER_TOKEN",
     )
     assert cfg.auth_headers() == {"Authorization": "Token secret-xyz"}
 
@@ -48,7 +50,8 @@ def test_auth_headers_empty_when_env_var_set_to_empty_string(monkeypatch):
     """An empty-string env var is treated the same as unset — return ``{}``."""
     monkeypatch.setenv("MY_PROVIDER_TOKEN", "")
     cfg = ProviderConfig(
-        base_url="https://example.test/api", auth_env_var="MY_PROVIDER_TOKEN"
+        base_url="https://example.test/api",
+        auth_env_var="MY_PROVIDER_TOKEN",
     )
     assert cfg.auth_headers() == {}
 

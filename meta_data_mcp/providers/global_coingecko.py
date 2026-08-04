@@ -1,5 +1,4 @@
-"""
-CoinGecko Cryptocurrency Data Provider (free public tier)
+"""CoinGecko Cryptocurrency Data Provider (free public tier)
 
 This module exposes CoinGecko's public REST endpoints for cryptocurrency
 market data. The free, key-less tier is rate-limited to roughly 30 calls
@@ -26,10 +25,11 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from datetime import UTC, datetime
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -43,9 +43,9 @@ PROVIDER_ID = "global-coingecko"
 BASE_URL = "https://api.coingecko.com/api/v3"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -66,10 +66,12 @@ class CoinGeckoSimplePriceParams(BaseModel):
         description="Comma-separated quote currencies (e.g. 'usd,eur').",
     )
     include_market_cap: bool = Field(
-        default=True, description="Include market cap data in the response."
+        default=True,
+        description="Include market cap data in the response.",
     )
     include_24hr_change: bool = Field(
-        default=True, description="Include 24-hour price change data."
+        default=True,
+        description="Include 24-hour price change data.",
     )
 
 
@@ -82,7 +84,9 @@ def fetch_coingecko_simple_price(params: CoinGeckoSimplePriceParams) -> dict:
         "include_24hr_change": str(params.include_24hr_change).lower(),
     }
     response = http_get(
-        f"{BASE_URL}/simple/price", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/simple/price",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -106,8 +110,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-simple-price",
         description="Get simple spot prices for one or more coins versus one or more fiat currencies.",
-        inputSchema=CoinGeckoSimplePriceParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoSimplePriceParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-simple-price"] = handle_coingecko_simple_price
 
@@ -132,7 +136,9 @@ def fetch_coingecko_list_coins(params: CoinGeckoListCoinsParams) -> list:
         "include_platform": str(params.include_platform).lower(),
     }
     response = http_get(
-        f"{BASE_URL}/coins/list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/coins/list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -154,8 +160,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-list-coins",
         description="List every coin known to CoinGecko (id, symbol, name).",
-        inputSchema=CoinGeckoListCoinsParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoListCoinsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-list-coins"] = handle_coingecko_list_coins
 
@@ -172,7 +178,7 @@ class CoinGeckoCoinsMarketsParams(BaseModel):
         default="usd",
         description="Quote currency (single ISO 4217 fiat code, e.g. 'usd').",
     )
-    ids: Optional[str] = Field(
+    ids: str | None = Field(
         default=None,
         description="Optional comma-separated CoinGecko coin IDs to filter to.",
     )
@@ -181,7 +187,10 @@ class CoinGeckoCoinsMarketsParams(BaseModel):
         description="Sort order (e.g. market_cap_desc, volume_desc, id_asc).",
     )
     per_page: int = Field(
-        default=100, ge=1, le=250, description="Results per page (1-250)."
+        default=100,
+        ge=1,
+        le=250,
+        description="Results per page (1-250).",
     )
     page: int = Field(default=1, ge=1, description="Page number (1-indexed).")
 
@@ -197,7 +206,9 @@ def fetch_coingecko_coins_markets(params: CoinGeckoCoinsMarketsParams) -> list:
     if params.ids:
         query_params["ids"] = params.ids
     response = http_get(
-        f"{BASE_URL}/coins/markets", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/coins/markets",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -219,8 +230,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-coins-markets",
         description="Get top coins by market cap (or a filtered list) with price, volume, and cap data.",
-        inputSchema=CoinGeckoCoinsMarketsParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoCoinsMarketsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-coins-markets"] = handle_coingecko_coins_markets
 
@@ -246,7 +257,9 @@ def fetch_coingecko_get_coin(params: CoinGeckoGetCoinParams) -> dict:
         "developer_data": "false",
     }
     response = http_get(
-        f"{BASE_URL}/coins/{params.id}", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/coins/{params.id}",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -270,8 +283,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-get-coin",
         description="Get detailed metadata and market data for a single coin by CoinGecko ID.",
-        inputSchema=CoinGeckoGetCoinParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoGetCoinParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-get-coin"] = handle_coingecko_get_coin
 
@@ -322,8 +335,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-coin-history",
         description="Get a historical snapshot for a coin on a specific date (DD-MM-YYYY).",
-        inputSchema=CoinGeckoCoinHistoryParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoCoinHistoryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-coin-history"] = handle_coingecko_coin_history
 
@@ -389,7 +402,7 @@ def _coingecko_market_chart_to_shape_payload(data: dict, vs_currency: str = "") 
                 continue
             try:
                 date = (
-                    datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
+                    datetime.fromtimestamp(ts_ms / 1000, tz=UTC)
                     .isoformat()
                     .replace("+00:00", "Z")
                 )
@@ -419,7 +432,8 @@ async def handle_coingecko_coin_market_chart(
         params = CoinGeckoCoinMarketChartParams(**arguments)
         data = fetch_coingecko_coin_market_chart(params)
         payload = _coingecko_market_chart_to_shape_payload(
-            data, vs_currency=params.vs_currency
+            data,
+            vs_currency=params.vs_currency,
         )
         return [types.TextContent(type="text", text=serialize_for_llm(payload))]
     except Exception as e:
@@ -431,9 +445,9 @@ TOOLS.append(
     types.Tool(
         name="coingecko-coin-market-chart",
         description="Get historical price/market-cap/volume series for a coin over N days.",
-        inputSchema=CoinGeckoCoinMarketChartParams.model_json_schema(),
+        input_schema=CoinGeckoCoinMarketChartParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["coingecko-coin-market-chart"] = handle_coingecko_coin_market_chart
 
@@ -470,8 +484,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-search-trending",
         description="Get the current trending searches on CoinGecko.",
-        inputSchema=CoinGeckoSearchTrendingParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoSearchTrendingParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-search-trending"] = handle_coingecko_search_trending
 
@@ -508,8 +522,8 @@ TOOLS.append(
     types.Tool(
         name="coingecko-global",
         description="Get the global cryptocurrency market summary (total market cap, dominance, etc.).",
-        inputSchema=CoinGeckoGlobalParams.model_json_schema(),
-    )
+        input_schema=CoinGeckoGlobalParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["coingecko-global"] = handle_coingecko_global
 
@@ -518,7 +532,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-coingecko", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-coingecko",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

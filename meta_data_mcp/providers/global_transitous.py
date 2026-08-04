@@ -1,5 +1,4 @@
-"""
-Transitous Data Provider — door-to-door public transit routing, worldwide.
+"""Transitous Data Provider — door-to-door public transit routing, worldwide.
 
 Transitous (https://transitous.org) is a community-run MOTIS routing
 service built on open GTFS feeds from hundreds of transit agencies.
@@ -20,9 +19,10 @@ swamp an LLM context; those are dropped, times and structure are kept.
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.utils import http_get, to_json_text
@@ -34,9 +34,9 @@ PROVIDER_ID = "global-transitous"
 BASE_URL = "https://api.transitous.org"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -56,7 +56,8 @@ class TransitousGeocodeParams(BaseModel):
 
     text: str = Field(..., description="Place, station, or address to search for")
     language: str | None = Field(
-        None, description="Preferred language for results (e.g. 'en', 'nl', 'de')"
+        None,
+        description="Preferred language for results (e.g. 'en', 'nl', 'de')",
     )
     limit: int = Field(default=8, ge=1, le=20, description="Maximum matches to return")
 
@@ -82,7 +83,7 @@ def _compact_match(raw: dict) -> dict:
     }
 
 
-def geocode(params: TransitousGeocodeParams) -> List[dict]:
+def geocode(params: TransitousGeocodeParams) -> list[dict]:
     """Resolve a place name to stop ids and coordinates."""
     query: dict[str, Any] = {"text": params.text}
     if params.language:
@@ -123,8 +124,8 @@ TOOLS.append(
             "coordinates (worldwide). Use the returned id or 'lat,lon' with "
             "transitous-plan and transitous-departures."
         ),
-        inputSchema=TransitousGeocodeParams.model_json_schema(),
-    )
+        input_schema=TransitousGeocodeParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["transitous-geocode"] = handle_transitous_geocode
 
@@ -159,7 +160,10 @@ class TransitousPlanParams(BaseModel):
         description="Treat 'time' as the latest arrival instead of departure",
     )
     max_itineraries: int = Field(
-        default=4, ge=1, le=10, description="Maximum itineraries to return"
+        default=4,
+        ge=1,
+        le=10,
+        description="Maximum itineraries to return",
     )
 
 
@@ -252,8 +256,8 @@ TOOLS.append(
             "Origins/destinations as 'lat,lon' or stop ids from "
             "transitous-geocode."
         ),
-        inputSchema=TransitousPlanParams.model_json_schema(),
-    )
+        input_schema=TransitousPlanParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["transitous-plan"] = handle_transitous_plan
 
@@ -266,15 +270,19 @@ class TransitousDeparturesParams(BaseModel):
     """Parameters for upcoming departures at one stop."""
 
     stop_id: str = Field(
-        ..., description="Stop id from transitous-geocode (e.g. 'nl-OpenOV_...')"
+        ...,
+        description="Stop id from transitous-geocode (e.g. 'nl-OpenOV_...')",
     )
     time: str | None = Field(None, description="ISO 8601 start time; defaults to now")
     limit: int = Field(
-        default=10, ge=1, le=30, description="Maximum departures to return"
+        default=10,
+        ge=1,
+        le=30,
+        description="Maximum departures to return",
     )
 
 
-def get_departures(params: TransitousDeparturesParams) -> List[dict]:
+def get_departures(params: TransitousDeparturesParams) -> list[dict]:
     """Fetch upcoming departures at a stop."""
     query: dict[str, Any] = {"stopId": params.stop_id, "n": params.limit}
     if params.time:
@@ -331,8 +339,8 @@ TOOLS.append(
             "from transitous-geocode) — line, destination, scheduled vs "
             "real-time departure, track."
         ),
-        inputSchema=TransitousDeparturesParams.model_json_schema(),
-    )
+        input_schema=TransitousDeparturesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["transitous-departures"] = handle_transitous_departures
 
@@ -341,7 +349,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-transitous", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-transitous",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

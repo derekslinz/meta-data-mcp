@@ -1,9 +1,11 @@
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.us_noaa_awc import (
     handle_awc_metar,
-    handle_awc_taf,
     handle_awc_station,
+    handle_awc_taf,
 )
 
 
@@ -16,7 +18,7 @@ def anyio_backend():
 async def test_awc_metar_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"icaoId": "KJFK", "rawOb": "KJFK 111851Z ..."}
+            {"icaoId": "KJFK", "rawOb": "KJFK 111851Z ..."},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -29,7 +31,7 @@ async def test_awc_metar_success():
 async def test_awc_taf_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"icaoId": "KJFK", "rawTaf": "KJFK 111720Z ..."}
+            {"icaoId": "KJFK", "rawTaf": "KJFK 111720Z ..."},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -42,7 +44,7 @@ async def test_awc_taf_success():
 async def test_awc_station_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"icaoId": "KJFK", "name": "NEW YORK/JOHN F KENNEDY INTL"}
+            {"icaoId": "KJFK", "name": "NEW YORK/JOHN F KENNEDY INTL"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 

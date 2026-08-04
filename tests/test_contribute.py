@@ -57,7 +57,11 @@ def test_result_to_dict_omits_none():
 
 def _git(cwd, *args):
     return _sp.run(
-        ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
     )
 
 
@@ -92,7 +96,10 @@ def test_build_contribution_branch_isolates_working_tree(tmp_path):
         p.write_text(body)
 
     branch = contribute.build_contribution_branch(
-        "acme", [spec, prov, test], repo_root=work, base="origin/main"
+        "acme",
+        [spec, prov, test],
+        repo_root=work,
+        base="origin/main",
     )
     assert branch == "contribute/plugin-acme"
 
@@ -204,7 +211,10 @@ async def test_contribute_plugin_happy_path_opens_pr(monkeypatch, fake_repo):
 
     monkeypatch.setattr(contribute, "_gh", fake_gh)
     res = await contribute.contribute_plugin(
-        "acme", [], repo_root=fake_repo, meta={"description": "d"}
+        "acme",
+        [],
+        repo_root=fake_repo,
+        meta={"description": "d"},
     )
     assert res.status == "opened"
     assert res.pr_url == "https://github.com/derekslinz/meta-data-mcp/pull/42"
@@ -227,7 +237,8 @@ def test_startup_notice_none_when_disabled(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_contribute_plugin_existing_remote_branch_self_heals(
-    monkeypatch, fake_repo
+    monkeypatch,
+    fake_repo,
 ):
     """Branch exists on origin but no open PR: open a PR from it, never re-push."""
     called = {"build": False, "push": False, "create": False}
@@ -259,7 +270,10 @@ async def test_contribute_plugin_existing_remote_branch_self_heals(
     monkeypatch.setattr(contribute, "_gh", fake_gh)
 
     res = await contribute.contribute_plugin(
-        "acme", [], repo_root=fake_repo, meta={"description": "d"}
+        "acme",
+        [],
+        repo_root=fake_repo,
+        meta={"description": "d"},
     )
     assert res.status == "opened"
     assert res.pr_url == "https://github.com/derekslinz/meta-data-mcp/pull/55"
@@ -272,7 +286,7 @@ async def test_contribute_plugin_existing_remote_branch_self_heals(
 
 @pytest.mark.asyncio
 async def test_contribute_plugin_label_failure_still_opens(monkeypatch, fake_repo):
-    """gh pr create succeeds but the best-effort label edit fails: still opened."""
+    """Gh pr create succeeds but the best-effort label edit fails: still opened."""
     monkeypatch.setattr(
         contribute,
         "build_contribution_branch",
@@ -287,13 +301,16 @@ async def test_contribute_plugin_label_failure_still_opens(monkeypatch, fake_rep
             return "https://github.com/derekslinz/meta-data-mcp/pull/77\n"
         if args[0] == "pr" and args[1] == "edit":
             raise contribute.ContributionGitError(
-                "could not add label: 'auto-contributed' not found"
+                "could not add label: 'auto-contributed' not found",
             )
         return ""
 
     monkeypatch.setattr(contribute, "_gh", fake_gh)
     res = await contribute.contribute_plugin(
-        "acme", [], repo_root=fake_repo, meta={"description": "d"}
+        "acme",
+        [],
+        repo_root=fake_repo,
+        meta={"description": "d"},
     )
     assert res.status == "opened"
     assert res.pr_url == "https://github.com/derekslinz/meta-data-mcp/pull/77"

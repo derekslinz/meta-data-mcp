@@ -1,18 +1,18 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.au_data_gov import (
     TOOLS,
     _ckan_package_search_to_shape_payload,
-    handle_au_datagov_search_datasets,
     handle_au_datagov_get_dataset,
-    handle_au_datagov_list_organizations,
     handle_au_datagov_get_organization,
     handle_au_datagov_list_groups,
+    handle_au_datagov_list_organizations,
     handle_au_datagov_list_tags,
+    handle_au_datagov_search_datasets,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -30,7 +30,7 @@ async def test_au_datagov_search_datasets_success():
             "result": {
                 "count": 1,
                 "results": [
-                    {"name": "abs-population", "title": "ABS Population Estimates"}
+                    {"name": "abs-population", "title": "ABS Population Estimates"},
                 ],
             },
         }
@@ -137,9 +137,9 @@ def test_adapter_flattens_ckan_package_search_to_rows():
                     "organization": {"title": "Bureau of Meteorology"},
                     "license_title": "CC-BY 4.0",
                     "resources": [{"format": "csv"}, {"format": "json"}],
-                }
+                },
             ],
-        }
+        },
     }
     payload = _ckan_package_search_to_shape_payload(raw)
     assert payload["rows"][0]["organization"] == "Bureau of Meteorology"
@@ -148,7 +148,7 @@ def test_adapter_flattens_ckan_package_search_to_rows():
 
 def test_adapter_handles_empty_results():
     payload = _ckan_package_search_to_shape_payload(
-        {"result": {"count": 0, "results": []}}
+        {"result": {"count": 0, "results": []}},
     )
     assert payload["rows"] == []
 

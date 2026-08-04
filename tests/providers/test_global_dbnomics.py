@@ -1,12 +1,13 @@
 import json
+from unittest.mock import Mock, patch
 
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.global_dbnomics import (
     TOOLS,
     _dbnomics_series_to_shape_payload,
-    handle_dbnomics_search,
     handle_dbnomics_list_providers,
+    handle_dbnomics_search,
     handle_dbnomics_series,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -21,7 +22,7 @@ def anyio_backend():
 async def test_dbnomics_search_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "datasets": {"docs": [{"code": "WEO"}]}
+            "datasets": {"docs": [{"code": "WEO"}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -34,7 +35,7 @@ async def test_dbnomics_search_success():
 async def test_dbnomics_list_providers_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "providers": {"docs": [{"code": "IMF"}]}
+            "providers": {"docs": [{"code": "IMF"}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -57,9 +58,9 @@ def test_dbnomics_adapter_flattens_docs_to_points():
                     "unit": "Percent",
                     "period": ["2020", "2021", "2022"],
                     "value": [-23.46, 18.41, 5.21],
-                }
-            ]
-        }
+                },
+            ],
+        },
     }
     payload = _dbnomics_series_to_shape_payload(raw)
     assert payload["axes"] == {"x": "Period", "y": "Percent"}
@@ -85,8 +86,8 @@ def test_dbnomics_adapter_multi_series():
                     "period": ["2020", "2021"],
                     "value": [2.0, 3.0],
                 },
-            ]
-        }
+            ],
+        },
     }
     payload = _dbnomics_series_to_shape_payload(raw)
     assert len(payload["points"]) == 3
@@ -109,9 +110,9 @@ def test_dbnomics_adapter_skips_non_numeric():
                     "series_code": "X",
                     "period": ["2020", "2021", "2022"],
                     "value": ["NA", 1.0, True],
-                }
-            ]
-        }
+                },
+            ],
+        },
     }
     payload = _dbnomics_series_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -136,9 +137,9 @@ async def test_dbnomics_series_returns_shape_payload():
                         "unit": "USD",
                         "period": ["2020", "2021"],
                         "value": [100.0, 110.0],
-                    }
-                ]
-            }
+                    },
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 

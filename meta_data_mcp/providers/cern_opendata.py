@@ -1,5 +1,4 @@
-"""
-CERN Open Data Portal Provider
+"""CERN Open Data Portal Provider
 
 This module provides interfaces to the CERN Open Data Portal API, which
 publishes particle physics datasets, software, and documentation from LHC
@@ -24,9 +23,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -43,9 +43,9 @@ BASE_URL = "https://opendata.cern.ch/api"
 _MAX_ABSTRACT_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,7 +57,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class CERNSearchRecordsParams(BaseModel):
     """Parameters for searching CERN Open Data records."""
 
-    q: Optional[str] = Field(None, description="Full-text search query string")
+    q: str | None = Field(None, description="Full-text search query string")
     size: int = Field(default=20, description="Number of results per page")
     page: int = Field(default=1, description="Page number (1-indexed)")
 
@@ -73,7 +73,9 @@ def fetch_search_records(params: CERNSearchRecordsParams) -> dict:
         query_params["q"] = params.q
 
     response = http_get(
-        f"{BASE_URL}/records/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/records/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -129,7 +131,7 @@ def _cern_search_to_shape_payload(data: dict) -> dict:
                 else meta.get("year"),
                 "publication_date": meta.get("publication_date"),
                 "abstract": abstract_text,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -169,7 +171,7 @@ def _cern_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Abstract (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["experiment", "type", "accelerator"],
     }
@@ -199,9 +201,9 @@ TOOLS.append(
     types.Tool(
         name="cern-search-records",
         description="Search the CERN Open Data Portal for datasets, software, and documentation.",
-        inputSchema=CERNSearchRecordsParams.model_json_schema(),
+        input_schema=CERNSearchRecordsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["cern-search-records"] = handle_search_records
 
@@ -242,8 +244,8 @@ TOOLS.append(
     types.Tool(
         name="cern-get-record",
         description="Fetch full metadata for a specific CERN Open Data record by record_id.",
-        inputSchema=CERNGetRecordParams.model_json_schema(),
-    )
+        input_schema=CERNGetRecordParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cern-get-record"] = handle_get_record
 
@@ -263,7 +265,9 @@ def fetch_list_collections(params: CERNListCollectionsParams) -> dict:
     """List CERN Open Data Dataset records."""
     query_params = {"type": "Dataset", "size": params.size}
     response = http_get(
-        f"{BASE_URL}/records/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/records/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -285,8 +289,8 @@ TOOLS.append(
     types.Tool(
         name="cern-list-collections",
         description="List CERN Open Data dataset collections.",
-        inputSchema=CERNListCollectionsParams.model_json_schema(),
-    )
+        input_schema=CERNListCollectionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cern-list-collections"] = handle_list_collections
 
@@ -300,9 +304,10 @@ class CERNSearchByExperimentParams(BaseModel):
     """Parameters for searching CERN Open Data within a single experiment."""
 
     experiment: str = Field(
-        ..., description="Experiment name (e.g. 'CMS', 'ATLAS', 'LHCb', 'ALICE')"
+        ...,
+        description="Experiment name (e.g. 'CMS', 'ATLAS', 'LHCb', 'ALICE')",
     )
-    q: Optional[str] = Field(None, description="Optional full-text search query")
+    q: str | None = Field(None, description="Optional full-text search query")
     size: int = Field(default=20, description="Number of results to return")
 
 
@@ -316,7 +321,9 @@ def fetch_search_by_experiment(params: CERNSearchByExperimentParams) -> dict:
         query_params["q"] = params.q
 
     response = http_get(
-        f"{BASE_URL}/records/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/records/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -340,8 +347,8 @@ TOOLS.append(
     types.Tool(
         name="cern-search-by-experiment",
         description="Search CERN Open Data records scoped to a specific experiment (CMS, ATLAS, LHCb, ALICE).",
-        inputSchema=CERNSearchByExperimentParams.model_json_schema(),
-    )
+        input_schema=CERNSearchByExperimentParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cern-search-by-experiment"] = handle_search_by_experiment
 
@@ -354,7 +361,7 @@ TOOLS_HANDLERS["cern-search-by-experiment"] = handle_search_by_experiment
 class CERNSearchSoftwareParams(BaseModel):
     """Parameters for searching CERN Open Data software releases."""
 
-    q: Optional[str] = Field(None, description="Optional full-text search query")
+    q: str | None = Field(None, description="Optional full-text search query")
     size: int = Field(default=20, description="Number of results to return")
 
 
@@ -365,7 +372,9 @@ def fetch_search_software(params: CERNSearchSoftwareParams) -> dict:
         query_params["q"] = params.q
 
     response = http_get(
-        f"{BASE_URL}/records/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/records/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -387,8 +396,8 @@ TOOLS.append(
     types.Tool(
         name="cern-search-software",
         description="Search CERN Open Data software releases (analysis frameworks, VMs).",
-        inputSchema=CERNSearchSoftwareParams.model_json_schema(),
-    )
+        input_schema=CERNSearchSoftwareParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["cern-search-software"] = handle_search_software
 
@@ -397,7 +406,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "cern-opendata", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "cern-opendata",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

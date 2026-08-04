@@ -21,13 +21,14 @@ modules directly.
 
 from __future__ import annotations
 
+import time  # noqa: F401
+
 # Module references retained for back-compat: tests and provider tests
 # patch ``utils.time.monotonic`` and ``utils.httpx.get`` to control the
 # transport from the outside. Both modules are singletons, so patching
 # through ``utils`` mutates the same object ``transport`` uses; the
 # re-export only needs to keep the name reachable.
 import httpx  # noqa: F401
-import time  # noqa: F401
 
 from meta_data_mcp.serialize import (
     MAX_RESPONSE_CHARS,

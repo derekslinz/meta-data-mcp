@@ -39,7 +39,7 @@ def mock_query_response():
         "vulns": [
             {"id": "GHSA-jfh8-c2jp-5v3q", "summary": "Apache Log4j RCE"},
             {"id": "GHSA-7rjr-3q55-vv33", "summary": "Log4j 1.x SocketServer"},
-        ]
+        ],
     }
 
 
@@ -65,7 +65,9 @@ def test_fetch_osv_query_package_sends_post_body(mock_query_response):
         mock_post.return_value.status_code = 200
 
         params = OsvQueryPackageParams(
-            name="log4j-core", ecosystem="Maven", version="2.14.1"
+            name="log4j-core",
+            ecosystem="Maven",
+            version="2.14.1",
         )
         result = fetch_osv_query_package(params)
 
@@ -138,7 +140,7 @@ async def test_handle_osv_query_package(mock_query_response):
         mock_post.return_value.status_code = 200
 
         result = await handle_osv_query_package(
-            {"name": "log4j-core", "ecosystem": "Maven"}
+            {"name": "log4j-core", "ecosystem": "Maven"},
         )
         assert "GHSA-jfh8-c2jp-5v3q" in result[0].text
 
@@ -179,7 +181,7 @@ async def test_handle_osv_query_package_translates_503():
         with patch("meta_data_mcp.utils.time.sleep", lambda s: None):
             with pytest.raises(UpstreamError) as exc_info:
                 await handle_osv_query_package(
-                    {"name": "requests", "ecosystem": "PyPI"}
+                    {"name": "requests", "ecosystem": "PyPI"},
                 )
         assert exc_info.value.provider == "global-osv-dev"
 

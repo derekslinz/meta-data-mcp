@@ -147,8 +147,8 @@ def test_activate_provider_unknown_id_returns_error():
 
 
 def test_health_snapshot_covers_all_providers():
-    from meta_data_mcp.sdk import DiscoveryClient
     from meta_data_mcp.registry import iter_registry
+    from meta_data_mcp.sdk import DiscoveryClient
 
     client = DiscoveryClient()
     snapshot = client.health_snapshot()
@@ -166,7 +166,7 @@ def test_health_snapshot_covers_all_providers():
 
 @pytest.mark.anyio
 async def test_module_find_providers():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     results = await sdk.find_providers("earthquake", limit=3)
     assert len(results) > 0
@@ -174,26 +174,26 @@ async def test_module_find_providers():
 
 
 def test_module_find_providers_sync():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     results = sdk.find_providers_sync("earthquake", limit=3)
     assert len(results) > 0
 
 
 def test_module_list_domains():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     assert "health" in sdk.list_domains()
 
 
 def test_module_list_regions():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     assert "global" in sdk.list_regions()
 
 
 def test_module_describe_provider():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     entry = sdk.describe_provider("global_arxiv")
     assert entry is not None
@@ -201,7 +201,7 @@ def test_module_describe_provider():
 
 
 def test_module_health_snapshot():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     snap = sdk.health_snapshot()
     assert "us_usgs_earthquake" in snap
@@ -209,7 +209,7 @@ def test_module_health_snapshot():
 
 
 def test_module_activate_provider():
-    import meta_data_mcp.sdk as sdk
+    from meta_data_mcp import sdk
 
     result = sdk.activate_provider("us_usgs_earthquake")
     assert result["status"] in ("activated", "already_active")

@@ -1,5 +1,4 @@
-"""
-OpenStreetMap Overpass API Provider
+"""OpenStreetMap Overpass API Provider
 
 This module provides interfaces to the Overpass API, a read-only query
 endpoint for OpenStreetMap (OSM) data. Overpass lets you select OSM
@@ -31,9 +30,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.fields import NonEmptyStr
@@ -48,9 +48,9 @@ PROVIDER_ID = "global-overpass"
 BASE_URL = "https://overpass-api.de/api"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -126,8 +126,8 @@ TOOLS.append(
             "Prefix with '[out:json];' for structured JSON output. "
             "Use sparingly: the public endpoint has rate / load limits."
         ),
-        inputSchema=OverpassQueryParams.model_json_schema(),
-    )
+        input_schema=OverpassQueryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["overpass-query"] = handle_query
 
@@ -139,8 +139,6 @@ TOOLS_HANDLERS["overpass-query"] = handle_query
 
 class OverpassStatusParams(BaseModel):
     """Parameters for the Overpass status endpoint."""
-
-    pass
 
 
 def fetch_status(_params: OverpassStatusParams) -> str:
@@ -171,8 +169,8 @@ TOOLS.append(
     types.Tool(
         name="overpass-status",
         description="Get the Overpass API service status (plain text).",
-        inputSchema=OverpassStatusParams.model_json_schema(),
-    )
+        input_schema=OverpassStatusParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["overpass-status"] = handle_status
 
@@ -186,7 +184,8 @@ class OverpassAroundAmenityParams(BaseModel):
     """Parameters for an 'amenity around lat/lon' Overpass helper."""
 
     amenity: NonEmptyStr = Field(
-        ..., description="OSM amenity value, e.g. 'cafe', 'hospital'"
+        ...,
+        description="OSM amenity value, e.g. 'cafe', 'hospital'",
     )
     lat: float = Field(..., ge=-90.0, le=90.0, description="Center latitude")
     lon: float = Field(..., ge=-180.0, le=180.0, description="Center longitude")
@@ -231,8 +230,8 @@ TOOLS.append(
             "Find OSM nodes tagged with a given amenity within a radius (m) "
             "around a lat/lon point."
         ),
-        inputSchema=OverpassAroundAmenityParams.model_json_schema(),
-    )
+        input_schema=OverpassAroundAmenityParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["overpass-around-amenity"] = handle_around_amenity
 
@@ -247,7 +246,8 @@ class OverpassBboxFeatureParams(BaseModel):
 
     key: NonEmptyStr = Field(..., description="OSM tag key (e.g. 'highway', 'amenity')")
     value: NonEmptyStr = Field(
-        ..., description="OSM tag value (e.g. 'primary', 'restaurant')"
+        ...,
+        description="OSM tag value (e.g. 'primary', 'restaurant')",
     )
     s: float = Field(..., ge=-90.0, le=90.0, description="South latitude")
     w: float = Field(..., ge=-180.0, le=180.0, description="West longitude")
@@ -352,12 +352,12 @@ TOOLS.append(
             "Find OSM nodes and ways tagged with a given key=value inside a "
             "bounding box (south, west, north, east)."
         ),
-        inputSchema=OverpassBboxFeatureParams.model_json_schema(),
+        input_schema=OverpassBboxFeatureParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Pass via the alias keyword (`_meta`), not `meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["overpass-bbox-feature"] = handle_bbox_feature
 
@@ -366,7 +366,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-overpass", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-overpass",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

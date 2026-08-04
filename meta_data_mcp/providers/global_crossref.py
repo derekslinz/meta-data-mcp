@@ -1,5 +1,4 @@
-"""
-Crossref Scholarly Metadata Provider
+"""Crossref Scholarly Metadata Provider
 
 This module exposes the Crossref REST API, the canonical source of DOI
 metadata for journal articles, books, datasets, conference proceedings,
@@ -24,10 +23,11 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 from urllib.parse import quote
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
@@ -50,9 +50,9 @@ BASE_URL = "https://api.crossref.org"
 _MAX_ABSTRACT_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -64,24 +64,25 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class CrossrefWorksSearchParams(BaseModel):
     """Parameters for searching Crossref /works."""
 
-    query: Optional[str] = Field(
-        None, description="Free-text search query across all fields."
+    query: str | None = Field(
+        None,
+        description="Free-text search query across all fields.",
     )
     rows: int = Field(default=20, description="Number of results per page (max 1000).")
     offset: int = Field(default=0, description="Offset into the result set.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Comma-separated Crossref filter expression (e.g. 'from-pub-date:2020,type:journal-article').",
     )
-    select: Optional[str] = Field(
+    select: str | None = Field(
         None,
         description="Comma-separated list of fields to return (e.g. 'DOI,title,author').",
     )
-    sort: Optional[str] = Field(
+    sort: str | None = Field(
         None,
         description="Sort field (e.g. 'score', 'published', 'is-referenced-by-count').",
     )
-    order: Optional[str] = Field(None, description="Sort order ('asc' or 'desc').")
+    order: str | None = Field(None, description="Sort order ('asc' or 'desc').")
 
 
 def fetch_crossref_works_search(params: CrossrefWorksSearchParams) -> dict:
@@ -161,7 +162,7 @@ def _crossref_works_to_shape_payload(data: dict) -> dict:
                 "published": published_date,
                 "is_referenced_by_count": work.get("is-referenced-by-count"),
                 "abstract": abstract,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -192,7 +193,7 @@ def _crossref_works_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Abstract (truncated, HTML/JATS)",
                 },
-            ]
+            ],
         },
         "default_facets": ["type", "publisher", "container_title"],
     }
@@ -222,9 +223,9 @@ TOOLS.append(
     types.Tool(
         name="crossref-works-search",
         description="Search Crossref scholarly works with full-text query, filters, sort, and field selection.",
-        inputSchema=CrossrefWorksSearchParams.model_json_schema(),
+        input_schema=CrossrefWorksSearchParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["crossref-works-search"] = handle_crossref_works_search
 
@@ -267,8 +268,8 @@ TOOLS.append(
     types.Tool(
         name="crossref-get-work",
         description="Fetch the full Crossref metadata record for a single DOI.",
-        inputSchema=CrossrefGetWorkParams.model_json_schema(),
-    )
+        input_schema=CrossrefGetWorkParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["crossref-get-work"] = handle_crossref_get_work
 
@@ -283,7 +284,7 @@ class CrossrefWorksByAuthorParams(BaseModel):
 
     author: str = Field(..., description="Author name to search for.")
     rows: int = Field(default=20, description="Number of results per page.")
-    select: Optional[str] = Field(
+    select: str | None = Field(
         None,
         description="Comma-separated list of fields to return (e.g. 'DOI,title,author').",
     )
@@ -302,7 +303,8 @@ def fetch_crossref_works_by_author(params: CrossrefWorksByAuthorParams) -> dict:
 
 
 def _crossref_works_by_author_to_entity_graph_payload(
-    data: dict, query_author: str = ""
+    data: dict,
+    query_author: str = "",
 ) -> dict:
     """Adapt Crossref's ``/works?query.author=...`` response to entity-graph.
 
@@ -325,7 +327,10 @@ def _crossref_works_by_author_to_entity_graph_payload(
     seen: set[str] = set()
 
     def _add_node(
-        node_id: str, label: str, ntype: str, attrs: dict | None = None
+        node_id: str,
+        label: str,
+        ntype: str,
+        attrs: dict | None = None,
     ) -> None:
         if not node_id or node_id in seen:
             return
@@ -336,7 +341,7 @@ def _crossref_works_by_author_to_entity_graph_payload(
                 "label": label or node_id,
                 "type": ntype,
                 "attrs": attrs or {},
-            }
+            },
         )
 
     # Count how many works each author touched so the layout's link
@@ -412,7 +417,7 @@ def _crossref_works_by_author_to_entity_graph_payload(
                     "target": author_id,
                     "label": "authored",
                     "weight": 1,
-                }
+                },
             )
 
     # Promote author edge weights by works-shared count so the force
@@ -449,13 +454,13 @@ TOOLS.append(
     types.Tool(
         name="crossref-works-by-author",
         description="Search Crossref works whose author field matches the given name.",
-        inputSchema=CrossrefWorksByAuthorParams.model_json_schema(),
+        input_schema=CrossrefWorksByAuthorParams.model_json_schema(),
         # MCP Apps binding: co-author overlay via entity-graph. Distinct
         # from ``crossref-works-search`` which renders as the records
         # primitive — different shape, different tool. Use the alias
         # keyword (``_meta=``) — ``meta=`` silently drops into extras.
         _meta={"ui": {"resourceUri": ENTITY_GRAPH_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["crossref-works-by-author"] = handle_crossref_works_by_author
 
@@ -501,8 +506,8 @@ TOOLS.append(
     types.Tool(
         name="crossref-works-by-title",
         description="Search Crossref works whose title field matches the given query.",
-        inputSchema=CrossrefWorksByTitleParams.model_json_schema(),
-    )
+        input_schema=CrossrefWorksByTitleParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["crossref-works-by-title"] = handle_crossref_works_by_title
 
@@ -526,7 +531,9 @@ def fetch_crossref_journals_search(params: CrossrefJournalsSearchParams) -> dict
         "rows": params.rows,
     }
     response = http_get(
-        f"{BASE_URL}/journals", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/journals",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -550,8 +557,8 @@ TOOLS.append(
     types.Tool(
         name="crossref-journals-search",
         description="Search Crossref journals by free-text query.",
-        inputSchema=CrossrefJournalsSearchParams.model_json_schema(),
-    )
+        input_schema=CrossrefJournalsSearchParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["crossref-journals-search"] = handle_crossref_journals_search
 
@@ -592,8 +599,8 @@ TOOLS.append(
     types.Tool(
         name="crossref-get-journal",
         description="Fetch the full Crossref metadata record for a single journal by ISSN.",
-        inputSchema=CrossrefGetJournalParams.model_json_schema(),
-    )
+        input_schema=CrossrefGetJournalParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["crossref-get-journal"] = handle_crossref_get_journal
 
@@ -617,7 +624,9 @@ def fetch_crossref_funders_search(params: CrossrefFundersSearchParams) -> dict:
         "rows": params.rows,
     }
     response = http_get(
-        f"{BASE_URL}/funders", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/funders",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -641,8 +650,8 @@ TOOLS.append(
     types.Tool(
         name="crossref-funders-search",
         description="Search Crossref funders by free-text query.",
-        inputSchema=CrossrefFundersSearchParams.model_json_schema(),
-    )
+        input_schema=CrossrefFundersSearchParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["crossref-funders-search"] = handle_crossref_funders_search
 
@@ -651,7 +660,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-crossref", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-crossref",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

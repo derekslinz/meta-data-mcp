@@ -155,7 +155,7 @@ def test_setup_migrates_legacy_entries(runner, tmp_path):
         '  "opendata-mcp-meta": {},'
         '  "opendata-mcp-all": {},'
         '  "unrelated-server": {}'
-        "}}"
+        "}}",
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Darwin"):
@@ -300,7 +300,7 @@ def test_setup_writes_to_all_detected_clients_in_one_run(runner, tmp_path):
     (tmp_path / ".cursor").mkdir()
     (tmp_path / ".gemini").mkdir()
     (tmp_path / ".gemini" / "settings.json").write_text(
-        '{"general": {"sessionRetention": true}}'
+        '{"general": {"sessionRetention": true}}',
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Linux"):
@@ -386,7 +386,7 @@ def test_setup_skips_corrupt_json_but_continues_with_others(runner, tmp_path):
 def test_clients_command_lists_status(runner, tmp_path):
     """`meta-data-mcp clients` shows installed/configured status for each."""
     (tmp_path / ".claude.json").write_text(
-        '{"mcpServers": {"meta-data-mcp": {"command": "x"}}}'
+        '{"mcpServers": {"meta-data-mcp": {"command": "x"}}}',
     )
     (tmp_path / ".cursor").mkdir()
 
@@ -477,10 +477,10 @@ def test_setup_skips_top_level_non_object_config(runner, tmp_path):
 
 
 def test_remove_does_not_crash_on_non_object_mcpservers(runner, tmp_path):
-    """remove must tolerate string/list mcpServers without raising TypeError."""
+    """Remove must tolerate string/list mcpServers without raising TypeError."""
     # String containing SERVER_KEY substring — `in` would be true but `del` would fail
     (tmp_path / ".claude.json").write_text(
-        '{"mcpServers": "prefix-meta-data-mcp-suffix"}'
+        '{"mcpServers": "prefix-meta-data-mcp-suffix"}',
     )
     # And a list
     (tmp_path / ".cursor").mkdir()
@@ -493,21 +493,21 @@ def test_remove_does_not_crash_on_non_object_mcpservers(runner, tmp_path):
     assert result.exit_code == 0, result.output
     # Neither file was mutated
     assert json.loads((tmp_path / ".claude.json").read_text()) == {
-        "mcpServers": "prefix-meta-data-mcp-suffix"
+        "mcpServers": "prefix-meta-data-mcp-suffix",
     }
     assert json.loads((tmp_path / ".cursor" / "mcp.json").read_text()) == {
-        "mcpServers": ["meta-data-mcp"]
+        "mcpServers": ["meta-data-mcp"],
     }
 
 
 def test_remove_client_flag_targets_only_that_client(runner, tmp_path):
     """`remove --client cursor` strips only from Cursor even if Claude Code also has it."""
     (tmp_path / ".claude.json").write_text(
-        '{"mcpServers": {"meta-data-mcp": {}, "other": {}}}'
+        '{"mcpServers": {"meta-data-mcp": {}, "other": {}}}',
     )
     (tmp_path / ".cursor").mkdir()
     (tmp_path / ".cursor" / "mcp.json").write_text(
-        '{"mcpServers": {"meta-data-mcp": {}}}'
+        '{"mcpServers": {"meta-data-mcp": {}}}',
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Linux"):
@@ -536,18 +536,19 @@ def test_remove_client_unknown_key_errors(runner, tmp_path):
 
 def test_remove_client_all_targets_every_supported_client(runner, tmp_path):
     """`remove --client all` strips meta-data-mcp from every client where it's set,
-    regardless of whether the client is detected as installed."""
+    regardless of whether the client is detected as installed.
+    """
     # Claude Code: has SERVER_KEY
     (tmp_path / ".claude.json").write_text('{"mcpServers": {"meta-data-mcp": {}}}')
     # Cursor: has SERVER_KEY
     (tmp_path / ".cursor").mkdir()
     (tmp_path / ".cursor" / "mcp.json").write_text(
-        '{"mcpServers": {"meta-data-mcp": {}, "keep": {}}}'
+        '{"mcpServers": {"meta-data-mcp": {}, "keep": {}}}',
     )
     # Gemini: does NOT have SERVER_KEY (should be silently skipped)
     (tmp_path / ".gemini").mkdir()
     (tmp_path / ".gemini" / "settings.json").write_text(
-        '{"mcpServers": {"unrelated": {}}}'
+        '{"mcpServers": {"unrelated": {}}}',
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Linux"):
@@ -574,11 +575,11 @@ def test_remove_client_all_targets_every_supported_client(runner, tmp_path):
 def test_remove_multi_client(runner, tmp_path):
     """`remove` strips meta-data-mcp from every detected client."""
     (tmp_path / ".claude.json").write_text(
-        '{"mcpServers": {"meta-data-mcp": {}, "other": {}}}'
+        '{"mcpServers": {"meta-data-mcp": {}, "other": {}}}',
     )
     (tmp_path / ".cursor").mkdir()
     (tmp_path / ".cursor" / "mcp.json").write_text(
-        '{"mcpServers": {"meta-data-mcp": {}}}'
+        '{"mcpServers": {"meta-data-mcp": {}}}',
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Linux"):
@@ -632,7 +633,7 @@ def test_cleanup_dry_run_lists_legacy_entries(runner, tmp_path):
     claude_dir.mkdir(parents=True)
     config_path = claude_dir / "claude_desktop_config.json"
     config_path.write_text(
-        '{"mcpServers": {"opendata-mcp-us-nasa": {}, "opendata-mcp-meta": {}}}'
+        '{"mcpServers": {"opendata-mcp-us-nasa": {}, "opendata-mcp-meta": {}}}',
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Darwin"):
@@ -654,7 +655,7 @@ def test_cleanup_apply_removes_legacy_entries(runner, tmp_path):
     claude_dir.mkdir(parents=True)
     config_path = claude_dir / "claude_desktop_config.json"
     config_path.write_text(
-        '{"mcpServers": {"opendata-mcp-us-nasa": {}, "opendata-mcp-all": {}}}'
+        '{"mcpServers": {"opendata-mcp-us-nasa": {}, "opendata-mcp-all": {}}}',
     )
 
     with patch("meta_data_mcp.cli.platform.system", return_value="Darwin"):

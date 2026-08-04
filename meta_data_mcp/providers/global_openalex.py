@@ -1,5 +1,4 @@
-"""
-OpenAlex Provider
+"""OpenAlex Provider
 
 This module exposes the OpenAlex API, a fully open index of the global
 scholarly research graph: works, authors, institutions, sources
@@ -29,9 +28,10 @@ Usage:
 
 import logging
 import os
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
@@ -45,9 +45,9 @@ PROVIDER_ID = "global-openalex"
 BASE_URL = "https://api.openalex.org"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -72,19 +72,20 @@ def _merge_params(extra: dict[str, Any]) -> dict[str, Any]:
 class OpenAlexSearchWorksParams(BaseModel):
     """Parameters for searching OpenAlex works."""
 
-    search: Optional[str] = Field(
-        None, description="Free-text search query across work fields."
+    search: str | None = Field(
+        None,
+        description="Free-text search query across work fields.",
     )
     per_page: int = Field(default=25, description="Results per page (max 200).")
     page: int = Field(default=1, description="Results page (1-indexed).")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description=(
             "Comma-separated OpenAlex filter expression "
             "(e.g. 'from_publication_date:2024-01-01,type:journal-article')."
         ),
     )
-    sort: Optional[str] = Field(
+    sort: str | None = Field(
         None,
         description=(
             "Sort expression, e.g. 'cited_by_count:desc', 'publication_date:desc'."
@@ -105,7 +106,9 @@ def fetch_openalex_search_works(params: OpenAlexSearchWorksParams) -> dict:
     if params.sort:
         query_params["sort"] = params.sort
     response = http_get(
-        f"{BASE_URL}/works", params=_merge_params(query_params), provider=PROVIDER_ID
+        f"{BASE_URL}/works",
+        params=_merge_params(query_params),
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -130,7 +133,10 @@ def _openalex_works_to_entity_graph_payload(data: dict) -> dict:
     seen_ids: set[str] = set()
 
     def _add_node(
-        node_id: str, label: str, ntype: str, attrs: dict | None = None
+        node_id: str,
+        label: str,
+        ntype: str,
+        attrs: dict | None = None,
     ) -> None:
         if not node_id or node_id in seen_ids:
             return
@@ -141,7 +147,7 @@ def _openalex_works_to_entity_graph_payload(data: dict) -> dict:
                 "label": label or node_id,
                 "type": ntype,
                 "attrs": attrs or {},
-            }
+            },
         )
 
     # Track co-author frequency so edge weights communicate clustering.
@@ -200,7 +206,7 @@ def _openalex_works_to_entity_graph_payload(data: dict) -> dict:
                         "target": author_id,
                         "label": "authored",
                         "weight": 1,
-                    }
+                    },
                 )
 
         concepts = work.get("concepts") or []
@@ -226,7 +232,7 @@ def _openalex_works_to_entity_graph_payload(data: dict) -> dict:
                         "target": concept_id,
                         "label": "about",
                         "weight": max(1.0, float(concept.get("score") or 0.0) * 2.0),
-                    }
+                    },
                 )
 
     # Promote author edge weights by works-shared count so the force
@@ -260,12 +266,12 @@ TOOLS.append(
     types.Tool(
         name="openalex-search-works",
         description="Search OpenAlex works with free text, filters, sort, and paging.",
-        inputSchema=OpenAlexSearchWorksParams.model_json_schema(),
+        input_schema=OpenAlexSearchWorksParams.model_json_schema(),
         # MCP Apps binding: works↔authors↔concepts surface for the
         # entity-graph app. Use the alias keyword (``_meta=``) — ``meta=``
         # silently drops into extras; see tests/test_ui_resource.py.
         _meta={"ui": {"resourceUri": ENTITY_GRAPH_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["openalex-search-works"] = handle_openalex_search_works
 
@@ -290,7 +296,9 @@ class OpenAlexGetWorkParams(BaseModel):
 def fetch_openalex_get_work(params: OpenAlexGetWorkParams) -> dict:
     """Call /works/{id}."""
     response = http_get(
-        f"{BASE_URL}/works/{params.id}", params=_merge_params({}), provider=PROVIDER_ID
+        f"{BASE_URL}/works/{params.id}",
+        params=_merge_params({}),
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -317,8 +325,8 @@ TOOLS.append(
             "Fetch a single OpenAlex work by id (OpenAlex W-id, DOI "
             "prefix, or full URL)."
         ),
-        inputSchema=OpenAlexGetWorkParams.model_json_schema(),
-    )
+        input_schema=OpenAlexGetWorkParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-get-work"] = handle_openalex_get_work
 
@@ -331,10 +339,10 @@ TOOLS_HANDLERS["openalex-get-work"] = handle_openalex_get_work
 class OpenAlexSearchAuthorsParams(BaseModel):
     """Parameters for searching OpenAlex authors."""
 
-    search: Optional[str] = Field(None, description="Free-text search query.")
+    search: str | None = Field(None, description="Free-text search query.")
     per_page: int = Field(default=25, description="Results per page (max 200).")
     page: int = Field(default=1, description="Results page (1-indexed).")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Comma-separated OpenAlex filter expression.",
     )
@@ -351,7 +359,9 @@ def fetch_openalex_search_authors(params: OpenAlexSearchAuthorsParams) -> dict:
     if params.filter:
         query_params["filter"] = params.filter
     response = http_get(
-        f"{BASE_URL}/authors", params=_merge_params(query_params), provider=PROVIDER_ID
+        f"{BASE_URL}/authors",
+        params=_merge_params(query_params),
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -373,8 +383,8 @@ TOOLS.append(
     types.Tool(
         name="openalex-search-authors",
         description="Search OpenAlex authors by free-text query and optional filters.",
-        inputSchema=OpenAlexSearchAuthorsParams.model_json_schema(),
-    )
+        input_schema=OpenAlexSearchAuthorsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-search-authors"] = handle_openalex_search_authors
 
@@ -425,8 +435,8 @@ TOOLS.append(
     types.Tool(
         name="openalex-get-author",
         description="Fetch a single OpenAlex author by id (A-id, ORCID, or full URL).",
-        inputSchema=OpenAlexGetAuthorParams.model_json_schema(),
-    )
+        input_schema=OpenAlexGetAuthorParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-get-author"] = handle_openalex_get_author
 
@@ -439,9 +449,9 @@ TOOLS_HANDLERS["openalex-get-author"] = handle_openalex_get_author
 class OpenAlexSearchInstitutionsParams(BaseModel):
     """Parameters for searching OpenAlex institutions."""
 
-    search: Optional[str] = Field(None, description="Free-text search query.")
+    search: str | None = Field(None, description="Free-text search query.")
     per_page: int = Field(default=25, description="Results per page (max 200).")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Comma-separated OpenAlex filter expression.",
     )
@@ -481,8 +491,8 @@ TOOLS.append(
     types.Tool(
         name="openalex-search-institutions",
         description="Search OpenAlex institutions (universities, labs, etc.) by free-text query.",
-        inputSchema=OpenAlexSearchInstitutionsParams.model_json_schema(),
-    )
+        input_schema=OpenAlexSearchInstitutionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-search-institutions"] = handle_openalex_search_institutions
 
@@ -495,9 +505,9 @@ TOOLS_HANDLERS["openalex-search-institutions"] = handle_openalex_search_institut
 class OpenAlexSearchSourcesParams(BaseModel):
     """Parameters for searching OpenAlex sources (journals/repositories)."""
 
-    search: Optional[str] = Field(None, description="Free-text search query.")
+    search: str | None = Field(None, description="Free-text search query.")
     per_page: int = Field(default=25, description="Results per page (max 200).")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Comma-separated OpenAlex filter expression.",
     )
@@ -511,7 +521,9 @@ def fetch_openalex_search_sources(params: OpenAlexSearchSourcesParams) -> dict:
     if params.filter:
         query_params["filter"] = params.filter
     response = http_get(
-        f"{BASE_URL}/sources", params=_merge_params(query_params), provider=PROVIDER_ID
+        f"{BASE_URL}/sources",
+        params=_merge_params(query_params),
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -533,8 +545,8 @@ TOOLS.append(
     types.Tool(
         name="openalex-search-sources",
         description="Search OpenAlex sources (journals, repositories, conferences) by free-text query.",
-        inputSchema=OpenAlexSearchSourcesParams.model_json_schema(),
-    )
+        input_schema=OpenAlexSearchSourcesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-search-sources"] = handle_openalex_search_sources
 
@@ -547,7 +559,7 @@ TOOLS_HANDLERS["openalex-search-sources"] = handle_openalex_search_sources
 class OpenAlexSearchConceptsParams(BaseModel):
     """Parameters for searching OpenAlex concepts."""
 
-    search: Optional[str] = Field(None, description="Free-text search query.")
+    search: str | None = Field(None, description="Free-text search query.")
     per_page: int = Field(default=25, description="Results per page (max 200).")
 
 
@@ -557,7 +569,9 @@ def fetch_openalex_search_concepts(params: OpenAlexSearchConceptsParams) -> dict
     if params.search:
         query_params["search"] = params.search
     response = http_get(
-        f"{BASE_URL}/concepts", params=_merge_params(query_params), provider=PROVIDER_ID
+        f"{BASE_URL}/concepts",
+        params=_merge_params(query_params),
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -579,8 +593,8 @@ TOOLS.append(
     types.Tool(
         name="openalex-search-concepts",
         description="Search OpenAlex concepts (topical taxonomy) by free-text query.",
-        inputSchema=OpenAlexSearchConceptsParams.model_json_schema(),
-    )
+        input_schema=OpenAlexSearchConceptsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-search-concepts"] = handle_openalex_search_concepts
 
@@ -593,7 +607,7 @@ TOOLS_HANDLERS["openalex-search-concepts"] = handle_openalex_search_concepts
 class OpenAlexSearchPublishersParams(BaseModel):
     """Parameters for searching OpenAlex publishers."""
 
-    search: Optional[str] = Field(None, description="Free-text search query.")
+    search: str | None = Field(None, description="Free-text search query.")
     per_page: int = Field(default=25, description="Results per page (max 200).")
 
 
@@ -627,8 +641,8 @@ TOOLS.append(
     types.Tool(
         name="openalex-search-publishers",
         description="Search OpenAlex publishers by free-text query.",
-        inputSchema=OpenAlexSearchPublishersParams.model_json_schema(),
-    )
+        input_schema=OpenAlexSearchPublishersParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openalex-search-publishers"] = handle_openalex_search_publishers
 
@@ -637,7 +651,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-openalex", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-openalex",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

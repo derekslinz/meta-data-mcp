@@ -20,11 +20,10 @@ See ``Plans/linear-swimming-pond.md`` §3.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib.resources import files
-from typing import Callable
 
 from mcp import types
-from pydantic import AnyUrl
 
 from meta_data_mcp.utils import register_ui_resource
 
@@ -48,13 +47,13 @@ _DESCRIPTION = (
 )
 
 _HTML: str = (files("meta_data_mcp.ui_resources") / "app_discovery_v1.html").read_text(
-    encoding="utf-8"
+    encoding="utf-8",
 )
 
 
 def register(
     resources: list[types.Resource],
-    resources_handlers: dict[str, Callable[[AnyUrl], str | bytes]],
+    resources_handlers: dict[str, Callable[[str], str | bytes]],
 ) -> str:
     """Append the discovery app resource to the server's catalog.
 

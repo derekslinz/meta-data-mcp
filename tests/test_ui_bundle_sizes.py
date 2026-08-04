@@ -76,7 +76,8 @@ def test_bundle_directory_is_populated() -> None:
     """If the bundle glob returns nothing, the test parameters above
     silently produce zero cases and the budget would be unenforced.
     Pin a non-empty floor so a refactor that moves the directory fails
-    loudly here."""
+    loudly here.
+    """
     bundles = _bundles()
     assert bundles, (
         f"No ``ui://`` bundles found in {BUNDLES_DIR}. Either the directory "

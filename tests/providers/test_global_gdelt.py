@@ -77,7 +77,7 @@ def test_volume_timeline_custom_mode():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok(payload)
         fetch_gdelt_volume_timeline(
-            GdeltVolumeTimelineParams(query="floods", timeline_mode="TimelineTone")
+            GdeltVolumeTimelineParams(query="floods", timeline_mode="TimelineTone"),
         )
         assert mock_get.call_args[1]["params"]["mode"] == "TimelineTone"
 
@@ -92,8 +92,8 @@ async def test_handle_article_search():
 
 @pytest.mark.anyio
 async def test_handle_translates_503():
-    from meta_data_mcp.errors import UpstreamError
     from meta_data_mcp import utils
+    from meta_data_mcp.errors import UpstreamError
 
     req = httpx.Request("GET", "https://api.gdeltproject.org/api/v2/doc/doc")
     resp = httpx.Response(status_code=503, request=req)
@@ -116,7 +116,7 @@ async def test_handle_translates_503():
 
 def _load_news_tone_bundle() -> str:
     return (files("meta_data_mcp.ui_resources") / "app_news_tone_v1.html").read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
 
@@ -127,7 +127,8 @@ def test_gdelt_tool_binds_to_news_tone_app(tool_name):
     attribute AND the wire-level alias (``model_dump(by_alias=True)``
     emits ``_meta``) so a future SDK regression on the populate_by_name
     footgun is caught here — see
-    tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire."""
+    tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
+    """
     tool = next(t for t in TOOLS if t.name == tool_name)
     assert tool.meta == {"ui": {"resourceUri": NEWS_TONE_URI}}, (
         f"{tool_name} is not bound to {NEWS_TONE_URI}"
@@ -152,7 +153,8 @@ def test_news_tone_bundle_contains_script_tag():
 def test_news_tone_bundle_has_query_input():
     """The GDELT-query input is the primary user input. Pin its
     existence so a redesign that drops the input has to update tests
-    and provider expectations together."""
+    and provider expectations together.
+    """
     html = _load_news_tone_bundle().lower()
     assert 'id="query-input"' in html
 
@@ -161,7 +163,8 @@ def test_news_tone_bundle_advertises_tool_call_envelope():
     """The news-tone app reuses the Phase 3 ``tool_call`` envelope.
     If a refactor switches envelope shapes, both the Phase 3 discovery
     app's matching test AND this one will fail — pin one in each app
-    so divergence between them is impossible silently."""
+    so divergence between them is impossible silently.
+    """
     html = _load_news_tone_bundle()
     assert "type: 'tool_call'" in html or 'type: "tool_call"' in html, (
         "bundle has no tool_call envelope construction"
@@ -172,7 +175,8 @@ def test_news_tone_bundle_listens_for_tool_result_from_parent():
     """The app must accept ``tool_result`` / ``render`` messages and
     must guard ``ev.source === window.parent`` to refuse cross-frame
     spoof traffic. Both invariants together — without the source guard
-    a malicious nested iframe could feed bogus tool_results."""
+    a malicious nested iframe could feed bogus tool_results.
+    """
     html = _load_news_tone_bundle()
     assert "'tool_result'" in html or '"tool_result"' in html
     assert "window.parent" in html, "bundle doesn't guard ev.source vs window.parent"
@@ -184,7 +188,8 @@ def test_news_tone_bundle_has_inline_svg_visualization():
     visualizations are inline SVG (the dependency-free stance —
     no Plotly, no D3, no CDN). If a refactor switches to canvas /
     WebGL / a charting lib the matching test on no-external-scripts
-    would also fail; together they enforce the design choice."""
+    would also fail; together they enforce the design choice.
+    """
     html = _load_news_tone_bundle().lower()
     assert "<svg" in html or "createelementns" in html, (
         "bundle has no inline SVG visualization mount"
@@ -194,7 +199,8 @@ def test_news_tone_bundle_has_inline_svg_visualization():
 def test_news_tone_bundle_size_under_100kb():
     """Phase 6b bundle-budget enforcement. The news-tone app's two
     SVG primitives (timeline + chord) plus the GDELT adapter live
-    comfortably under the 100KB budget."""
+    comfortably under the 100KB budget.
+    """
     html = _load_news_tone_bundle()
     size_kb = len(html.encode("utf-8")) / 1024
     assert size_kb < 100, f"news-tone bundle is {size_kb:.1f}KB (budget: <100KB)"
@@ -204,7 +210,8 @@ def test_news_tone_bundle_has_no_external_script_sources():
     """Dependency-free by design — see the plan §5 visualisations
     note. Timeline + chord are achievable in pure SVG, no chart library
     required. CDN imports would also fail the headless smoke (file://
-    origin can't resolve them)."""
+    origin can't resolve them).
+    """
     html = _load_news_tone_bundle()
     pattern = re.compile(
         r"<script\b[^>]*\bsrc\s*=\s*[\"']https?://",
@@ -223,7 +230,8 @@ def test_news_tone_bundle_does_not_use_dangerous_html_assignment():
     property whose name is ``"inner"`` + ``"HTML"`` anywhere — all DOM
     mutation has to go through ``textContent`` / ``replaceChildren`` /
     explicit element creation so markup injection is impossible by
-    construction."""
+    construction.
+    """
     html = _load_news_tone_bundle()
     forbidden = "." + "inner" + "HTML"
     pattern = re.compile(re.escape(forbidden) + r"\s*[+]?=")
@@ -239,7 +247,8 @@ def test_news_tone_bundle_documents_payload_contract():
     is the contract the bundle promises to consume. Document it inline
     so a host integrator can wire app↔host without reading the bundle
     source. Pin the three top-level keys so a refactor that quietly
-    renames them surfaces here."""
+    renames them surfaces here.
+    """
     html = _load_news_tone_bundle()
     for key in ("events", "country_pairs", "facets"):
         assert key in html, f"bundle does not document payload key: {key}"

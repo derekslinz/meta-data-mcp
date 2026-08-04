@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import re
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -35,7 +35,9 @@ def bump_version(version_type):
 
     # Update __init__.py
     new_content = re.sub(
-        r'__version__ = ["\']([^"\']+)["\']', f'__version__ = "{new_version}"', content
+        r'__version__ = ["\']([^"\']+)["\']',
+        f'__version__ = "{new_version}"',
+        content,
     )
     init_file.write_text(new_content)
 
@@ -48,7 +50,7 @@ def bump_version(version_type):
 
     # Create GitHub release using gh CLI
     run_command(
-        f'gh release create v{new_version} --title "Release {new_version}" --generate-notes'
+        f'gh release create v{new_version} --title "Release {new_version}" --generate-notes',
     )
 
     print(f"Version bumped from {current_version} to {new_version}")

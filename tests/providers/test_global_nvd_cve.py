@@ -11,9 +11,9 @@ import pytest
 
 from meta_data_mcp.providers.global_nvd_cve import (
     TOOLS,
-    handle_nvd_search_cves,
-    handle_nvd_get_cve,
     handle_nvd_cve_history,
+    handle_nvd_get_cve,
+    handle_nvd_search_cves,
 )
 from meta_data_mcp.ui_resources.app_vulnerability_v1 import URI as VULN_URI
 
@@ -101,14 +101,16 @@ async def test_nvd_cve_history_http_error():
 
 
 @pytest.mark.parametrize(
-    "tool_name", ["nvd-search-cves", "nvd-get-cve", "nvd-cve-history"]
+    "tool_name",
+    ["nvd-search-cves", "nvd-get-cve", "nvd-cve-history"],
 )
 def test_nvd_tool_binds_to_vulnerability_app(tool_name):
     """Each NVD tool must declare ``_meta.ui.resourceUri`` pointing at
     the canonical vulnerability app URI. Pin both the Python-side
     ``.meta`` attribute AND the wire-level alias (``model_dump(
     by_alias=True)`` emits ``_meta``) so a future SDK regression on the
-    populate_by_name footgun is caught here."""
+    populate_by_name footgun is caught here.
+    """
     tool = next(t for t in TOOLS if t.name == tool_name)
     assert tool.meta == {"ui": {"resourceUri": VULN_URI}}, (
         f"{tool_name} is not bound to {VULN_URI}"

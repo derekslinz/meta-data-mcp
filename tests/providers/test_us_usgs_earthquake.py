@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_usgs_earthquake import (
     TOOLS,
     _usgs_geojson_to_shape_payload,
-    handle_usgs_eq_query,
+    handle_usgs_eq_application_version,
     handle_usgs_eq_count,
-    handle_usgs_eq_feed_significant_day,
-    handle_usgs_eq_feed_significant_week,
     handle_usgs_eq_feed_all_day,
     handle_usgs_eq_feed_all_week,
     handle_usgs_eq_feed_m45_week,
-    handle_usgs_eq_application_version,
+    handle_usgs_eq_feed_significant_day,
+    handle_usgs_eq_feed_significant_week,
+    handle_usgs_eq_query,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -38,7 +38,7 @@ async def test_usgs_eq_query_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_usgs_eq_query(
-            {"starttime": "2024-01-01", "endtime": "2024-01-02", "minmagnitude": 4.0}
+            {"starttime": "2024-01-01", "endtime": "2024-01-02", "minmagnitude": 4.0},
         )
         assert len(result) == 1
         assert "FeatureCollection" in result[0].text
@@ -61,7 +61,7 @@ async def test_usgs_eq_count_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_usgs_eq_count(
-            {"starttime": "2024-01-01", "endtime": "2024-01-02"}
+            {"starttime": "2024-01-01", "endtime": "2024-01-02"},
         )
         assert "1234" in result[0].text
 
@@ -153,7 +153,8 @@ async def test_usgs_eq_application_version_success():
 
 def test_adapter_passes_geojson_through_natively():
     """USGS returns native GeoJSON — option A: wrap the FeatureCollection
-    under ``features`` so the bundle can consume it directly."""
+    under ``features`` so the bundle can consume it directly.
+    """
     raw = {
         "type": "FeatureCollection",
         "metadata": {"count": 1},
@@ -163,7 +164,7 @@ def test_adapter_passes_geojson_through_natively():
                 "type": "Feature",
                 "geometry": {"type": "Point", "coordinates": [-122.0, 37.5, 10.0]},
                 "properties": {"mag": 5.1, "place": "Off the coast"},
-            }
+            },
         ],
     }
     payload = _usgs_geojson_to_shape_payload(raw)
@@ -174,7 +175,8 @@ def test_adapter_passes_geojson_through_natively():
 
 def test_adapter_handles_non_geojson_response():
     """Error or unexpected response shapes degrade to an empty
-    FeatureCollection."""
+    FeatureCollection.
+    """
     payload = _usgs_geojson_to_shape_payload({"error": "rate limited"})
     assert payload == {"features": {"type": "FeatureCollection", "features": []}}
     payload = _usgs_geojson_to_shape_payload("plain text")
@@ -208,13 +210,13 @@ async def test_usgs_eq_query_returns_shape_payload():
                         "coordinates": [-122.0, 37.5, 10.0],
                     },
                     "properties": {"mag": 5.1, "place": "Off the coast"},
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_usgs_eq_query(
-            {"starttime": "2024-01-01", "minmagnitude": 4.0}
+            {"starttime": "2024-01-01", "minmagnitude": 4.0},
         )
         body = json.loads(result[0].text)
         assert body["features"]["type"] == "FeatureCollection"

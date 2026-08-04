@@ -1,5 +1,4 @@
-"""
-NOAA National Centers for Environmental Information (NCEI) Provider
+"""NOAA National Centers for Environmental Information (NCEI) Provider
 
 This module exposes the keyless NCEI Access Data Service and Search Service.
 The endpoints cover daily summaries, global summary of the day, and metadata
@@ -25,9 +24,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -43,9 +43,9 @@ SEARCH_DATA_URL = "https://www.ncei.noaa.gov/access/services/search/v1/data"
 SEARCH_DATASETS_URL = "https://www.ncei.noaa.gov/access/services/search/v1/datasets"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -58,11 +58,12 @@ class NCEIDailySummariesParams(BaseModel):
     """Parameters for fetching GHCN daily summaries."""
 
     stations: str = Field(
-        ..., description="Comma-separated station IDs (e.g. USW00014739)."
+        ...,
+        description="Comma-separated station IDs (e.g. USW00014739).",
     )
     startDate: str = Field(..., description="Start date (YYYY-MM-DD).")
     endDate: str = Field(..., description="End date (YYYY-MM-DD).")
-    dataTypes: Optional[str] = Field(
+    dataTypes: str | None = Field(
         None,
         description="Comma-separated data type codes (e.g. TMAX,TMIN,PRCP). Omit for all.",
     )
@@ -148,9 +149,9 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-get-daily-summaries",
         description="Fetch GHCN daily summaries (TMAX/TMIN/PRCP/etc.) from NCEI for one or more stations.",
-        inputSchema=NCEIDailySummariesParams.model_json_schema(),
+        input_schema=NCEIDailySummariesParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-get-daily-summaries"] = handle_ncei_get_daily_summaries
 
@@ -200,8 +201,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-get-global-summary",
         description="Fetch Global Summary of the Day (GSOD) records from NCEI for one or more stations.",
-        inputSchema=NCEIGlobalSummaryParams.model_json_schema(),
-    )
+        input_schema=NCEIGlobalSummaryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-get-global-summary"] = handle_ncei_get_global_summary
 
@@ -214,18 +215,23 @@ TOOLS_HANDLERS["noaa-ncei-get-global-summary"] = handle_ncei_get_global_summary
 class NCEISearchStationsParams(BaseModel):
     """Parameters for the NCEI search-service station search."""
 
-    boundingBox: Optional[str] = Field(
+    boundingBox: str | None = Field(
         None,
         description="Bounding box as 'north,west,south,east' decimal degrees.",
     )
-    startDate: Optional[str] = Field(
-        None, description="Restrict to stations active from this date (YYYY-MM-DD)."
+    startDate: str | None = Field(
+        None,
+        description="Restrict to stations active from this date (YYYY-MM-DD).",
     )
-    endDate: Optional[str] = Field(
-        None, description="Restrict to stations active through this date (YYYY-MM-DD)."
+    endDate: str | None = Field(
+        None,
+        description="Restrict to stations active through this date (YYYY-MM-DD).",
     )
     limit: int = Field(
-        default=25, ge=1, le=1000, description="Maximum number of stations to return."
+        default=25,
+        ge=1,
+        le=1000,
+        description="Maximum number of stations to return.",
     )
 
 
@@ -262,8 +268,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-search-stations",
         description="Search NCEI daily-summaries stations by bounding box and active date range.",
-        inputSchema=NCEISearchStationsParams.model_json_schema(),
-    )
+        input_schema=NCEISearchStationsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-search-stations"] = handle_ncei_search_stations
 
@@ -304,8 +310,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-list-datasets",
         description="List NCEI datasets discoverable via the search service.",
-        inputSchema=NCEIListDatasetsParams.model_json_schema(),
-    )
+        input_schema=NCEIListDatasetsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-list-datasets"] = handle_ncei_list_datasets
 
@@ -352,8 +358,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-get-station-meta",
         description="Retrieve metadata for a single NCEI daily-summaries station.",
-        inputSchema=NCEIStationMetaParams.model_json_schema(),
-    )
+        input_schema=NCEIStationMetaParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-get-station-meta"] = handle_ncei_get_station_meta
 
@@ -404,8 +410,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-get-precipitation",
         description="Get daily precipitation (PRCP) totals from NCEI GHCN-Daily for one or more stations.",
-        inputSchema=NCEIPrecipitationParams.model_json_schema(),
-    )
+        input_schema=NCEIPrecipitationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-get-precipitation"] = handle_ncei_get_precipitation
 
@@ -456,8 +462,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-ncei-get-temperature",
         description="Get daily maximum/minimum temperature (TMAX/TMIN) from NCEI GHCN-Daily.",
-        inputSchema=NCEITemperatureParams.model_json_schema(),
-    )
+        input_schema=NCEITemperatureParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-ncei-get-temperature"] = handle_ncei_get_temperature
 
@@ -466,7 +472,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-noaa-ncei", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-noaa-ncei",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

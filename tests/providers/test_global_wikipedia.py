@@ -1,22 +1,22 @@
 import json
-
-import pytest
-from unittest.mock import patch, Mock
-import httpx
+from unittest.mock import Mock, patch
 from urllib.parse import urlparse
+
+import httpx
+import pytest
 
 from meta_data_mcp.providers.global_wikipedia import (
     TOOLS,
     TOOLS_HANDLERS,
     _wikipedia_opensearch_to_shape_payload,
-    handle_wikipedia_get_summary,
     handle_wikipedia_get_html,
-    handle_wikipedia_get_mobile_sections,
-    handle_wikipedia_get_related,
     handle_wikipedia_get_media_list,
-    handle_wikipedia_search_title,
-    handle_wikipedia_get_page_views,
+    handle_wikipedia_get_mobile_sections,
     handle_wikipedia_get_on_this_day,
+    handle_wikipedia_get_page_views,
+    handle_wikipedia_get_related,
+    handle_wikipedia_get_summary,
+    handle_wikipedia_search_title,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -56,7 +56,7 @@ async def test_wikipedia_get_summary_lang_override():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_wikipedia_get_summary(
-            {"title": "Albert Einstein", "lang": "fr"}
+            {"title": "Albert Einstein", "lang": "fr"},
         )
         # Verify the URL the caller built points at the French Wikipedia.
         called_url = mock_get.call_args.args[0]
@@ -77,7 +77,7 @@ async def test_wikipedia_get_html_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_wikipedia_get_html(
-            {"title": "Python_(programming_language)"}
+            {"title": "Python_(programming_language)"},
         )
         assert "Article body" in result[0].text
 
@@ -106,7 +106,7 @@ async def test_wikipedia_get_related_success():
 async def test_wikipedia_get_media_list_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "items": [{"title": "File:Logo.png"}]
+            "items": [{"title": "File:Logo.png"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -133,12 +133,12 @@ async def test_wikipedia_search_title_success():
 async def test_wikipedia_get_page_views_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "items": [{"timestamp": "2024010100", "views": 1000}]
+            "items": [{"timestamp": "2024010100", "views": 1000}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_wikipedia_get_page_views(
-            {"title": "Python", "start": "20240101", "end": "20240107"}
+            {"title": "Python", "start": "20240101", "end": "20240107"},
         )
         assert "1000" in result[0].text
 
@@ -147,7 +147,7 @@ async def test_wikipedia_get_page_views_success():
 async def test_wikipedia_get_on_this_day_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "events": [{"text": "Something historical", "year": 1969}]
+            "events": [{"text": "Something historical", "year": 1969}],
         }
         mock_get.return_value.raise_for_status = Mock()
 

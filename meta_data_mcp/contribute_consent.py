@@ -22,7 +22,7 @@ _ELICIT_SCHEMA: dict[str, Any] = {
             "title": "Contribute this plugin",
             "description": "Open a public PR so others can use it.",
             "default": True,
-        }
+        },
     },
     "required": ["contribute"],
 }
@@ -52,7 +52,7 @@ async def resolve_consent(plugin_id: str) -> str:
         from mcp import types as mcp_types
 
         cap = mcp_types.ClientCapabilities(
-            elicitation=mcp_types.ElicitationCapability()
+            elicitation=mcp_types.ElicitationCapability(),
         )
         # NB: check_client_capability is a synchronous method in the mcp SDK
         # (returns bool). Do NOT await it — awaiting the bool raises TypeError,

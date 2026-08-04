@@ -14,16 +14,31 @@ existing call sites continue to import the same names.
 
 from __future__ import annotations
 
-import json
 import hmac
+import json
 import logging
 import os
-from typing import Any, Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 
 from mcp import types
-from mcp.server import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
-from pydantic import AnyUrl
+from mcp.server import Server, ServerRequestContext
+from mcp.types import (
+    BlobResourceContents,
+    CallToolRequestParams,
+    CallToolResult,
+    GetPromptRequestParams,
+    GetPromptResult,
+    InputRequiredResult,
+    ListPromptsResult,
+    ListResourcesResult,
+    ListResourceTemplatesResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
+    TextResourceContents,
+)
 from starlette.responses import JSONResponse
 
 from meta_data_mcp import citations, provenance
@@ -46,7 +61,7 @@ def register_ui_resource(
     html: str,
     description: str,
     resources: list[types.Resource],
-    resources_handlers: dict[str, Callable[[AnyUrl], str | bytes]],
+    resources_handlers: dict[str, Callable[[str], str | bytes]],
     server_name: str = "meta-data-mcp",
     mime: str = "text/html;profile=mcp-app",
 ) -> str:
@@ -97,6 +112,7 @@ def register_ui_resource(
     Raises:
         ValueError: If ``name`` is empty or the resulting URI collides with
             an already-registered handler.
+
     """
     if not name:
         raise ValueError("name must be non-empty")
@@ -105,14 +121,14 @@ def register_ui_resource(
         raise ValueError(f"ui resource already registered: {uri}")
     resources.append(
         types.Resource(
-            uri=AnyUrl(uri),
+            uri=uri,
             name=name,
             description=description,
             mimeType=mime,
-        )
+        ),
     )
 
-    def _handler(_uri: AnyUrl) -> str:
+    def _handler(_uri: str) -> str:
         return html
 
     resources_handlers[uri] = _handler
@@ -122,7 +138,7 @@ def register_ui_resource(
 def create_mcp_server(
     server_name: str,
     resources: list[types.Resource] | None = None,
-    resources_handlers: dict[str, Callable[[AnyUrl], str | bytes]] | None = None,
+    resources_handlers: dict[str, Callable[[str], str | bytes]] | None = None,
     tools: list[types.Tool] | None = None,
     tools_handlers: dict[
         str,
@@ -143,8 +159,7 @@ def create_mcp_server(
     | None = None,
     resource_templates: list[types.ResourceTemplate] | None = None,
 ) -> Server:
-    """
-    Create a MCP server with the given resources, tools, and prompts.
+    """Create a MCP server with the given resources, tools, and prompts.
 
     Args:
         server_name: The name of the server.
@@ -158,6 +173,7 @@ def create_mcp_server(
 
     Returns:
         The created MCP server.
+
     """
     _resources = resources or []
     _resources_handlers = resources_handlers or {}
@@ -167,23 +183,14 @@ def create_mcp_server(
     _prompts_handlers = prompts_handlers or {}
     _resource_templates = resource_templates or []
 
-    # instantiate the server
-    from meta_data_mcp import __version__
-
-    server = Server(server_name, version=__version__)
-
     from pathlib import Path
 
+    from meta_data_mcp import __version__
     from meta_data_mcp import contribute as _contribute
 
     _notice = _contribute.startup_notice(Path(__file__).resolve().parents[1])
     if _notice:
         log.info(_notice)
-
-    # register resources
-    @server.list_resources()
-    async def handle_list_resources() -> list[types.Resource]:
-        return _resources
 
     # Build a fast (URI → mimeType) lookup once so the read handler can
     # propagate the registered MIME without rescanning ``_resources`` on
@@ -191,133 +198,194 @@ def create_mcp_server(
     # registered without a ``mimeType`` (defensive — every codepath in
     # this repo sets one explicitly).
     _mime_by_uri: dict[str, str] = {
-        str(r.uri): (r.mimeType or "text/plain") for r in _resources
+        str(r.uri): (r.mime_type or "text/plain") for r in _resources
     }
 
-    @server.read_resource()
-    async def handle_read_resource(
-        resource_uri: AnyUrl,
-    ) -> list[ReadResourceContents]:
+    async def _handle_list_resources(
+        ctx: ServerRequestContext,
+        params: PaginatedRequestParams | None = None,
+    ) -> ListResourcesResult:
+        return ListResourcesResult(resources=_resources)
+
+    async def _handle_read_resource(
+        ctx: ServerRequestContext,
+        params: ReadResourceRequestParams,
+    ) -> ReadResourceResult:
         """Return resource contents with the registered MIME type attached.
 
-        The MCP SDK's ``read_resource`` decorator wraps a bare ``str`` /
-        ``bytes`` return into a content envelope, but it defaults the
-        envelope's ``mimeType`` to ``text/plain`` (or
-        ``application/octet-stream`` for bytes) — completely independent
-        of whatever the registered ``Resource.mimeType`` declares. The
-        host reads the envelope's ``mimeType``, not the catalog entry's,
-        when deciding how to render. An HTML ``ui://`` resource
-        registered as ``text/html`` was therefore being served as
-        ``text/plain`` on read, and the host refused to mount it.
-
-        Returning ``Iterable[ReadResourceContents]`` lets us pin the
-        correct MIME and also silences the SDK's deprecation warning
-        about returning bare strings.
-
-        See:
-        - ``register_ui_resource`` for where each resource declares its MIME
-        - the SDK ``read_resource`` decorator (``mcp.server.lowlevel``)
-        - tests/test_ui_resource.py::test_read_resource_returns_text_html_mime
+        The MCP SDK v2 wraps a bare ``str`` / ``bytes`` return into a
+        content envelope that defaults to ``text/plain`` — independent of
+        the registered ``Resource.mimeType``.  Returning a
+        ``ReadResourceResult`` with explicit ``mimeType`` ensures the host
+        sees the correct content type (critical for ``ui://`` HTML
+        resources that would otherwise be rejected as
+        ``text/plain``).
         """
-        resource_key = str(resource_uri)
+        resource_key = str(params.uri)
 
         if resource_key not in _resources_handlers:
-            log.error(f"Resource {resource_uri} not found")
-            raise AttributeError(f"Resource {resource_uri} not found")
+            log.error("Resource %s not found", resource_key)
+            raise AttributeError(f"Resource {resource_key} not found")
 
-        payload = _resources_handlers[resource_key](resource_uri)
+        payload = _resources_handlers[resource_key](params.uri)
         mime = _mime_by_uri.get(resource_key, "text/plain")
-        return [ReadResourceContents(content=payload, mime_type=mime)]
 
-    # register resource templates
-    @server.list_resource_templates()
-    async def handle_list_resource_templates() -> list[types.ResourceTemplate]:
-        return _resource_templates
+        # Use the correct content type based on payload type
+        if isinstance(payload, bytes):
+            content = BlobResourceContents(
+                uri=resource_key, mime_type=mime, blob=payload
+            )
+        else:
+            content = TextResourceContents(
+                uri=resource_key, mime_type=mime, text=str(payload)
+            )
 
-    # register the tools
-    @server.list_tools()
-    async def handle_list_tools() -> list[types.Tool]:
-        return _tools
+        return ReadResourceResult(contents=[content])
 
-    # register the tools handlers
-    @server.call_tool()
-    async def handle_call_tool(
-        name: str, arguments: dict[str, Any] | None = None
-    ) -> ToolCallResult:
+    async def _handle_list_resource_templates(
+        ctx: ServerRequestContext,
+        params: PaginatedRequestParams | None = None,
+    ) -> ListResourceTemplatesResult:
+        return ListResourceTemplatesResult(resourceTemplates=_resource_templates)
+
+    async def _handle_list_tools(
+        ctx: ServerRequestContext,
+        params: PaginatedRequestParams | None = None,
+    ) -> ListToolsResult:
+        return ListToolsResult(tools=_tools)
+
+    async def _handle_call_tool(
+        ctx: ServerRequestContext,
+        params: CallToolRequestParams,
+    ) -> CallToolResult | InputRequiredResult:
+        name = params.name
+        arguments = params.arguments
         if name not in _tools_handlers:
-            log.error(f"Tool {name} not found")
+            log.error("Tool %s not found", name)
             raise AttributeError(f"Tool {name} not found")
 
         # recording_span handles the citations env gate internally: when
         # disabled it yields a list that record() never populates.
         with citations.recording_span() as source_records:
-            try:
-                result = await _tools_handlers[name](arguments)
-            except Exception as e:
-                log.error(f"Error calling tool {name}: {e}")
-                raise
-
-            # Normalize the SDK-permitted return shapes while the span
+            result = await _tools_handlers[name](arguments)
             # is still open — materializing lazy iterables here means
             # any http_get a generator performs is still recorded.
-            structured: dict[str, Any] | None = None
-            content: list[Any] | None = None
+
+            # If handler returns CallToolResult directly, pass through
             if isinstance(result, types.CallToolResult):
-                # SDK short-circuit shape (handler controls isError and
-                # friends) — attach layers don't apply; pass through.
+                # Handler controls isError and friends — attach layers don't apply; pass through.
                 return result
+
+            # If handler returns a tuple (content, structured), use both
+            if isinstance(result, tuple) and len(result) == 2:
+                content, structured = result
+                content = list(content)
+                if source_records:
+                    content = citations.attach(content, source_records)
+                if provenance.is_enabled():
+                    content = provenance.attach(
+                        content,
+                        tool_name=name,
+                        arguments=arguments,
+                    )
+                return types.CallToolResult(
+                    content=content, structured_content=structured, is_error=False
+                )
+
+            # Materialize generators/iterables
+            if hasattr(result, "__iter__") and not isinstance(
+                result, (str, bytes, dict)
+            ):
+                try:
+                    result = list(result)
+                except TypeError:
+                    pass  # Not iterable
+
+            # If handler returns a list of content, wrap in CallToolResult
+            if isinstance(result, list):
+                content = result
+                if source_records:
+                    content = citations.attach(content, source_records)
+                if provenance.is_enabled():
+                    content = provenance.attach(
+                        content,
+                        tool_name=name,
+                        arguments=arguments,
+                    )
+                return types.CallToolResult(content=content, is_error=False)
+
+            # If handler returns a dict, use as structured_content
             if isinstance(result, dict):
-                structured = result
-            elif isinstance(result, tuple) and len(result) == 2:
-                # (unstructured_content, structured_dict) — the SDK's
-                # CombinationContent shape.
-                content, structured = list(result[0]), result[1]
-            else:
-                content = list(result)
+                content = []
+                if source_records:
+                    # Create a content block to carry citations
+                    content = [
+                        types.TextContent(
+                            type="text", text=json.dumps(result, indent=2)
+                        )
+                    ]
+                    content = citations.attach(content, source_records)
+                if provenance.is_enabled():
+                    if not content:
+                        content = [
+                            types.TextContent(
+                                type="text", text=json.dumps(result, indent=2)
+                            )
+                        ]
+                    content = provenance.attach(
+                        content,
+                        tool_name=name,
+                        arguments=arguments,
+                    )
+                return types.CallToolResult(
+                    content=content, structured_content=result, is_error=False
+                )
 
-        prov = provenance.is_enabled()
-        if not (source_records or prov):
-            # Nothing to attach — reassemble the handler's original
-            # shape untouched (dicts stay dicts so the SDK builds
-            # structuredContent exactly as before).
-            if content is None:
-                assert structured is not None  # dict-shaped result
-                return structured
-            return (content, structured) if structured is not None else content
+            # Fallback: wrap in CallToolResult
+            content = [types.TextContent(type="text", text=str(result))]
+            if source_records:
+                content = citations.attach(content, source_records)
+            if provenance.is_enabled():
+                content = provenance.attach(
+                    content,
+                    tool_name=name,
+                    arguments=arguments,
+                )
+            return types.CallToolResult(content=content, is_error=False)
 
-        # Both _meta layers stack on the same content list. Citations go
-        # first, provenance second; the digest hashes _meta-stripped
-        # content, so the order can't perturb it.
-        if content is None:
-            content = [
-                types.TextContent(type="text", text=json.dumps(structured, indent=2))
-            ]
-        if source_records:
-            content = citations.attach(content, source_records)
-        if prov:
-            content = provenance.attach(content, tool_name=name, arguments=arguments)
+    async def _handle_list_prompts(
+        ctx: ServerRequestContext,
+        params: PaginatedRequestParams | None = None,
+    ) -> ListPromptsResult:
+        return ListPromptsResult(prompts=_prompts)
 
-        return (content, structured) if structured is not None else content
-
-    # register the prompts
-    @server.list_prompts()
-    async def handle_list_prompts() -> list[types.Prompt]:
-        return _prompts
-
-    # register the prompts handlers
-    @server.get_prompt()
-    async def handle_get_prompt(
-        name: str, arguments: dict[str, str] | None = None
-    ) -> types.GetPromptResult:
+    async def _handle_get_prompt(
+        ctx: ServerRequestContext,
+        params: GetPromptRequestParams,
+    ) -> GetPromptResult | InputRequiredResult:
+        name = params.name
+        arguments = params.arguments
         if name not in _prompts_handlers:
-            log.error(f"Prompt {name} not found")
+            log.error("Prompt %s not found", name)
             raise AttributeError(f"Prompt {name} not found")
 
         try:
             return await _prompts_handlers[name](arguments)
         except Exception as e:
-            log.error(f"Error getting prompt {name}: {e}")
+            log.error("Error getting prompt %s: %s", name, e)
             raise
+
+    server = Server(
+        server_name,
+        version=__version__,
+        on_list_resources=_handle_list_resources,
+        on_read_resource=_handle_read_resource,
+        on_list_resource_templates=_handle_list_resource_templates,
+        on_list_tools=_handle_list_tools,
+        on_call_tool=_handle_call_tool,
+        on_list_prompts=_handle_list_prompts,
+        on_get_prompt=_handle_get_prompt,
+    )
 
     return server
 
@@ -386,7 +454,9 @@ class BearerAuthMiddleware:
                 if access_token is not None:
                     if self.rate_limiter is not None:
                         email_for_token = getattr(
-                            self.oauth_provider, "email_for_token", None
+                            self.oauth_provider,
+                            "email_for_token",
+                            None,
                         )
                         identity = (
                             email_for_token(presented) if email_for_token else None
@@ -420,10 +490,12 @@ class BearerAuthMiddleware:
 
 
 async def run_server(
-    server: Server, transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"
+    server: Server,
+    transport: str = "stdio",
+    port: int = 8000,
+    host: str = "127.0.0.1",
 ):
-    """
-    Run the MCP server with the specified transport.
+    """Run the MCP server with the specified transport.
 
     SSE auth: if ``META_DATA_MCP_AUTH_TOKEN`` is set, requests to ``/sse``
     and ``/messages`` must include ``Authorization: Bearer <token>``. When
@@ -434,18 +506,19 @@ async def run_server(
 
         async with stdio_server() as streams:
             await server.run(
-                streams[0], streams[1], server.create_initialization_options()
+                streams[0],
+                streams[1],
+                server.create_initialization_options(),
             )
     elif transport == "sse":
+        from contextlib import asynccontextmanager
+
         import uvicorn
         from mcp.server.sse import SseServerTransport
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
         from starlette.applications import Starlette
         from starlette.middleware.cors import CORSMiddleware
         from starlette.routing import Mount, Route
-
-        from contextlib import asynccontextmanager
-
-        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
         sse = SseServerTransport("/messages")
         streamable_manager = StreamableHTTPSessionManager(server, stateless=True)
@@ -483,7 +556,7 @@ async def run_server(
                     "server": server.name,
                     "transport": "sse",
                     "endpoints": {"sse": "/sse", "messages": "/messages"},
-                }
+                },
             )
 
         # ----------------------------------------------------------------
@@ -495,12 +568,13 @@ async def run_server(
 
         oauth_issuer = os.getenv("META_DATA_MCP_OAUTH_ISSUER")
         if not oauth_issuer and os.getenv(
-            "META_DATA_MCP_EMAIL_GATE", ""
+            "META_DATA_MCP_EMAIL_GATE",
+            "",
         ).strip().lower() in ("1", "true", "yes", "on"):
             log.warning(
                 "META_DATA_MCP_EMAIL_GATE is set but META_DATA_MCP_OAUTH_ISSUER "
                 "is not — the email gate rides the OAuth flow and is DISABLED "
-                "until an issuer is configured."
+                "until an issuer is configured.",
             )
         if oauth_issuer:
             try:
@@ -513,7 +587,7 @@ async def run_server(
                     "OAuth support requires an MCP SDK version that provides "
                     "`mcp.server.auth.routes.create_protected_resource_routes`. "
                     "Please upgrade the `mcp` package to a compatible version or "
-                    "unset META_DATA_MCP_OAUTH_ISSUER to disable OAuth."
+                    "unset META_DATA_MCP_OAUTH_ISSUER to disable OAuth.",
                 ) from exc
             from mcp.server.auth.settings import ClientRegistrationOptions
             from pydantic import AnyHttpUrl
@@ -533,7 +607,8 @@ async def run_server(
                 log.info("OAuth persistence enabled — SQLite at %s", oauth_db_path)
 
             oauth_provider = InMemoryOAuthProvider(
-                issuer_url=oauth_issuer, persistence=oauth_persistence
+                issuer_url=oauth_issuer,
+                persistence=oauth_persistence,
             )
 
             # ----------------------------------------------------------------
@@ -544,7 +619,8 @@ async def run_server(
             # clicked, and the verified email becomes the rate-limit identity.
             # When disabled, the original one-click Approve consent is used.
             email_gate_enabled = os.getenv(
-                "META_DATA_MCP_EMAIL_GATE", ""
+                "META_DATA_MCP_EMAIL_GATE",
+                "",
             ).strip().lower() in ("1", "true", "yes", "on")
             magic_store = None
             emailer = None
@@ -567,7 +643,8 @@ async def run_server(
                 # it — anyone with log access could sign in. Refuse to start a
                 # gated server on it unless the operator explicitly opts in.
                 if emailer.backend is EmailBackend.CONSOLE and os.getenv(
-                    "META_DATA_MCP_ALLOW_CONSOLE_EMAIL", ""
+                    "META_DATA_MCP_ALLOW_CONSOLE_EMAIL",
+                    "",
                 ).strip().lower() not in ("1", "true", "yes", "on"):
                     raise RuntimeError(
                         "META_DATA_MCP_EMAIL_GATE is enabled but no email backend "
@@ -575,7 +652,7 @@ async def run_server(
                         "META_DATA_MCP_SMTP_HOST). The console backend logs magic "
                         "links in plaintext and is unsafe for production. To use "
                         "it for local testing, set "
-                        "META_DATA_MCP_ALLOW_CONSOLE_EMAIL=1."
+                        "META_DATA_MCP_ALLOW_CONSOLE_EMAIL=1.",
                     )
                 rpm = DEFAULT_RATE_LIMIT_RPM
                 raw_rpm = os.getenv("META_DATA_MCP_RATE_LIMIT_RPM")
@@ -631,7 +708,8 @@ async def run_server(
                     oauth_issuer,
                 )
             elif hmac.compare_digest(
-                resource_public_url.rstrip("/"), oauth_issuer.rstrip("/")
+                resource_public_url.rstrip("/"),
+                oauth_issuer.rstrip("/"),
             ):
                 log.info(
                     "META_DATA_MCP_PUBLIC_URL matches META_DATA_MCP_OAUTH_ISSUER; "
@@ -712,7 +790,8 @@ async def run_server(
 
             async def oidc_discovery(_request):
                 return _RedirectResponse(
-                    "/.well-known/oauth-authorization-server", status_code=301
+                    "/.well-known/oauth-authorization-server",
+                    status_code=301,
                 )
 
             extra_routes = (
@@ -770,13 +849,13 @@ async def run_server(
                             "bearer token" if auth_token else None,
                             "OAuth 2.0" if oauth_provider else None,
                         ],
-                    )
+                    ),
                 ),
             )
         else:
             log.warning(
                 "SSE auth DISABLED — set META_DATA_MCP_AUTH_TOKEN or "
-                "META_DATA_MCP_OAUTH_ISSUER to protect /sse and /messages"
+                "META_DATA_MCP_OAUTH_ISSUER to protect /sse and /messages",
             )
 
         # CORSMiddleware must be added last so it is outermost; this ensures
@@ -799,7 +878,7 @@ async def run_server(
         # plugin activation state and token verification are moved to shared
         # cross-worker storage.
         _UVICORN_LEVELS = frozenset(
-            {"critical", "error", "warning", "warn", "info", "debug"}
+            {"critical", "error", "warning", "warn", "info", "debug"},
         )
         _requested = os.environ.get("LOG_LEVEL", "info").lower()
         _uvicorn_level = _requested if _requested in _UVICORN_LEVELS else "info"

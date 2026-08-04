@@ -14,8 +14,6 @@ endpoints, query parameters, or credentials.
 
 from __future__ import annotations
 
-from typing import Optional
-
 
 class ProviderError(Exception):
     """Base class for translated provider failures.
@@ -124,7 +122,7 @@ class RateLimitError(ProviderError):
         message: str,
         *,
         status: int = 429,
-        retry_after: Optional[float] = None,
+        retry_after: float | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -201,7 +199,10 @@ def translate_http_error(provider: str, exc: Exception) -> ProviderError:
             )
         if status == 404:
             return NotFoundError(
-                provider, "resource not found", status=status, cause=exc
+                provider,
+                "resource not found",
+                status=status,
+                cause=exc,
             )
         if status in (401, 403):
             return AuthError(

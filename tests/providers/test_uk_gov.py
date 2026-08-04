@@ -1,19 +1,19 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.uk_gov import (
     TOOLS,
     _ckan_package_search_to_shape_payload,
-    handle_uk_gov_search_datasets,
     handle_uk_gov_get_dataset,
-    handle_uk_gov_list_organizations,
     handle_uk_gov_get_organization,
     handle_uk_gov_list_groups,
-    handle_uk_gov_list_tags,
+    handle_uk_gov_list_organizations,
     handle_uk_gov_list_recently_changed,
+    handle_uk_gov_list_tags,
+    handle_uk_gov_search_datasets,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -92,7 +92,7 @@ async def test_uk_gov_get_organization_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_uk_gov_get_organization(
-            {"id": "office-for-national-statistics"}
+            {"id": "office-for-national-statistics"},
         )
         assert "Office for National Statistics" in result[0].text
 
@@ -164,7 +164,7 @@ def test_adapter_flattens_ckan_package_search_to_rows():
                     "resources": [{"format": "csv"}, {"format": "json"}],
                     "metadata_created": "2020-01-01T00:00:00",
                     "metadata_modified": "2024-06-01T00:00:00",
-                }
+                },
             ],
         },
     }
@@ -187,7 +187,7 @@ def test_adapter_flattens_ckan_package_search_to_rows():
 
 def test_adapter_handles_empty_results():
     payload = _ckan_package_search_to_shape_payload(
-        {"success": True, "result": {"count": 0, "results": []}}
+        {"success": True, "result": {"count": 0, "results": []}},
     )
     assert payload["rows"] == []
     assert payload["count"] == 0
@@ -204,8 +204,8 @@ def test_adapter_truncates_long_notes():
         "result": {
             "results": [
                 {"name": "x", "title": "X", "notes": "z" * 1000},
-            ]
-        }
+            ],
+        },
     }
     payload = _ckan_package_search_to_shape_payload(raw)
     notes = payload["rows"][0]["notes"]
@@ -238,7 +238,7 @@ async def test_uk_gov_search_datasets_returns_shape_payload():
                         "title": "UK House Prices",
                         "organization": {"title": "ONS"},
                         "license_title": "OGL",
-                    }
+                    },
                 ],
             },
         }

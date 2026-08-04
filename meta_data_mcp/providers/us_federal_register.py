@@ -1,5 +1,4 @@
-"""
-US Federal Register Provider
+"""US Federal Register Provider
 
 This module exposes the federalregister.gov public API (v1), which
 publishes the daily Federal Register: rules, proposed rules, notices,
@@ -23,9 +22,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.fields import NonEmptyStr, PageInt
@@ -43,9 +43,9 @@ BASE_URL = "https://www.federalregister.gov/api/v1"
 _MAX_ABSTRACT_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,12 +57,13 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class FedRegSearchDocumentsParams(BaseModel):
     """Parameters for searching Federal Register documents."""
 
-    term: Optional[str] = Field(
-        None, description="Free-text search term (matched against documents)."
+    term: str | None = Field(
+        None,
+        description="Free-text search term (matched against documents).",
     )
     per_page: int = Field(default=20, description="Results per page (max 1000).")
     page: PageInt = Field(description="Results page (1-indexed).")
-    order: Optional[str] = Field(
+    order: str | None = Field(
         None,
         description=(
             "Sort order, e.g. 'relevance', 'newest', 'oldest', "
@@ -82,7 +83,9 @@ def fetch_fedreg_search_documents(params: FedRegSearchDocumentsParams) -> dict:
     if params.order:
         query_params["order"] = params.order
     response = http_get(
-        f"{BASE_URL}/documents.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/documents.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -121,7 +124,7 @@ def _fedreg_search_to_shape_payload(data: dict) -> dict:
                 "agencies": ", ".join(a for a in agency_names if a),
                 "html_url": doc.get("html_url"),
                 "abstract": abstract,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -154,7 +157,7 @@ def _fedreg_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Abstract (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["type", "agencies"],
     }
@@ -187,9 +190,9 @@ TOOLS.append(
     types.Tool(
         name="fedreg-search-documents",
         description="Search Federal Register documents (rules, notices, proposed rules, presidential documents).",
-        inputSchema=FedRegSearchDocumentsParams.model_json_schema(),
+        input_schema=FedRegSearchDocumentsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["fedreg-search-documents"] = handle_fedreg_search_documents
 
@@ -211,7 +214,8 @@ class FedRegGetDocumentParams(BaseModel):
 def fetch_fedreg_get_document(params: FedRegGetDocumentParams) -> dict:
     """Call /documents/{document_number}.json."""
     response = http_get(
-        f"{BASE_URL}/documents/{params.document_number}.json", provider=PROVIDER_ID
+        f"{BASE_URL}/documents/{params.document_number}.json",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -235,8 +239,8 @@ TOOLS.append(
     types.Tool(
         name="fedreg-get-document",
         description="Fetch a single Federal Register document by its document number.",
-        inputSchema=FedRegGetDocumentParams.model_json_schema(),
-    )
+        input_schema=FedRegGetDocumentParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fedreg-get-document"] = handle_fedreg_get_document
 
@@ -273,8 +277,8 @@ TOOLS.append(
     types.Tool(
         name="fedreg-list-agencies",
         description="List all agencies tracked by the Federal Register.",
-        inputSchema=FedRegListAgenciesParams.model_json_schema(),
-    )
+        input_schema=FedRegListAgenciesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fedreg-list-agencies"] = handle_fedreg_list_agencies
 
@@ -318,8 +322,8 @@ TOOLS.append(
     types.Tool(
         name="fedreg-get-agency",
         description="Fetch metadata for a single Federal Register agency by slug.",
-        inputSchema=FedRegGetAgencyParams.model_json_schema(),
-    )
+        input_schema=FedRegGetAgencyParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fedreg-get-agency"] = handle_fedreg_get_agency
 
@@ -332,7 +336,7 @@ TOOLS_HANDLERS["fedreg-get-agency"] = handle_fedreg_get_agency
 class FedRegPublicInspectionParams(BaseModel):
     """Parameters for the Public Inspection desk feed."""
 
-    available_on: Optional[str] = Field(
+    available_on: str | None = Field(
         None,
         pattern=r"^\d{4}-\d{2}-\d{2}$",
         description="ISO date (YYYY-MM-DD) on which the document is available.",
@@ -373,8 +377,8 @@ TOOLS.append(
             "List documents on the Public Inspection desk (pre-publication "
             "documents), optionally filtered by availability date."
         ),
-        inputSchema=FedRegPublicInspectionParams.model_json_schema(),
-    )
+        input_schema=FedRegPublicInspectionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fedreg-public-inspection-documents"] = handle_fedreg_public_inspection
 
@@ -387,7 +391,7 @@ TOOLS_HANDLERS["fedreg-public-inspection-documents"] = handle_fedreg_public_insp
 class FedRegListExecutiveOrdersParams(BaseModel):
     """Parameters for listing Executive Orders via the documents endpoint."""
 
-    president: Optional[str] = Field(
+    president: str | None = Field(
         None,
         description=(
             "President slug filter (e.g. 'donald-trump', 'joe-biden', 'barack-obama')."
@@ -409,7 +413,9 @@ def fetch_fedreg_list_executive_orders(
     if params.president:
         query_params["conditions[president]"] = params.president
     response = http_get(
-        f"{BASE_URL}/documents.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/documents.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -431,8 +437,8 @@ TOOLS.append(
     types.Tool(
         name="fedreg-list-executive-orders",
         description="List Executive Orders from the Federal Register, optionally filtered by president.",
-        inputSchema=FedRegListExecutiveOrdersParams.model_json_schema(),
-    )
+        input_schema=FedRegListExecutiveOrdersParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fedreg-list-executive-orders"] = handle_fedreg_list_executive_orders
 
@@ -445,11 +451,11 @@ TOOLS_HANDLERS["fedreg-list-executive-orders"] = handle_fedreg_list_executive_or
 class FedRegSuggestedSearchesParams(BaseModel):
     """Parameters for fetching curated suggested searches."""
 
-    sections: Optional[str] = Field(
+    sections: str | None = Field(
         None,
         description="Comma-separated section slugs (e.g. 'health,environment').",
     )
-    term: Optional[str] = Field(
+    term: str | None = Field(
         None,
         description="Optional free-text query to filter suggested searches.",
     )
@@ -487,8 +493,8 @@ TOOLS.append(
     types.Tool(
         name="fedreg-suggested-searches",
         description="Fetch Federal Register editor-curated suggested searches by section or term.",
-        inputSchema=FedRegSuggestedSearchesParams.model_json_schema(),
-    )
+        input_schema=FedRegSuggestedSearchesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fedreg-suggested-searches"] = handle_fedreg_suggested_searches
 
@@ -497,7 +503,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-federal-register", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-federal-register",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

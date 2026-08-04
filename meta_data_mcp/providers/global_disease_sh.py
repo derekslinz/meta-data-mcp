@@ -1,5 +1,4 @@
-"""
-disease.sh Open API Provider
+"""disease.sh Open API Provider
 
 This module provides interfaces to the disease.sh open API, which aggregates
 COVID-19 data from Johns Hopkins University, Worldometers and other sources,
@@ -28,9 +27,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -44,9 +44,9 @@ PROVIDER_ID = "global-disease-sh"
 BASE_URL = "https://disease.sh/v3/covid-19"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,8 +57,6 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 
 class DiseaseShGlobalParams(BaseModel):
     """Parameters for fetching worldwide COVID-19 aggregate."""
-
-    pass
 
 
 def fetch_global(_params: DiseaseShGlobalParams) -> dict:
@@ -84,8 +82,8 @@ TOOLS.append(
     types.Tool(
         name="disease-sh-global",
         description="Get worldwide aggregate COVID-19 totals (cases, deaths, recovered, tests).",
-        inputSchema=DiseaseShGlobalParams.model_json_schema(),
-    )
+        input_schema=DiseaseShGlobalParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["disease-sh-global"] = handle_global
 
@@ -98,7 +96,7 @@ TOOLS_HANDLERS["disease-sh-global"] = handle_global
 class DiseaseShCountriesParams(BaseModel):
     """Parameters for listing COVID-19 totals across all countries."""
 
-    sort: Optional[str] = Field(
+    sort: str | None = Field(
         default="cases",
         description="Sort field (e.g. 'cases', 'deaths', 'recovered')",
     )
@@ -136,8 +134,8 @@ TOOLS.append(
     types.Tool(
         name="disease-sh-countries",
         description="Get COVID-19 totals across all countries, sorted (default: by cases).",
-        inputSchema=DiseaseShCountriesParams.model_json_schema(),
-    )
+        input_schema=DiseaseShCountriesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["disease-sh-countries"] = handle_countries
 
@@ -151,14 +149,17 @@ class DiseaseShCountryParams(BaseModel):
     """Parameters for fetching COVID-19 totals for a single country."""
 
     country: str = Field(
-        ..., description="Country name or ISO2/ISO3 code (e.g. 'USA', 'France')"
+        ...,
+        description="Country name or ISO2/ISO3 code (e.g. 'USA', 'France')",
     )
 
 
 def fetch_country(params: DiseaseShCountryParams) -> dict:
     """Fetch COVID-19 totals for a single country."""
     response = http_get(
-        f"{BASE_URL}/countries/{params.country}", timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/countries/{params.country}",
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -182,8 +183,8 @@ TOOLS.append(
     types.Tool(
         name="disease-sh-country",
         description="Get COVID-19 totals for a single country (name or ISO2/ISO3 code).",
-        inputSchema=DiseaseShCountryParams.model_json_schema(),
-    )
+        input_schema=DiseaseShCountryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["disease-sh-country"] = handle_country
 
@@ -196,7 +197,7 @@ TOOLS_HANDLERS["disease-sh-country"] = handle_country
 class DiseaseShHistoricalAllParams(BaseModel):
     """Parameters for global historical COVID-19 data."""
 
-    lastdays: Optional[int] = Field(
+    lastdays: int | None = Field(
         default=30,
         description="Number of days of history to return (use a large value or 'all' upstream)",
     )
@@ -246,7 +247,7 @@ def _disease_sh_historical_to_shape_payload(data: dict) -> dict:
     }
 
 
-def _disease_sh_iso_date(raw: Any) -> Optional[str]:
+def _disease_sh_iso_date(raw: Any) -> str | None:
     """Convert disease.sh's ``M/D/YY`` keys into ISO ``YYYY-MM-DD``.
 
     Returns ``None`` when the input is not recognizable; the caller skips.
@@ -287,9 +288,9 @@ TOOLS.append(
     types.Tool(
         name="disease-sh-historical-all",
         description="Get worldwide historical COVID-19 data over the last N days.",
-        inputSchema=DiseaseShHistoricalAllParams.model_json_schema(),
+        input_schema=DiseaseShHistoricalAllParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["disease-sh-historical-all"] = handle_historical_all
 
@@ -303,7 +304,7 @@ class DiseaseShHistoricalCountryParams(BaseModel):
     """Parameters for per-country historical COVID-19 data."""
 
     country: str = Field(..., description="Country name or ISO2/ISO3 code")
-    lastdays: Optional[int] = Field(
+    lastdays: int | None = Field(
         default=30,
         description="Number of days of history to return",
     )
@@ -343,8 +344,8 @@ TOOLS.append(
     types.Tool(
         name="disease-sh-historical-country",
         description="Get historical COVID-19 data for a single country.",
-        inputSchema=DiseaseShHistoricalCountryParams.model_json_schema(),
-    )
+        input_schema=DiseaseShHistoricalCountryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["disease-sh-historical-country"] = handle_historical_country
 
@@ -357,7 +358,7 @@ TOOLS_HANDLERS["disease-sh-historical-country"] = handle_historical_country
 class DiseaseShVaccineCoverageParams(BaseModel):
     """Parameters for global vaccine coverage time-series."""
 
-    lastdays: Optional[int] = Field(
+    lastdays: int | None = Field(
         default=30,
         description="Number of days of vaccine coverage history to return",
     )
@@ -396,8 +397,8 @@ TOOLS.append(
     types.Tool(
         name="disease-sh-vaccine-coverage",
         description="Get worldwide COVID-19 vaccine coverage time-series.",
-        inputSchema=DiseaseShVaccineCoverageParams.model_json_schema(),
-    )
+        input_schema=DiseaseShVaccineCoverageParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["disease-sh-vaccine-coverage"] = handle_vaccine_coverage
 
@@ -406,7 +407,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-disease-sh", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-disease-sh",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

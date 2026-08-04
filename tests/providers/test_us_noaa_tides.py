@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_noaa_tides import (
     TOOLS,
     _noaa_tides_water_level_to_shape_payload,
-    handle_noaa_tides_water_level,
-    handle_noaa_tides_predictions,
     handle_noaa_tides_air_temperature,
-    handle_noaa_tides_water_temperature,
-    handle_noaa_tides_wind,
     handle_noaa_tides_currents,
     handle_noaa_tides_hourly_height,
+    handle_noaa_tides_predictions,
     handle_noaa_tides_station_metadata,
+    handle_noaa_tides_water_level,
+    handle_noaa_tides_water_temperature,
+    handle_noaa_tides_wind,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -69,7 +69,7 @@ def test_noaa_tides_adapter_skips_non_numeric():
         "data": [
             {"t": "2024-01-01 00:00", "v": "bad"},
             {"t": "2024-01-01 00:06", "v": "1.5"},
-        ]
+        ],
     }
     payload = _noaa_tides_water_level_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -113,7 +113,7 @@ async def test_noaa_tides_water_level_error():
 async def test_noaa_tides_predictions_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "predictions": [{"t": "2024-01-01 00:00", "v": "2.0", "type": "H"}]
+            "predictions": [{"t": "2024-01-01 00:00", "v": "2.0", "type": "H"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -123,7 +123,7 @@ async def test_noaa_tides_predictions_success():
                 "begin_date": "20240101",
                 "end_date": "20240102",
                 "interval": "hilo",
-            }
+            },
         )
         assert "predictions" in result[0].text
 
@@ -132,7 +132,7 @@ async def test_noaa_tides_predictions_success():
 async def test_noaa_tides_air_temperature_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": [{"t": "2024-01-01 00:00", "v": "5.6"}]
+            "data": [{"t": "2024-01-01 00:00", "v": "5.6"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -144,7 +144,7 @@ async def test_noaa_tides_air_temperature_success():
 async def test_noaa_tides_water_temperature_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": [{"t": "2024-01-01 00:00", "v": "9.1"}]
+            "data": [{"t": "2024-01-01 00:00", "v": "9.1"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -156,7 +156,7 @@ async def test_noaa_tides_water_temperature_success():
 async def test_noaa_tides_wind_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": [{"t": "2024-01-01 00:00", "s": "5.5", "d": "180"}]
+            "data": [{"t": "2024-01-01 00:00", "s": "5.5", "d": "180"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -168,7 +168,7 @@ async def test_noaa_tides_wind_success():
 async def test_noaa_tides_currents_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": [{"t": "2024-01-01 00:00", "s": "0.42", "d": "90"}]
+            "data": [{"t": "2024-01-01 00:00", "s": "0.42", "d": "90"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -180,7 +180,7 @@ async def test_noaa_tides_currents_success():
 async def test_noaa_tides_hourly_height_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": [{"t": "2024-01-01 00:00", "v": "1.10"}]
+            "data": [{"t": "2024-01-01 00:00", "v": "1.10"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -192,7 +192,7 @@ async def test_noaa_tides_hourly_height_success():
 async def test_noaa_tides_station_metadata_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "stations": [{"id": "9447130", "name": "Seattle"}]
+            "stations": [{"id": "9447130", "name": "Seattle"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 

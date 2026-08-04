@@ -1,17 +1,19 @@
 import json
+from unittest.mock import Mock, patch
+
 import httpx
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.errors import NotFoundError
 from meta_data_mcp.providers.us_data_gov import (
     TOOLS,
-    _datagov_search_to_shape_payload,
-    list_datagov_datasets,
-    DataGovListDatasetsParams,
-    handle_datagov_list_datasets,
-    fetch_datagov_dataset,
     DataGovGetDatasetParams,
+    DataGovListDatasetsParams,
+    _datagov_search_to_shape_payload,
+    fetch_datagov_dataset,
     handle_datagov_get_dataset,
+    handle_datagov_list_datasets,
+    list_datagov_datasets,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -34,7 +36,7 @@ def mock_search_response():
                 "organization": {"name": "Consumer Financial Protection Bureau"},
                 "description": "A collection of complaints received by the CFPB.",
                 "harvest_record": "https://catalog.data.gov/harvest_record/abc",
-            }
+            },
         ],
     }
 
@@ -55,10 +57,10 @@ def mock_show_response():
                             "title": "CSV Data",
                             "format": "CSV",
                             "accessURL": "https://example.com/data.csv",
-                        }
+                        },
                     ],
                 },
-            }
+            },
         ],
     }
 
@@ -82,7 +84,8 @@ def test_list_datagov_datasets(mock_search_response):
 async def test_handle_datagov_list_datasets(mock_search_response):
     """Handler returns the records shape primitive's payload format
     (v2.0 Phase 4): rows + schema replace the legacy {datasets: [...]}
-    envelope."""
+    envelope.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = mock_search_response
         mock_get.return_value.raise_for_status = Mock()
@@ -122,7 +125,7 @@ async def test_handle_datagov_get_dataset(mock_show_response):
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_datagov_get_dataset(
-            {"dataset_id": "consumer-complaint-database"}
+            {"dataset_id": "consumer-complaint-database"},
         )
         assert len(result) == 1
         assert "CSV Data" in result[0].text
@@ -163,12 +166,14 @@ async def test_handle_get_dataset_translates_http_404_to_not_found():
 
 @pytest.mark.anyio
 async def test_handle_get_dataset_does_not_translate_non_http_errors():
-    with patch(
-        "meta_data_mcp.providers.us_data_gov.fetch_datagov_dataset",
-        side_effect=ValueError("boom"),
+    with (
+        patch(
+            "meta_data_mcp.providers.us_data_gov.fetch_datagov_dataset",
+            side_effect=ValueError("boom"),
+        ),
+        pytest.raises(ValueError, match="boom"),
     ):
-        with pytest.raises(ValueError, match="boom"):
-            await handle_datagov_get_dataset({"dataset_id": "missing"})
+        await handle_datagov_get_dataset({"dataset_id": "missing"})
 
 
 # ---------------------------------------------------------------------------

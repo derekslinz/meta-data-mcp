@@ -1,5 +1,4 @@
-"""
-Provider Registry — structured metadata for every opendata-mcp provider.
+"""Provider Registry — structured metadata for every opendata-mcp provider.
 
 This file is the single source of truth describing each provider's domains,
 regions, data types, keywords, and any required environment variables.
@@ -18,9 +17,9 @@ faceted search works.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable, Iterator
-
+from typing import Any
 
 # Controlled vocabularies — keep these short.
 DOMAINS: tuple[str, ...] = (
@@ -1389,7 +1388,7 @@ class Registry:
     _static_count: int = 0
 
     @classmethod
-    def from_static(cls, entries: Iterable[ProviderEntry]) -> "Registry":
+    def from_static(cls, entries: Iterable[ProviderEntry]) -> Registry:
         """Seed a Registry from the compile-time entries."""
         r = cls()
         for e in entries:
@@ -1544,7 +1543,7 @@ def find_providers(
                     " ".join(entry.keywords),
                     " ".join(entry.domains),
                     " ".join(entry.regions),
-                )
+                ),
             ).lower()
             # Token-level matching for stable scoring across phrasing variants.
             for token in q.split():
@@ -1594,7 +1593,8 @@ def all_ids() -> list[str]:
 
 def _check_registry_vocabulary() -> Iterable[str]:
     """Yield human-readable warnings for any registry entries that use a
-    domain or region outside the controlled vocabularies. Intended for tests."""
+    domain or region outside the controlled vocabularies. Intended for tests.
+    """
     for entry in iter_registry():
         for d in entry.domains:
             if d not in DOMAINS:

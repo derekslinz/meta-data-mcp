@@ -1,13 +1,14 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
+
 from meta_data_mcp.providers.de_db import (
     TOOLS,
     _db_stations_to_shape_payload,
-    handle_list_stations,
     handle_get_timetable,
+    handle_list_stations,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -20,7 +21,8 @@ def anyio_backend():
 @pytest.mark.anyio
 async def test_db_list_stations_success():
     """Now returns the geofeatures shape payload — only stations with
-    usable coordinates make it through."""
+    usable coordinates make it through.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = [
@@ -29,7 +31,7 @@ async def test_db_list_stations_success():
                 "name": "Berlin Hbf",
                 "latitude": 52.525592,
                 "longitude": 13.369545,
-            }
+            },
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -58,7 +60,7 @@ async def test_db_get_timetable_success():
                 "direction": "Munich",
                 "plannedWhen": "2024-01-01T12:00:00Z",
                 "line": {"name": "ICE 1"},
-            }
+            },
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -114,7 +116,7 @@ def test_adapter_falls_back_to_nested_location():
             "id": "8011160",
             "name": "Berlin Hbf",
             "location": {"latitude": 52.525592, "longitude": 13.369545},
-        }
+        },
     ]
     payload = _db_stations_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -162,7 +164,7 @@ async def test_db_list_stations_returns_shape_payload():
                 "name": "Berlin Hbf",
                 "latitude": 52.525592,
                 "longitude": 13.369545,
-            }
+            },
         ]
         mock_get.return_value.raise_for_status = Mock()
 

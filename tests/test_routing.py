@@ -65,7 +65,7 @@ async def test_route_sees_dynamically_registered_plugins():
                     "dynamic-routing-sentinel-keyword",  # unique token, low collision risk
                 ),
                 homepage="https://example.invalid/",
-            )
+            ),
         )
         engine = RoutingEngine()
         results = await engine.route(query="dynamic-routing-sentinel-keyword", limit=5)

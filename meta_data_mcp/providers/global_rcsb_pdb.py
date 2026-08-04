@@ -1,5 +1,4 @@
-"""
-RCSB PDB Provider
+"""RCSB PDB Provider
 
 This module provides interfaces to the RCSB Protein Data Bank (PDB) API,
 the primary source for 3D biological macromolecular structures.
@@ -11,9 +10,10 @@ API Documentation: https://data.rcsb.org/redoc/index.html
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_molecular_v1 import URI as MOLECULAR_APP_URI
@@ -27,9 +27,9 @@ PROVIDER_ID = "global-rcsb-pdb"
 BASE_URL = "https://data.rcsb.org/rest/v1"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -46,7 +46,8 @@ class PDBEntryParams(BaseModel):
 def fetch_pdb_entry(params: PDBEntryParams) -> Any:
     """Fetch entry metadata from RCSB PDB."""
     response = http_get(
-        f"{BASE_URL}/core/entry/{params.entry_id}", provider=PROVIDER_ID
+        f"{BASE_URL}/core/entry/{params.entry_id}",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -60,8 +61,9 @@ async def handle_pdb_entry(
         data = fetch_pdb_entry(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching PDB entry: {e}")
@@ -72,7 +74,7 @@ TOOLS.append(
     types.Tool(
         name="pdb-entry",
         description="Fetch 3D macromolecular structure metadata from RCSB PDB by entry ID.",
-        inputSchema=PDBEntryParams.model_json_schema(),
+        input_schema=PDBEntryParams.model_json_schema(),
         # MCP Apps binding: render via the molecular structure app. The
         # entry endpoint returns metadata (title, resolution, method); the
         # app derives a files.rcsb.org/download/<ID>.pdb URL for the atoms.
@@ -81,7 +83,7 @@ TOOLS.append(
         # viewer would have nothing to render that the parent entry
         # doesn't already provide.
         _meta={"ui": {"resourceUri": MOLECULAR_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["pdb-entry"] = handle_pdb_entry
 
@@ -115,8 +117,9 @@ async def handle_pdb_polymer(
         data = fetch_pdb_polymer(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching PDB polymer entity: {e}")
@@ -127,8 +130,8 @@ TOOLS.append(
     types.Tool(
         name="pdb-polymer-entity",
         description="Fetch polymer entity details for a PDB entry.",
-        inputSchema=PDBPolymerParams.model_json_schema(),
-    )
+        input_schema=PDBPolymerParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["pdb-polymer-entity"] = handle_pdb_polymer
 
@@ -137,7 +140,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-rcsb-pdb", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-rcsb-pdb",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

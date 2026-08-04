@@ -73,12 +73,17 @@ generation; it takes paths and a plugin id.
 @dataclass
 class ContributionResult:
     status: Literal[
-        "opened", "skipped_exists", "declined",
-        "degraded", "disabled", "error",
+        "opened",
+        "skipped_exists",
+        "declined",
+        "degraded",
+        "disabled",
+        "error",
     ]
     pr_url: str | None = None
     branch: str | None = None
     message: str = ""
+
 
 async def contribute_plugin(
     plugin_id: str,

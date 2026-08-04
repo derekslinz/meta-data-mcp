@@ -1,18 +1,20 @@
 import json
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.nl_cbs import (
     TOOLS,
+    CBSDataParams,
+    CBSListTablesParams,
+    CBSMetadataParams,
     _cbs_typed_dataset_to_shape_payload,
     fetch_cbs_data,
-    CBSDataParams,
-    handle_cbs_data,
     fetch_cbs_metadata,
-    CBSMetadataParams,
+    handle_cbs_data,
+    handle_cbs_list_tables,
     handle_cbs_metadata,
     list_cbs_tables,
-    CBSListTablesParams,
-    handle_cbs_list_tables,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -32,8 +34,8 @@ def mock_cbs_data_response():
                 "Euro95_1": 1.500,
                 "Diesel_2": 1.200,
                 "LPG_3": 0.600,
-            }
-        ]
+            },
+        ],
     }
 
 
@@ -45,8 +47,8 @@ def mock_cbs_metadata_response():
                 "Key": "Euro95_1",
                 "Title": "Euro 95",
                 "Description": "Unleaded motor petrol",
-            }
-        ]
+            },
+        ],
     }
 
 
@@ -58,8 +60,8 @@ def mock_cbs_catalog_response():
                 "Identifier": "80416ENG",
                 "ShortTitle": "Fuel prices",
                 "Title": "Motor fuel prices; by day",
-            }
-        ]
+            },
+        ],
     }
 
 
@@ -146,7 +148,7 @@ async def test_handle_cbs_list_tables(mock_cbs_catalog_response):
 
         # Test with pagination
         result = await handle_cbs_list_tables({"top": 5, "skip": 10})
-        args, kwargs = mock_get.call_args
+        _args, kwargs = mock_get.call_args
         assert kwargs["params"]["$top"] == 5
         assert kwargs["params"]["$skip"] == 10
 
@@ -160,7 +162,7 @@ async def test_handle_cbs_data_pagination(mock_cbs_data_response):
         # Test with top and skip
         result = await handle_cbs_data({"table_id": "80416ENG", "top": 5, "skip": 10})
         assert "2023MM01" in result[0].text
-        args, kwargs = mock_get.call_args
+        _args, kwargs = mock_get.call_args
         assert kwargs["params"]["$top"] == 5
         assert kwargs["params"]["$skip"] == 10
 
@@ -185,7 +187,7 @@ def test_cbs_adapter_flattens_multi_column_table():
                 "Euro95_1": 1.6,
                 "Diesel_2": 1.3,
             },
-        ]
+        ],
     }
     payload = _cbs_typed_dataset_to_shape_payload(raw)
     assert payload["axes"] == {"x": "Period", "y": "Value"}
@@ -214,8 +216,8 @@ def test_cbs_adapter_skips_non_numeric():
                 "Euro95_1": "bad",
                 "Diesel_2": 1.2,
                 "Brand_3": True,
-            }
-        ]
+            },
+        ],
     }
     payload = _cbs_typed_dataset_to_shape_payload(raw)
     assert len(payload["points"]) == 1

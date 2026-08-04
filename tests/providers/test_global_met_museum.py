@@ -1,13 +1,14 @@
-import pytest
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_met_museum import (
     TOOLS,
-    handle_met_list_objects,
     handle_met_get_object,
-    handle_met_search,
     handle_met_list_departments,
+    handle_met_list_objects,
+    handle_met_search,
     handle_met_search_by_artist,
 )
 from meta_data_mcp.ui_resources.app_museum_v1 import URI as MUSEUM_URI
@@ -72,7 +73,7 @@ async def test_met_search_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_met_search(
-            {"q": "sunflowers", "hasImages": True, "departmentId": 11}
+            {"q": "sunflowers", "hasImages": True, "departmentId": 11},
         )
         assert "436535" in result[0].text
 
@@ -82,8 +83,8 @@ async def test_met_list_departments_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "departments": [
-                {"departmentId": 1, "displayName": "American Decorative Arts"}
-            ]
+                {"departmentId": 1, "displayName": "American Decorative Arts"},
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -128,7 +129,8 @@ def test_met_get_object_tool_binds_to_museum_app():
     """met-get-object renders the single-object detail modal in the
     museum app. Pin the binding so a refactor that drops it (and
     thereby breaks single-object hydration from a non-search source)
-    surfaces here."""
+    surfaces here.
+    """
     tool = next(t for t in TOOLS if t.name == "met-get-object")
     assert tool.meta == {"ui": {"resourceUri": MUSEUM_URI}}, (
         f"met-get-object is not bound to {MUSEUM_URI}"
@@ -142,7 +144,8 @@ def test_met_search_by_artist_binds_to_museum_app():
     shape as ``met-search``, so it must bind to the same museum app —
     otherwise the artist-search surface renders as plain text while the
     free-text-search surface renders as an image grid, which is a
-    confusing inconsistency."""
+    confusing inconsistency.
+    """
     tool = next(t for t in TOOLS if t.name == "met-search-by-artist")
     assert tool.meta == {"ui": {"resourceUri": MUSEUM_URI}}, (
         f"met-search-by-artist is not bound to {MUSEUM_URI}"
@@ -156,7 +159,8 @@ def test_unbound_met_tools_have_no_ui_meta():
     museum app — list-objects returns a raw id list with no filter UX
     and list-departments is a metadata helper, not a viewing surface.
     Pin the absence so a future refactor that flips them accidentally
-    surfaces here."""
+    surfaces here.
+    """
     for name in ("met-list-objects", "met-list-departments"):
         tool = next(t for t in TOOLS if t.name == name)
         assert tool.meta is None, f"{name} has unexpected _meta binding: {tool.meta!r}"

@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_europepmc import (
     TOOLS,
     _europepmc_search_to_shape_payload,
-    handle_europepmc_search,
-    handle_europepmc_get_article,
-    handle_europepmc_references,
     handle_europepmc_citations,
     handle_europepmc_fulltext_xml,
+    handle_europepmc_get_article,
+    handle_europepmc_references,
+    handle_europepmc_search,
     handle_europepmc_supplementaryfiles,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -29,8 +29,8 @@ async def test_europepmc_search_success():
             "hitCount": 1,
             "resultList": {
                 "result": [
-                    {"id": "12345", "source": "MED", "title": "CRISPR gene editing"}
-                ]
+                    {"id": "12345", "source": "MED", "title": "CRISPR gene editing"},
+                ],
             },
         }
         mock_get.return_value.raise_for_status = Mock()
@@ -111,13 +111,13 @@ async def test_europepmc_supplementaryfiles_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "supplementaryFiles": [
-                {"name": "table_s1.xlsx", "url": "http://example.com/s1.xlsx"}
-            ]
+                {"name": "table_s1.xlsx", "url": "http://example.com/s1.xlsx"},
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_europepmc_supplementaryfiles(
-            {"source": "PMC", "id": "PMC1234"}
+            {"source": "PMC", "id": "PMC1234"},
         )
         assert "table_s1.xlsx" in result[0].text
 
@@ -145,8 +145,8 @@ def test_europepmc_adapter_flattens_result_list_to_rows():
                     "pubType": "research-article; journal article",
                     "isOpenAccess": "Y",
                     "citedByCount": 1234,
-                }
-            ]
+                },
+            ],
         },
     }
     payload = _europepmc_search_to_shape_payload(raw)

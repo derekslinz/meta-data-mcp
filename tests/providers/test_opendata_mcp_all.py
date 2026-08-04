@@ -11,8 +11,8 @@ from __future__ import annotations
 import importlib
 import types as pytypes
 
-import mcp.types as types
 import pytest
+from mcp import types
 
 
 @pytest.fixture
@@ -31,8 +31,8 @@ def _make_fake_plugin_module(name: str, tool_name: str) -> pytypes.ModuleType:
         types.Tool(
             name=tool_name,
             description=f"tool from {name}",
-            inputSchema={"type": "object", "properties": {}},
-        )
+            input_schema={"type": "object", "properties": {}},
+        ),
     ]
     module.TOOLS_HANDLERS = {tool_name: handler}
     module.RESOURCES = []
@@ -78,8 +78,8 @@ def test_merge_plugin_detects_collision(caplog):
 
 
 def test_merge_plugin_distinct_tools_both_kept():
-    from meta_data_mcp.providers.meta_data_mcp import _merge_plugin
     from meta_data_mcp.providers import meta_data_mcp as srv
+    from meta_data_mcp.providers.meta_data_mcp import _merge_plugin
 
     saved_tools = list(srv.TOOLS)
     saved_handlers = dict(srv.TOOLS_HANDLERS)

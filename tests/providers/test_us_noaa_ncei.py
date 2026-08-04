@@ -1,19 +1,19 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_noaa_ncei import (
     TOOLS,
     _ncei_daily_summaries_to_shape_payload,
     handle_ncei_get_daily_summaries,
     handle_ncei_get_global_summary,
-    handle_ncei_search_stations,
-    handle_ncei_list_datasets,
-    handle_ncei_get_station_meta,
     handle_ncei_get_precipitation,
+    handle_ncei_get_station_meta,
     handle_ncei_get_temperature,
+    handle_ncei_list_datasets,
+    handle_ncei_search_stations,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -27,7 +27,7 @@ def anyio_backend():
 async def test_ncei_daily_summaries_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"STATION": "USW00014739", "DATE": "2024-01-01", "TMAX": 12, "TMIN": 3}
+            {"STATION": "USW00014739", "DATE": "2024-01-01", "TMAX": 12, "TMIN": 3},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -37,7 +37,7 @@ async def test_ncei_daily_summaries_success():
                 "startDate": "2024-01-01",
                 "endDate": "2024-01-01",
                 "dataTypes": "TMAX,TMIN",
-            }
+            },
         )
         assert "USW00014739" in result[0].text
         assert "TMAX" in result[0].text
@@ -79,7 +79,7 @@ def test_ncei_adapter_skips_non_numeric_fields():
             "TMAX": "bad",
             "TMIN": "5",
             "NAME": "Some Place",
-        }
+        },
     ]
     payload = _ncei_daily_summaries_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -97,7 +97,7 @@ def test_ncei_daily_summaries_tool_bound_to_timeseries_shape():
 async def test_ncei_daily_summaries_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"STATION": "X", "DATE": "2024-01-01", "TMAX": "12"}
+            {"STATION": "X", "DATE": "2024-01-01", "TMAX": "12"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -106,7 +106,7 @@ async def test_ncei_daily_summaries_returns_shape_payload():
                 "stations": "X",
                 "startDate": "2024-01-01",
                 "endDate": "2024-01-01",
-            }
+            },
         )
         body = json.loads(result[0].text)
         assert body["points"][0] == {
@@ -127,7 +127,7 @@ async def test_ncei_daily_summaries_error():
                     "stations": "USW00014739",
                     "startDate": "2024-01-01",
                     "endDate": "2024-01-01",
-                }
+                },
             )
 
 
@@ -135,7 +135,7 @@ async def test_ncei_daily_summaries_error():
 async def test_ncei_global_summary_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"STATION": "72509014739", "DATE": "2024-01-01", "TEMP": "30.4"}
+            {"STATION": "72509014739", "DATE": "2024-01-01", "TEMP": "30.4"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -144,7 +144,7 @@ async def test_ncei_global_summary_success():
                 "stations": "72509014739",
                 "startDate": "2024-01-01",
                 "endDate": "2024-01-01",
-            }
+            },
         )
         assert "72509014739" in result[0].text
 
@@ -159,7 +159,7 @@ async def test_ncei_search_stations_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_ncei_search_stations(
-            {"boundingBox": "42.5,-71.5,42.0,-70.5", "limit": 5}
+            {"boundingBox": "42.5,-71.5,42.0,-70.5", "limit": 5},
         )
         assert "Boston Logan" in result[0].text
 
@@ -184,7 +184,7 @@ async def test_ncei_list_datasets_success():
 async def test_ncei_get_station_meta_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "results": [{"id": "USW00014739", "name": "Boston Logan Intl"}]
+            "results": [{"id": "USW00014739", "name": "Boston Logan Intl"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -196,7 +196,7 @@ async def test_ncei_get_station_meta_success():
 async def test_ncei_get_precipitation_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"STATION": "USW00014739", "DATE": "2024-01-01", "PRCP": 0.42}
+            {"STATION": "USW00014739", "DATE": "2024-01-01", "PRCP": 0.42},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -205,7 +205,7 @@ async def test_ncei_get_precipitation_success():
                 "stations": "USW00014739",
                 "startDate": "2024-01-01",
                 "endDate": "2024-01-01",
-            }
+            },
         )
         assert "PRCP" in result[0].text
         assert "0.42" in result[0].text
@@ -215,7 +215,7 @@ async def test_ncei_get_precipitation_success():
 async def test_ncei_get_temperature_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"STATION": "USW00014739", "DATE": "2024-01-01", "TMAX": 12, "TMIN": 3}
+            {"STATION": "USW00014739", "DATE": "2024-01-01", "TMAX": 12, "TMIN": 3},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -224,7 +224,7 @@ async def test_ncei_get_temperature_success():
                 "stations": "USW00014739",
                 "startDate": "2024-01-01",
                 "endDate": "2024-01-01",
-            }
+            },
         )
         assert "TMAX" in result[0].text
         assert "TMIN" in result[0].text

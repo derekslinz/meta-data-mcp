@@ -95,7 +95,7 @@ def _run_git(repo_root: Path, *args: str, env: dict[str, str] | None = None) -> 
         raise ContributionGitError(f"git {' '.join(args)} timed out") from exc
     if proc.returncode != 0:
         raise ContributionGitError(
-            f"git {' '.join(args)} failed ({proc.returncode}): {proc.stderr.strip()}"
+            f"git {' '.join(args)} failed ({proc.returncode}): {proc.stderr.strip()}",
         )
     return proc.stdout
 
@@ -126,7 +126,13 @@ def build_contribution_branch(
         parent = _run_git(repo_root, "rev-parse", base).strip()
         msg = f"feat(plugins): add {plugin_id} (auto-contributed)"
         commit = _run_git(
-            repo_root, "commit-tree", tree, "-p", parent, "-m", msg
+            repo_root,
+            "commit-tree",
+            tree,
+            "-p",
+            parent,
+            "-m",
+            msg,
         ).strip()
         _run_git(repo_root, "update-ref", f"refs/heads/{branch}", commit)
     finally:
@@ -185,8 +191,10 @@ def render_pr_body(plugin_id: str, meta: dict[str, Any]) -> str:
     lines = [
         f"## New plugin: `{plugin_id}`",
         "",
-        "> Auto-generated in-session by `opendata_plugins_create` and "
-        "contributed back automatically.",
+        (
+            "> Auto-generated in-session by `opendata_plugins_create` and "
+            "contributed back automatically."
+        ),
         "",
         f"**Description:** {meta.get('description') or '—'}",
         f"**Base URL:** {meta.get('base_url') or '—'}",
@@ -308,7 +316,10 @@ def _contribute_sync(
         """
         try:
             with tempfile.NamedTemporaryFile(
-                "w", suffix=".md", delete=False, encoding="utf-8"
+                "w",
+                suffix=".md",
+                delete=False,
+                encoding="utf-8",
             ) as fh:
                 fh.write(render_pr_body(plugin_id, meta))
                 body_path = fh.name
@@ -409,8 +420,11 @@ async def contribute_plugin(
     try:
         return await anyio.to_thread.run_sync(
             lambda: _contribute_sync(
-                plugin_id, files, repo_root=repo_root, meta=meta or {}
-            )
+                plugin_id,
+                files,
+                repo_root=repo_root,
+                meta=meta or {},
+            ),
         )
     except Exception as exc:  # noqa: BLE001 — contribution is always non-fatal
         log.error("contribution failed unexpectedly: %s", exc)

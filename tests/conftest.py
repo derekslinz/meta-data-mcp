@@ -1,5 +1,4 @@
-"""
-Root pytest configuration.
+"""Root pytest configuration.
 
 Applies safety defaults to every test in the suite.
 """

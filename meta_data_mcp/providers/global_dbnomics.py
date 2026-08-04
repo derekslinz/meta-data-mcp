@@ -1,5 +1,4 @@
-"""
-DBnomics Provider
+"""DBnomics Provider
 
 This module provides interfaces to the DBnomics API, which aggregates economic data
 from over 100 providers worldwide (IMF, World Bank, ECB, Fed, etc.).
@@ -11,9 +10,10 @@ API Documentation: https://api.db.nomics.world/apidocs
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -27,9 +27,9 @@ PROVIDER_ID = "global-dbnomics"
 BASE_URL = "https://api.db.nomics.world/v22"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -69,8 +69,8 @@ TOOLS.append(
     types.Tool(
         name="dbnomics-search",
         description="Search for economic datasets and series on DBnomics.",
-        inputSchema=DBnomicsSearchParams.model_json_schema(),
-    )
+        input_schema=DBnomicsSearchParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["dbnomics-search"] = handle_dbnomics_search
 
@@ -101,8 +101,8 @@ TOOLS.append(
     types.Tool(
         name="dbnomics-list-providers",
         description="List all economic data providers aggregated by DBnomics.",
-        inputSchema={"type": "object", "properties": {}},
-    )
+        input_schema={"type": "object", "properties": {}},
+    ),
 )
 TOOLS_HANDLERS["dbnomics-list-providers"] = handle_dbnomics_list_providers
 
@@ -197,9 +197,9 @@ TOOLS.append(
     types.Tool(
         name="dbnomics-series",
         description="Fetch data for specific economic series from DBnomics.",
-        inputSchema=DBnomicsSeriesParams.model_json_schema(),
+        input_schema=DBnomicsSeriesParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["dbnomics-series"] = handle_dbnomics_series
 
@@ -208,7 +208,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-dbnomics", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-dbnomics",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

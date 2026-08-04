@@ -13,8 +13,8 @@ import pytest
 from meta_data_mcp.providers.us_cary import (
     TOOLS,
     _socrata_views_to_shape_payload,
-    handle_us_cary_search_catalog,
     handle_us_cary_get_metadata,
+    handle_us_cary_search_catalog,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -34,7 +34,7 @@ async def test_us_cary_search_catalog_success():
                 "name": "Cary Park Locations",
                 "category": "Parks",
                 "viewType": "tabular",
-            }
+            },
         ]
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
@@ -96,7 +96,7 @@ def test_socrata_adapter_flattens_views_to_rows():
             "description": "Park locations.",
             "rowsUpdatedAt": 1700000000,
             "createdAt": 1500000000,
-        }
+        },
     ]
     payload = _socrata_views_to_shape_payload(raw)
     row = payload["rows"][0]

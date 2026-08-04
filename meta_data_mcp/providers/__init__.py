@@ -1,3 +1,1 @@
-"""
-OpenDataMCP Providers Package
-"""
+"""OpenDataMCP Providers Package"""

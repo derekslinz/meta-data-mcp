@@ -109,7 +109,8 @@ def test_normalize_geo_greece_native_codes_still_work() -> None:
 
 def test_orphaned_alias_fails_loudly(monkeypatch: pytest.MonkeyPatch) -> None:
     """A concordance regeneration that drops an alias target must fail
-    at index build, not silently orphan the alias."""
+    at index build, not silently orphan the alias.
+    """
     from meta_data_mcp import harmonize
 
     monkeypatch.setitem(harmonize._NAME_ALIASES, "atlantis", "ATL")
@@ -141,7 +142,10 @@ def test_orphaned_alias_fails_loudly(monkeypatch: pytest.MonkeyPatch) -> None:
     ],
 )
 def test_normalize_period_formats(
-    value: str | int, freq: str, canonical: str, start: str
+    value: str | int,
+    freq: str,
+    canonical: str,
+    start: str,
 ) -> None:
     period = normalize_period(value)
     assert period is not None

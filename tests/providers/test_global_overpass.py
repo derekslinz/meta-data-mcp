@@ -1,15 +1,16 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
+
 from meta_data_mcp.providers.global_overpass import (
     TOOLS,
     _overpass_elements_to_shape_payload,
-    handle_query,
-    handle_status,
     handle_around_amenity,
     handle_bbox_feature,
+    handle_query,
+    handle_status,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -46,8 +47,8 @@ async def test_overpass_query_success():
         )
         result = await handle_query(
             {
-                "query": '[out:json];node["amenity"="cafe"](around:500,52.52,13.41);out body;'
-            }
+                "query": '[out:json];node["amenity"="cafe"](around:500,52.52,13.41);out body;',
+            },
         )
         assert "cafe" in result[0].text
 
@@ -82,7 +83,7 @@ async def test_overpass_around_amenity_success():
             {"elements": [{"type": "node", "id": 99, "tags": {"amenity": "cafe"}}]},
         )
         result = await handle_around_amenity(
-            {"amenity": "cafe", "lat": 52.52, "lon": 13.41, "radius": 500}
+            {"amenity": "cafe", "lat": 52.52, "lon": 13.41, "radius": 500},
         )
         assert "cafe" in result[0].text
         # Verify the constructed query contains the around clause
@@ -110,8 +111,8 @@ async def test_overpass_bbox_feature_success():
                         "lat": 52.55,
                         "lon": 13.4,
                         "tags": {"highway": "primary"},
-                    }
-                ]
+                    },
+                ],
             },
         )
         result = await handle_bbox_feature(
@@ -122,7 +123,7 @@ async def test_overpass_bbox_feature_success():
                 "w": 13.3,
                 "n": 52.6,
                 "e": 13.5,
-            }
+            },
         )
         assert "primary" in result[0].text
         called_kwargs = mock_get.call_args.kwargs
@@ -161,7 +162,7 @@ def test_adapter_maps_node_elements_to_features():
                 "lon": 2.35,
                 "tags": {"amenity": "restaurant"},
             },
-        ]
+        ],
     }
     payload = _overpass_elements_to_shape_payload(raw)
     assert len(payload["features"]) == 2
@@ -175,7 +176,8 @@ def test_adapter_maps_node_elements_to_features():
 def test_adapter_uses_center_for_way_elements():
     """Ways/relations carry coords under `center` when OverpassQL uses
     `out center`. The adapter falls back to that block when top-level
-    lat/lon are missing."""
+    lat/lon are missing.
+    """
     raw = {
         "elements": [
             {
@@ -183,8 +185,8 @@ def test_adapter_uses_center_for_way_elements():
                 "id": 99,
                 "center": {"lat": 1.5, "lon": 2.5},
                 "tags": {"highway": "primary"},
-            }
-        ]
+            },
+        ],
     }
     payload = _overpass_elements_to_shape_payload(raw)
     assert payload["features"] == [
@@ -196,7 +198,7 @@ def test_adapter_uses_center_for_way_elements():
                 "id": 99,
                 "tags": {"highway": "primary"},
             },
-        }
+        },
     ]
 
 
@@ -207,7 +209,8 @@ def test_adapter_handles_empty_elements():
 
 def test_adapter_handles_non_dict_response():
     """A plain-text Overpass response (status/error) must produce a valid
-    envelope with no features, not crash."""
+    envelope with no features, not crash.
+    """
     payload = _overpass_elements_to_shape_payload("error: rate limited")
     assert payload == {"features": []}
 
@@ -220,7 +223,7 @@ def test_adapter_skips_invalid_coords_defensively():
             {"type": "node", "id": 3, "lat": 0.0, "lon": -181.0},  # out of range
             {"type": "node", "id": 4},  # missing coords
             {"type": "node", "id": 5, "lat": 0.0, "lon": 0.0},  # valid
-        ]
+        ],
     }
     payload = _overpass_elements_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -254,8 +257,8 @@ async def test_overpass_bbox_feature_returns_shape_payload():
                         "lat": 52.55,
                         "lon": 13.4,
                         "tags": {"highway": "primary"},
-                    }
-                ]
+                    },
+                ],
             },
         )
         result = await handle_bbox_feature(
@@ -266,7 +269,7 @@ async def test_overpass_bbox_feature_returns_shape_payload():
                 "w": 13.3,
                 "n": 52.6,
                 "e": 13.5,
-            }
+            },
         )
         body = json.loads(result[0].text)
         assert "features" in body

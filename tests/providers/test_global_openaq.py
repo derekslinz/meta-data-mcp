@@ -57,7 +57,7 @@ def test_location_latest_path_param():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok_response({"results": [{"value": 12.3}]})
         result = fetch_openaq_location_latest(
-            OpenAqLocationLatestParams(location_id=42)
+            OpenAqLocationLatestParams(location_id=42),
         )
         assert result["results"][0]["value"] == 12.3
         assert "/locations/42/latest" in mock_get.call_args[0][0]
@@ -88,15 +88,16 @@ def test_auth_header_sent_when_env_set(monkeypatch):
 @pytest.mark.anyio
 async def test_handle_list_locations():
     """Now returns the geofeatures shape payload — only locations with
-    usable coordinates make it through."""
+    usable coordinates make it through.
+    """
     payload = {
         "results": [
             {
                 "id": 1,
                 "name": "Test Station",
                 "coordinates": {"latitude": 52.37, "longitude": 4.9},
-            }
-        ]
+            },
+        ],
     }
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok_response(payload)
@@ -141,7 +142,7 @@ def test_adapter_maps_locations_to_features():
                 "name": "Paris Station",
                 "coordinates": {"latitude": 48.86, "longitude": 2.35},
             },
-        ]
+        ],
     }
     payload = _openaq_locations_to_shape_payload(raw)
     assert len(payload["features"]) == 2
@@ -181,7 +182,7 @@ def test_adapter_skips_locations_without_coords():
                 "name": "ok",
                 "coordinates": {"latitude": 52.5, "longitude": 13.4},
             },
-        ]
+        ],
     }
     payload = _openaq_locations_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -203,8 +204,8 @@ async def test_handle_list_locations_returns_shape_payload():
                 "id": 1,
                 "name": "Berlin Station",
                 "coordinates": {"latitude": 52.52, "longitude": 13.41},
-            }
-        ]
+            },
+        ],
     }
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok_response(payload)

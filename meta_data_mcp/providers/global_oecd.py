@@ -1,5 +1,4 @@
-"""
-OECD SDMX Provider
+"""OECD SDMX Provider
 
 This module provides interfaces to the OECD public SDMX REST API, exposing
 economic, social, and environmental statistics for OECD and partner countries.
@@ -20,9 +19,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -38,9 +38,9 @@ SDMX_DATA_ACCEPT = "application/vnd.sdmx.data+json;version=1.0.0"
 SDMX_STRUCT_ACCEPT = "application/vnd.sdmx.structure+json;version=1.0.0"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -51,8 +51,6 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 
 class OECDListDataflowsParams(BaseModel):
     """Parameters for listing OECD dataflows."""
-
-    pass
 
 
 def fetch_list_dataflows(_params: OECDListDataflowsParams) -> dict:
@@ -84,8 +82,8 @@ TOOLS.append(
     types.Tool(
         name="oecd-list-dataflows",
         description="List all available OECD SDMX dataflows.",
-        inputSchema=OECDListDataflowsParams.model_json_schema(),
-    )
+        input_schema=OECDListDataflowsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["oecd-list-dataflows"] = handle_list_dataflows
 
@@ -100,7 +98,8 @@ class OECDGetDataflowParams(BaseModel):
 
     agencyId: str = Field(..., description="Agency ID (e.g. 'OECD.SDD.NAD')")
     flowId: str = Field(
-        ..., description="Dataflow ID (e.g. 'DSD_NAMAIN1@DF_QNA_EXPENDITURE')"
+        ...,
+        description="Dataflow ID (e.g. 'DSD_NAMAIN1@DF_QNA_EXPENDITURE')",
     )
 
 
@@ -135,8 +134,8 @@ TOOLS.append(
     types.Tool(
         name="oecd-get-dataflow",
         description="Get metadata for a single OECD dataflow.",
-        inputSchema=OECDGetDataflowParams.model_json_schema(),
-    )
+        input_schema=OECDGetDataflowParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["oecd-get-dataflow"] = handle_get_dataflow
 
@@ -188,8 +187,8 @@ TOOLS.append(
     types.Tool(
         name="oecd-get-datastructure",
         description="Get an OECD data-structure definition (DSD) describing dimensions and attributes.",
-        inputSchema=OECDGetDataStructureParams.model_json_schema(),
-    )
+        input_schema=OECDGetDataStructureParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["oecd-get-datastructure"] = handle_get_datastructure
 
@@ -209,11 +208,13 @@ class OECDGetDataParams(BaseModel):
         default="all",
         description="SDMX series key with dimension values separated by dots, or 'all'",
     )
-    startPeriod: Optional[str] = Field(
-        None, description="Start period (e.g. '2010' or '2010-Q1')"
+    startPeriod: str | None = Field(
+        None,
+        description="Start period (e.g. '2010' or '2010-Q1')",
     )
-    endPeriod: Optional[str] = Field(
-        None, description="End period (e.g. '2020' or '2020-Q4')"
+    endPeriod: str | None = Field(
+        None,
+        description="End period (e.g. '2020' or '2020-Q4')",
     )
 
 
@@ -355,9 +356,9 @@ TOOLS.append(
     types.Tool(
         name="oecd-get-data",
         description="Fetch OECD SDMX time-series data for a dataflow and series key.",
-        inputSchema=OECDGetDataParams.model_json_schema(),
+        input_schema=OECDGetDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["oecd-get-data"] = handle_get_data
 
@@ -410,8 +411,8 @@ TOOLS.append(
     types.Tool(
         name="oecd-list-codelist",
         description="Fetch a codelist (controlled vocabulary) from the OECD SDMX API.",
-        inputSchema=OECDListCodelistParams.model_json_schema(),
-    )
+        input_schema=OECDListCodelistParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["oecd-list-codelist"] = handle_list_codelist
 
@@ -460,8 +461,8 @@ TOOLS.append(
     types.Tool(
         name="oecd-list-conceptscheme",
         description="Fetch a concept scheme from the OECD SDMX API.",
-        inputSchema=OECDListConceptSchemeParams.model_json_schema(),
-    )
+        input_schema=OECDListConceptSchemeParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["oecd-list-conceptscheme"] = handle_list_conceptscheme
 
@@ -470,7 +471,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-oecd", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-oecd",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

@@ -1,5 +1,4 @@
-"""
-Template for MCP server definitions.
+"""Template for MCP server definitions.
 
 This template provides a standardized structure for creating MCP server modules.
 Each module should follow this pattern to ensure consistency across the codebase.
@@ -28,12 +27,13 @@ Kernel contract:
 
 # 1. Standard Imports Section
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
-from meta_data_mcp.fields import NonEmptyStr  # noqa: F401 — example shared field type
+from meta_data_mcp.fields import NonEmptyStr
 from meta_data_mcp.utils import http_get, to_json_text  # add http_post if you POST
 
 # Initialize logging
@@ -44,13 +44,15 @@ PROVIDER_ID = "service-name"  # MUST match the server_name in registry.py
 BASE_URL = "https://api.example.com/v1"
 
 # 3. Registration Variables
-RESOURCES: List[Any] = []  # resources that will be registered by each endpoints
+RESOURCES: list[Any] = []  # resources that will be registered by each endpoints
 RESOURCES_HANDLERS: dict[
-    str, Any
+    str,
+    Any,
 ] = {}  # resources handlers that will be registered by each endpoints
-TOOLS: List[types.Tool] = []  # tools that will be registered by each endpoints
+TOOLS: list[types.Tool] = []  # tools that will be registered by each endpoints
 TOOLS_HANDLERS: dict[
-    str, Any
+    str,
+    Any,
 ] = {}  # tools handlers that will be registered by each endpoints
 
 ###################
@@ -63,7 +65,7 @@ class EndpointParams(BaseModel):
     """Input parameters for the endpoint."""
 
     param1: NonEmptyStr = Field(..., description="Description of param1")
-    param2: Optional[int] = Field(None, description="Description of param2")
+    param2: int | None = Field(None, description="Description of param2")
 
 
 class EndpointResult(BaseModel):
@@ -76,13 +78,12 @@ class EndpointResult(BaseModel):
 class EndpointResponse(BaseModel):
     """Complete response from the endpoint."""
 
-    results: List[EndpointResult] = Field(..., description="List of results")
+    results: list[EndpointResult] = Field(..., description="List of results")
 
 
 # 2. Data Fetching Function
 def fetch_endpoint_data(params: EndpointParams) -> EndpointResponse:
-    """
-    Fetch data from the endpoint.
+    """Fetch data from the endpoint.
 
     Args:
         params: EndpointParams object containing all query parameters
@@ -94,6 +95,7 @@ def fetch_endpoint_data(params: EndpointParams) -> EndpointResponse:
         meta_data_mcp.errors.ProviderError: translated kernel exception on
             HTTP / network failure. Pre-response network errors and 429/5xx
             responses are retried with capped backoff by ``http_get``.
+
     """
     endpoint = f"{BASE_URL}/endpoint"
     response = http_get(
@@ -108,8 +110,7 @@ def fetch_endpoint_data(params: EndpointParams) -> EndpointResponse:
 async def handle_endpoint(
     arguments: dict[str, Any] | None = None,
 ) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-    """
-    Handle the tool execution for this endpoint.
+    """Handle the tool execution for this endpoint.
 
     Args:
         arguments: Dictionary of tool arguments
@@ -119,6 +120,7 @@ async def handle_endpoint(
 
     Raises:
         Exception: If the handling fails
+
     """
     response = fetch_endpoint_data(EndpointParams(**(arguments or {})))
     return [types.TextContent(type="text", text=to_json_text(response.model_dump()))]
@@ -129,8 +131,8 @@ TOOLS.append(
     types.Tool(
         name="endpoint-name",
         description="Description of what this endpoint does",
-        inputSchema=EndpointParams.model_json_schema(),
-    )
+        input_schema=EndpointParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["endpoint-name"] = handle_endpoint
 
@@ -153,7 +155,7 @@ TOOLS_HANDLERS["endpoint-name"] = handle_endpoint
 #     types.Tool(
 #         name="endpoint-name",
 #         description="...",
-#         inputSchema=EndpointParams.model_json_schema(),
+#         input_schema=EndpointParams.model_json_schema(),
 #         _meta={"ui": {"resourceUri": APP_URI}},
 #     )
 # )
@@ -163,14 +165,17 @@ TOOLS_HANDLERS["endpoint-name"] = handle_endpoint
 ###################
 # [Another Endpoint Name]
 ###################
-...
 
 
 async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"):
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "service.name", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "service.name",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

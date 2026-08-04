@@ -35,7 +35,7 @@ def _ok(payload: dict) -> Mock:
 
 def test_list_domains():
     payload = {
-        "data": [{"domain_code": "QCL", "domain_name": "Crops and livestock products"}]
+        "data": [{"domain_code": "QCL", "domain_name": "Crops and livestock products"}],
     }
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok(payload)
@@ -110,8 +110,8 @@ async def test_handle_data():
                 "Year": 2022,
                 "Unit": "t",
                 "Value": 100,
-            }
-        ]
+            },
+        ],
     }
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok(payload)
@@ -144,7 +144,7 @@ def test_faostat_adapter_flattens_rows_to_points():
                 "Unit": "t",
                 "Value": 110.0,
             },
-        ]
+        ],
     }
     payload = _faostat_data_to_shape_payload(raw)
     assert payload["axes"] == {"x": "Year", "y": "t"}
@@ -178,7 +178,7 @@ def test_faostat_adapter_skips_non_numeric():
         "data": [
             {"Area": "USA", "Year": 2020, "Value": "bad"},
             {"Area": "USA", "Year": 2021, "Value": 1.0},
-        ]
+        ],
     }
     payload = _faostat_data_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -202,8 +202,8 @@ async def test_faostat_data_returns_shape_payload():
                 "Year": 2020,
                 "Unit": "t",
                 "Value": 100.0,
-            }
-        ]
+            },
+        ],
     }
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok(payload)

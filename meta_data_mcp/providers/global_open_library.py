@@ -1,5 +1,4 @@
-"""
-Open Library Provider
+"""Open Library Provider
 
 This module exposes the public Open Library API (hosted by the Internet
 Archive). It covers book search, work / edition / author records, ISBN
@@ -25,9 +24,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -41,9 +41,9 @@ PROVIDER_ID = "global-open-library"
 BASE_URL = "https://openlibrary.org"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -55,15 +55,20 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class OpenLibrarySearchBooksParams(BaseModel):
     """Parameters for searching Open Library books."""
 
-    title: Optional[str] = Field(
-        default=None, description="Title fragment to search for."
+    title: str | None = Field(
+        default=None,
+        description="Title fragment to search for.",
     )
-    author: Optional[str] = Field(default=None, description="Author name fragment.")
-    q: Optional[str] = Field(
-        default=None, description="Free-text search across all fields."
+    author: str | None = Field(default=None, description="Author name fragment.")
+    q: str | None = Field(
+        default=None,
+        description="Free-text search across all fields.",
     )
     limit: int = Field(
-        default=10, ge=1, le=100, description="Results per page (1-100)."
+        default=10,
+        ge=1,
+        le=100,
+        description="Results per page (1-100).",
     )
     page: int = Field(default=1, ge=1, description="Page number (1-indexed).")
 
@@ -78,7 +83,9 @@ def fetch_open_library_search_books(params: OpenLibrarySearchBooksParams) -> dic
     if params.q:
         query_params["q"] = params.q
     response = http_get(
-        f"{BASE_URL}/search.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/search.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -114,7 +121,7 @@ def _openlibrary_search_to_shape_payload(data: dict) -> dict:
                 else "",
                 "edition_count": doc.get("edition_count"),
                 "cover_i": doc.get("cover_i"),
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -144,7 +151,7 @@ def _openlibrary_search_to_shape_payload(data: dict) -> dict:
                     "description": "Edition count",
                 },
                 {"name": "cover_i", "type": "number", "description": "Cover image id"},
-            ]
+            ],
         },
         "default_facets": ["first_publish_year", "languages"],
     }
@@ -174,9 +181,9 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-search-books",
         description="Search Open Library books by title, author, or free-text query.",
-        inputSchema=OpenLibrarySearchBooksParams.model_json_schema(),
+        input_schema=OpenLibrarySearchBooksParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["openlibrary-search-books"] = handle_openlibrary_search_books
 
@@ -191,7 +198,10 @@ class OpenLibrarySearchAuthorsParams(BaseModel):
 
     q: str = Field(..., description="Free-text author search.")
     limit: int = Field(
-        default=10, ge=1, le=100, description="Results per page (1-100)."
+        default=10,
+        ge=1,
+        le=100,
+        description="Results per page (1-100).",
     )
 
 
@@ -201,7 +211,9 @@ def fetch_open_library_search_authors(
     """Search Open Library authors."""
     query_params: dict[str, Any] = {"q": params.q, "limit": params.limit}
     response = http_get(
-        f"{BASE_URL}/search/authors.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/search/authors.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -225,8 +237,8 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-search-authors",
         description="Search Open Library authors by free-text query.",
-        inputSchema=OpenLibrarySearchAuthorsParams.model_json_schema(),
-    )
+        input_schema=OpenLibrarySearchAuthorsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openlibrary-search-authors"] = handle_openlibrary_search_authors
 
@@ -267,8 +279,8 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-get-work",
         description="Get an Open Library work record by ID (e.g. 'OL45804W').",
-        inputSchema=OpenLibraryGetWorkParams.model_json_schema(),
-    )
+        input_schema=OpenLibraryGetWorkParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openlibrary-get-work"] = handle_openlibrary_get_work
 
@@ -282,14 +294,16 @@ class OpenLibraryGetEditionParams(BaseModel):
     """Parameters for fetching an edition record."""
 
     edition_id: str = Field(
-        ..., description="Open Library edition ID (e.g. 'OL7353617M')."
+        ...,
+        description="Open Library edition ID (e.g. 'OL7353617M').",
     )
 
 
 def fetch_open_library_get_edition(params: OpenLibraryGetEditionParams) -> dict:
     """Fetch an Open Library edition record."""
     response = http_get(
-        f"{BASE_URL}/books/{params.edition_id}.json", provider=PROVIDER_ID
+        f"{BASE_URL}/books/{params.edition_id}.json",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -313,8 +327,8 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-get-edition",
         description="Get an Open Library edition (book) record by ID (e.g. 'OL7353617M').",
-        inputSchema=OpenLibraryGetEditionParams.model_json_schema(),
-    )
+        input_schema=OpenLibraryGetEditionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openlibrary-get-edition"] = handle_openlibrary_get_edition
 
@@ -333,7 +347,8 @@ class OpenLibraryGetAuthorParams(BaseModel):
 def fetch_open_library_get_author(params: OpenLibraryGetAuthorParams) -> dict:
     """Fetch an Open Library author record."""
     response = http_get(
-        f"{BASE_URL}/authors/{params.author_id}.json", provider=PROVIDER_ID
+        f"{BASE_URL}/authors/{params.author_id}.json",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -357,8 +372,8 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-get-author",
         description="Get an Open Library author record by ID (e.g. 'OL23919A').",
-        inputSchema=OpenLibraryGetAuthorParams.model_json_schema(),
-    )
+        input_schema=OpenLibraryGetAuthorParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openlibrary-get-author"] = handle_openlibrary_get_author
 
@@ -372,7 +387,8 @@ class OpenLibraryISBNLookupParams(BaseModel):
     """Parameters for ISBN lookup."""
 
     isbn: str = Field(
-        ..., description="ISBN-10 or ISBN-13 (without hyphens or with them)."
+        ...,
+        description="ISBN-10 or ISBN-13 (without hyphens or with them).",
     )
 
 
@@ -401,8 +417,8 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-isbn-lookup",
         description="Look up an Open Library edition by ISBN.",
-        inputSchema=OpenLibraryISBNLookupParams.model_json_schema(),
-    )
+        input_schema=OpenLibraryISBNLookupParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openlibrary-isbn-lookup"] = handle_openlibrary_isbn_lookup
 
@@ -416,10 +432,14 @@ class OpenLibrarySubjectParams(BaseModel):
     """Parameters for fetching a subject feed."""
 
     subject: str = Field(
-        ..., description="Subject slug (e.g. 'love', 'science_fiction')."
+        ...,
+        description="Subject slug (e.g. 'love', 'science_fiction').",
     )
     limit: int = Field(
-        default=10, ge=1, le=1000, description="Maximum works to return."
+        default=10,
+        ge=1,
+        le=1000,
+        description="Maximum works to return.",
     )
 
 
@@ -453,8 +473,8 @@ TOOLS.append(
     types.Tool(
         name="openlibrary-subject",
         description="Get the Open Library subject feed for a slug (e.g. 'science_fiction').",
-        inputSchema=OpenLibrarySubjectParams.model_json_schema(),
-    )
+        input_schema=OpenLibrarySubjectParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["openlibrary-subject"] = handle_openlibrary_subject
 
@@ -463,7 +483,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-open-library", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-open-library",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

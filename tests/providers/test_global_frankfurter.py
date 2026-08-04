@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_frankfurter import (
     TOOLS,
     _frankfurter_time_series_to_shape_payload,
-    handle_frankfurter_latest,
-    handle_frankfurter_historical,
-    handle_frankfurter_time_series,
-    handle_frankfurter_currencies,
     handle_frankfurter_convert,
+    handle_frankfurter_currencies,
+    handle_frankfurter_historical,
+    handle_frankfurter_latest,
+    handle_frankfurter_time_series,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -33,7 +33,7 @@ async def test_frankfurter_latest_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_frankfurter_latest(
-            {"base": "USD", "targets": "EUR,CHF,GBP"}
+            {"base": "USD", "targets": "EUR,CHF,GBP"},
         )
         assert "EUR" in result[0].text
         assert "0.92" in result[0].text
@@ -74,7 +74,7 @@ async def test_frankfurter_historical_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_frankfurter_historical(
-            {"date": "2024-01-02", "base": "USD", "targets": "EUR"}
+            {"date": "2024-01-02", "base": "USD", "targets": "EUR"},
         )
         assert "2024-01-02" in result[0].text
         assert "0.91" in result[0].text
@@ -102,7 +102,7 @@ async def test_frankfurter_time_series_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_frankfurter_time_series(
-            {"start": "2024-01-01", "end": "2024-01-03", "targets": "EUR"}
+            {"start": "2024-01-01", "end": "2024-01-03", "targets": "EUR"},
         )
         assert "0.91" in result[0].text
         assert "2024-01-03" in result[0].text
@@ -134,7 +134,7 @@ async def test_frankfurter_convert_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_frankfurter_convert(
-            {"amount": 100.0, "base": "USD", "target": "EUR"}
+            {"amount": 100.0, "base": "USD", "target": "EUR"},
         )
         assert "92.0" in result[0].text
 
@@ -201,7 +201,8 @@ def test_adapter_skips_non_numeric_values_defensively():
 def test_time_series_tool_binds_to_timeseries_shape_primitive():
     """The tool's _meta.ui.resourceUri must point at the canonical
     timeseries shape URI. If this drifts, the MCP Apps host stops
-    rendering the chart inline."""
+    rendering the chart inline.
+    """
     tool = next(t for t in TOOLS if t.name == "frankfurter-time-series")
     assert tool.meta == {"ui": {"resourceUri": TIMESERIES_URI}}, (
         "frankfurter-time-series is not bound to "
@@ -218,7 +219,8 @@ def test_time_series_tool_binds_to_timeseries_shape_primitive():
 async def test_frankfurter_time_series_returns_shape_payload():
     """Handler now returns the shape primitive's payload format. The
     LLM consumer sees points/axes instead of the legacy nested-rates
-    dict — this is the v2.0 Phase 4 shift."""
+    dict — this is the v2.0 Phase 4 shift.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "amount": 1.0,
@@ -233,7 +235,7 @@ async def test_frankfurter_time_series_returns_shape_payload():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_frankfurter_time_series(
-            {"start": "2024-01-01", "end": "2024-01-03", "targets": "EUR"}
+            {"start": "2024-01-01", "end": "2024-01-03", "targets": "EUR"},
         )
         body = json.loads(result[0].text)
         assert "points" in body and "axes" in body

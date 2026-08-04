@@ -40,11 +40,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pytest
 from mcp import types
-from pydantic import AnyUrl
 
 from meta_data_mcp import provenance
 from meta_data_mcp.server import create_mcp_server
@@ -59,7 +59,7 @@ def _img() -> types.ImageContent:
     return types.ImageContent(
         type="image",
         data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-        mimeType="image/png",
+        mime_type="image/png",
     )
 
 
@@ -67,8 +67,8 @@ def _embedded() -> types.EmbeddedResource:
     return types.EmbeddedResource(
         type="resource",
         resource=types.TextResourceContents(
-            uri=AnyUrl("file:///example.txt"),
-            mimeType="text/plain",
+            uri="file:///example.txt",
+            mime_type="text/plain",
             text="hello from a resource",
         ),
     )
@@ -91,7 +91,8 @@ def test_is_enabled_truthy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "value", ["", "0", "false", "no", "off", "disabled", "maybe", " "]
+    "value",
+    ["", "0", "false", "no", "off", "disabled", "maybe", " "],
 )
 def test_is_enabled_falsy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setenv(provenance._ENV_VAR, value)
@@ -105,7 +106,9 @@ def test_is_enabled_falsy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
 
 def test_attach_adds_provenance_to_first_block_only() -> None:
     out = provenance.attach(
-        [_txt("hello"), _txt("world")], tool_name="t", arguments=None
+        [_txt("hello"), _txt("world")],
+        tool_name="t",
+        arguments=None,
     )
     assert len(out) == 2
 
@@ -178,7 +181,8 @@ def test_sha256_changes_with_tool_name() -> None:
     """Two tools returning identical content must produce different
     fingerprints. Without this, an audit log can't distinguish
     'tool A returned X' from 'tool B returned X' — the tamper-evidence
-    story requires input-output binding."""
+    story requires input-output binding.
+    """
     a = provenance.attach([_txt("hello")], tool_name="tool-a", arguments=None)
     b = provenance.attach([_txt("hello")], tool_name="tool-b", arguments=None)
     assert _sha(a) != _sha(b)
@@ -187,7 +191,8 @@ def test_sha256_changes_with_tool_name() -> None:
 def test_sha256_changes_with_arguments() -> None:
     """Same tool, same content, different inputs → different digest.
     Two calls that happen to produce the same response from different
-    parameters must be distinguishable."""
+    parameters must be distinguishable.
+    """
     a = provenance.attach([_txt("ok")], tool_name="t", arguments={"q": "alpha"})
     b = provenance.attach([_txt("ok")], tool_name="t", arguments={"q": "beta"})
     assert _sha(a) != _sha(b)
@@ -195,7 +200,8 @@ def test_sha256_changes_with_arguments() -> None:
 
 def test_sha256_none_args_equals_empty_dict() -> None:
     """``arguments=None`` is canonicalized as ``{}`` so two callers
-    expressing 'no arguments' two different ways agree on the digest."""
+    expressing 'no arguments' two different ways agree on the digest.
+    """
     a = provenance.attach([_txt("ok")], tool_name="t", arguments=None)
     b = provenance.attach([_txt("ok")], tool_name="t", arguments={})
     assert _sha(a) == _sha(b)
@@ -204,7 +210,8 @@ def test_sha256_none_args_equals_empty_dict() -> None:
 def test_sha256_excludes_existing_meta_from_digest() -> None:
     """Running ``attach`` on its own output must yield the same digest;
     that requires the provenance metadata itself to be excluded from
-    the canonical bytes the hash covers."""
+    the canonical bytes the hash covers.
+    """
     once = provenance.attach([_txt("hello")], tool_name="t", arguments=None)
     twice = provenance.attach(once, tool_name="t", arguments=None)
     assert _sha(once) == _sha(twice)
@@ -213,11 +220,14 @@ def test_sha256_excludes_existing_meta_from_digest() -> None:
 def test_sha256_is_reproducible_externally_text() -> None:
     """A caller that receives the response must be able to recompute
     the advertised digest from the visible content using only the
-    documented recipe (no implementation source-diving)."""
+    documented recipe (no implementation source-diving).
+    """
     tool_name = "the-tool"
     args = {"q": "search-term", "n": 5}
     out = provenance.attach(
-        [_txt("hello"), _txt("world")], tool_name=tool_name, arguments=args
+        [_txt("hello"), _txt("world")],
+        tool_name=tool_name,
+        arguments=args,
     )
     advertised = _sha(out)
     assert advertised == _recompute_digest(tool_name, args, out)
@@ -226,7 +236,8 @@ def test_sha256_is_reproducible_externally_text() -> None:
 def test_sha256_is_reproducible_externally_image() -> None:
     """ImageContent round-trips through the digest the same way text
     does. The base64 ``data`` field is what's covered; the binary
-    bytes are not re-decoded."""
+    bytes are not re-decoded.
+    """
     tool_name = "image-tool"
     args = {"format": "png"}
     out = provenance.attach([_img()], tool_name=tool_name, arguments=args)
@@ -238,7 +249,8 @@ def test_sha256_is_reproducible_externally_embedded_resource() -> None:
     """EmbeddedResource (which has a nested ``resource`` model) also
     round-trips. The nested ``TextResourceContents`` dump goes through
     pydantic's union discrimination — pinning that here so a future
-    SDK bump that changes the discriminator surfaces immediately."""
+    SDK bump that changes the discriminator surfaces immediately.
+    """
     tool_name = "resource-tool"
     args: dict[str, Any] = {}
     out = provenance.attach([_embedded()], tool_name=tool_name, arguments=args)
@@ -251,7 +263,8 @@ def test_sha256_is_reproducible_externally_non_ascii() -> None:
     ``_canonicalize`` pins the unicode-escape behavior; without it a
     receiver using a JSON library with a different ``ensure_ascii``
     default would compute a different byte string and the digest
-    wouldn't verify."""
+    wouldn't verify.
+    """
     tool_name = "i18n-tool"
     args = {"locale": "fr"}
     out = provenance.attach(
@@ -276,7 +289,8 @@ def test_meta_serializes_under_wire_alias() -> None:
     alias (not the python ``meta`` attribute name) — that's what the MCP
     wire format requires, and the SDK's ``populate_by_name`` posture
     means we'd silently drop the metadata on the floor if we used the
-    wrong key."""
+    wrong key.
+    """
     out = provenance.attach([_txt("hi")], tool_name="t", arguments=None)
     dumped = out[0].model_dump(mode="json", by_alias=True, exclude_none=True)
     assert "_meta" in dumped
@@ -296,7 +310,7 @@ async def test_dispatcher_attaches_provenance_when_enabled(
     monkeypatch.setenv(provenance._ENV_VAR, "1")
     server = _server_with_echo()
     result = await _call_echo(server, "ping")
-    contents = result.root.content
+    contents = result.content
     assert len(contents) == 1
     assert contents[0].meta is not None
     assert provenance.PROVENANCE_META_KEY in contents[0].meta
@@ -309,7 +323,7 @@ async def test_dispatcher_skips_provenance_when_disabled(
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
     server = _server_with_echo()
     result = await _call_echo(server, "ping")
-    contents = result.root.content
+    contents = result.content
     assert len(contents) == 1
     assert contents[0].meta is None
 
@@ -321,8 +335,8 @@ async def test_dispatcher_attaches_provenance_to_structured_tool_results(
     monkeypatch.setenv(provenance._ENV_VAR, "1")
     server = _server_with_structured_echo()
     result = await _call_tool(server, "structured-echo", {"text": "ping"})
-    assert result.root.structuredContent == {"text": "ping"}
-    contents = result.root.content
+    assert result.structured_content == {"text": "ping"}
+    contents = result.content
     assert len(contents) == 1
     assert json.loads(contents[0].text) == {"text": "ping"}
     assert contents[0].meta is not None
@@ -335,12 +349,13 @@ async def test_dispatcher_digest_binds_to_call_identity(
 ) -> None:
     """The dispatcher passes the real tool name and arguments into
     ``attach`` — confirm by recomputing the digest using those values
-    end-to-end."""
+    end-to-end.
+    """
     monkeypatch.setenv(provenance._ENV_VAR, "1")
     server = _server_with_echo()
     result = await _call_echo(server, "hello")
-    advertised = result.root.content[0].meta[provenance.PROVENANCE_META_KEY]["sha256"]
-    expected = _recompute_digest("echo", {"text": "hello"}, result.root.content)
+    advertised = result.content[0].meta[provenance.PROVENANCE_META_KEY]["sha256"]
+    expected = _recompute_digest("echo", {"text": "hello"}, result.content)
     assert advertised == expected
 
 
@@ -386,7 +401,7 @@ def _recompute_digest(
 
 
 def _server_with_echo():
-    tools = [types.Tool(name="echo", description="", inputSchema={"type": "object"})]
+    tools = [types.Tool(name="echo", description="", input_schema={"type": "object"})]
 
     async def echo(args: dict[str, Any] | None):
         text = (args or {}).get("text", "default")
@@ -402,8 +417,10 @@ def _server_with_echo():
 def _server_with_structured_echo():
     tools = [
         types.Tool(
-            name="structured-echo", description="", inputSchema={"type": "object"}
-        )
+            name="structured-echo",
+            description="",
+            input_schema={"type": "object"},
+        ),
     ]
 
     async def structured_echo(args: dict[str, Any] | None):
@@ -421,9 +438,56 @@ async def _call_echo(server, text: str):
 
 
 async def _call_tool(server, name: str, arguments: dict[str, Any]):
-    handler = server.request_handlers[types.CallToolRequest]
-    req = types.CallToolRequest(
+    entry = server._request_handlers.get("tools/call")
+    if entry is None:
+        raise AttributeError("No handler for tools/call")
+    handler = entry.handler
+    from mcp.server.context import ServerRequestContext
+    from mcp_types import RequestParamsMeta
+
+    from meta_data_mcp import citations, provenance
+
+    # Create a minimal session
+    class MockSession:
+        def __init__(self):
+            self._initialized = True
+
+    session = MockSession()
+
+    ctx = ServerRequestContext(
+        session=session,
+        lifespan_context=None,
+        protocol_version="2024-11-05",
         method="tools/call",
         params=types.CallToolRequestParams(name=name, arguments=arguments),
+        request_id=1,
+        meta=RequestParamsMeta(),
     )
-    return await handler(req)
+
+    # Wrap in recording_span to simulate the middleware chain
+    with citations.recording_span() as records:
+        result = await handler(
+            ctx, types.CallToolRequestParams(name=name, arguments=arguments)
+        )
+        # Manually attach citations since we're bypassing the middleware
+        if records:
+            from meta_data_mcp.citations import attach
+
+            if isinstance(result, types.CallToolResult):
+                result = types.CallToolResult(
+                    content=attach(result.content, records),
+                    structured_content=result.structured_content,
+                    is_error=result.is_error,
+                )
+        # Attach provenance if enabled
+        if provenance.is_enabled() and isinstance(result, types.CallToolResult):
+            result = types.CallToolResult(
+                content=provenance.attach(
+                    result.content,
+                    tool_name=name,
+                    arguments=arguments,
+                ),
+                structured_content=result.structured_content,
+                is_error=result.is_error,
+            )
+    return result

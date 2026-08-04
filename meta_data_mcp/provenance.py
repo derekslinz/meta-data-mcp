@@ -78,13 +78,16 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from mcp import types
 
 from meta_data_mcp._meta_common import (
     Content,
     merge_into_first_block,
+)
+from meta_data_mcp._meta_common import (
     utc_iso_ms as _utc_iso_ms,
 )
 
@@ -175,7 +178,7 @@ def attach(
             PROVENANCE_META_KEY: {
                 "sha256": digest,
                 "timestamp": _utc_iso_ms(),
-            }
+            },
         },
     )
 

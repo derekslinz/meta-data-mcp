@@ -1,23 +1,23 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_courtlistener import (
     TOOLS,
-    _courtlistener_search_to_shape_payload,
     CourtListenerListCourtsParams,
     CourtListenerListDocketsParams,
     CourtListenerListJudgesParams,
     CourtListenerSearchParams,
-    handle_courtlistener_search,
-    handle_courtlistener_list_courts,
-    handle_courtlistener_get_opinion,
+    _courtlistener_search_to_shape_payload,
     handle_courtlistener_get_cluster,
-    handle_courtlistener_list_judges,
     handle_courtlistener_get_judge,
+    handle_courtlistener_get_opinion,
+    handle_courtlistener_list_courts,
     handle_courtlistener_list_dockets,
+    handle_courtlistener_list_judges,
+    handle_courtlistener_search,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -160,7 +160,7 @@ async def test_courtlistener_list_dockets_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_courtlistener_list_dockets(
-            {"court": "scotus", "docket_number": "21-1234"}
+            {"court": "scotus", "docket_number": "21-1234"},
         )
         assert "21-1234" in result[0].text
 
@@ -198,7 +198,7 @@ def test_courtlistener_adapter_flattens_results_to_rows():
                 "docketNumber": "21-123",
                 "status": "Published",
                 "snippet": "Case about widgets.",
-            }
+            },
         ],
     }
     payload = _courtlistener_search_to_shape_payload(raw)

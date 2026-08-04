@@ -1,5 +1,4 @@
-"""
-European Central Bank Data Portal Provider
+"""European Central Bank Data Portal Provider
 
 This module exposes the European Central Bank's SDMX 2.1 REST API (the
 ECB Data Portal). Data is requested in SDMX-JSON (`format=jsondata`) so
@@ -24,9 +23,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -40,9 +40,9 @@ PROVIDER_ID = "eu-ecb"
 BASE_URL = "https://data-api.ecb.europa.eu/service"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -59,7 +59,9 @@ def fetch_ecb_list_dataflows(_: ECBListDataflowsParams) -> dict:
     """Fetch every ECB dataflow definition."""
     query_params: dict[str, Any] = {"format": "jsondata"}
     response = http_get(
-        f"{BASE_URL}/dataflow/ECB/all/latest", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/dataflow/ECB/all/latest",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -81,8 +83,8 @@ TOOLS.append(
     types.Tool(
         name="ecb-list-dataflows",
         description="List every ECB SDMX dataflow (dataset) available on the ECB Data Portal.",
-        inputSchema=ECBListDataflowsParams.model_json_schema(),
-    )
+        input_schema=ECBListDataflowsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ecb-list-dataflows"] = handle_ecb_list_dataflows
 
@@ -128,8 +130,8 @@ TOOLS.append(
     types.Tool(
         name="ecb-get-dataflow",
         description="Get metadata for a single ECB dataflow by ID (e.g. 'EXR').",
-        inputSchema=ECBGetDataflowParams.model_json_schema(),
-    )
+        input_schema=ECBGetDataflowParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ecb-get-dataflow"] = handle_ecb_get_dataflow
 
@@ -150,15 +152,15 @@ class ECBGetDataParams(BaseModel):
             "USD/EUR reference rates). Use 'all' to fetch the whole flow."
         ),
     )
-    startPeriod: Optional[str] = Field(
+    startPeriod: str | None = Field(
         default=None,
         description="Inclusive start period (e.g. '2024-01-01' or '2024-Q1').",
     )
-    endPeriod: Optional[str] = Field(
+    endPeriod: str | None = Field(
         default=None,
         description="Inclusive end period.",
     )
-    lastNObservations: Optional[int] = Field(
+    lastNObservations: int | None = Field(
         default=None,
         ge=1,
         description="If set, return only the last N observations (mutually exclusive with period filters).",
@@ -310,9 +312,9 @@ TOOLS.append(
             "Fetch observations from an ECB dataflow. Example: flow='EXR', "
             "key='D.USD.EUR.SP00.A' for daily USD/EUR reference rate."
         ),
-        inputSchema=ECBGetDataParams.model_json_schema(),
+        input_schema=ECBGetDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["ecb-get-data"] = handle_ecb_get_data
 
@@ -358,8 +360,8 @@ TOOLS.append(
     types.Tool(
         name="ecb-get-codelist",
         description="Get the values that make up an ECB SDMX codelist (e.g. 'CL_CURRENCY').",
-        inputSchema=ECBGetCodelistParams.model_json_schema(),
-    )
+        input_schema=ECBGetCodelistParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ecb-get-codelist"] = handle_ecb_get_codelist
 
@@ -405,8 +407,8 @@ TOOLS.append(
     types.Tool(
         name="ecb-get-conceptscheme",
         description="Get an ECB SDMX concept scheme (definitions of dimensions and attributes).",
-        inputSchema=ECBGetConceptSchemeParams.model_json_schema(),
-    )
+        input_schema=ECBGetConceptSchemeParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ecb-get-conceptscheme"] = handle_ecb_get_conceptscheme
 
@@ -415,7 +417,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "eu-ecb", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "eu-ecb",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

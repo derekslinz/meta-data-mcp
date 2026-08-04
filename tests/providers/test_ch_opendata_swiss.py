@@ -10,8 +10,8 @@ import httpx
 import pytest
 
 from meta_data_mcp.providers.ch_opendata_swiss import (
-    handle_ch_opendata_package_search,
     handle_ch_opendata_organization_list,
+    handle_ch_opendata_package_search,
     handle_ch_opendata_tag_list,
 )
 

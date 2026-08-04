@@ -1,5 +1,4 @@
-"""
-France Open Data Portal (data.gouv.fr) Provider
+"""France Open Data Portal (data.gouv.fr) Provider
 
 This module exposes the public uData REST API hosted at www.data.gouv.fr, the
 French Government's open data portal. The catalog aggregates datasets, reuses,
@@ -27,12 +26,14 @@ Note:
     Unlike CKAN portals, data.gouv.fr uses uData REST conventions: pagination
     uses `page` + `page_size`, and single-resource lookups are RESTful path
     segments (`/datasets/{slug}/`) rather than CKAN's `package_show?id=`.
+
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -49,9 +50,9 @@ BASE_URL = "https://www.data.gouv.fr/api/1"
 _MAX_DESC_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -63,7 +64,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class FRDataGouvSearchDatasetsParams(BaseModel):
     """Parameters for searching datasets on data.gouv.fr."""
 
-    q: Optional[str] = Field(
+    q: str | None = Field(
         None,
         description="Free-text search query. Leave blank to list all datasets.",
     )
@@ -86,7 +87,9 @@ def fetch_fr_datagouv_search_datasets(params: FRDataGouvSearchDatasetsParams) ->
     if params.q:
         query_params["q"] = params.q
     response = http_get(
-        f"{BASE_URL}/datasets/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/datasets/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -120,7 +123,7 @@ def _udata_search_to_shape_payload(data: dict) -> dict:
                     (r.get("format") or "").upper()
                     for r in resources
                     if isinstance(r, dict) and r.get("format")
-                }
+                },
             )
         else:
             formats = []
@@ -139,7 +142,7 @@ def _udata_search_to_shape_payload(data: dict) -> dict:
                 "created_at": ds.get("created_at"),
                 "last_modified": ds.get("last_modified"),
                 "description": desc,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -179,7 +182,7 @@ def _udata_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Description (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["organization", "license", "formats"],
     }
@@ -209,9 +212,9 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-search-datasets",
         description="Search the France data.gouv.fr catalog (uData /datasets/).",
-        inputSchema=FRDataGouvSearchDatasetsParams.model_json_schema(),
+        input_schema=FRDataGouvSearchDatasetsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-search-datasets"] = handle_fr_datagouv_search_datasets
 
@@ -255,8 +258,8 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-get-dataset",
         description="Fetch full metadata for a data.gouv.fr dataset by slug or id.",
-        inputSchema=FRDataGouvGetDatasetParams.model_json_schema(),
-    )
+        input_schema=FRDataGouvGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-get-dataset"] = handle_fr_datagouv_get_dataset
 
@@ -271,7 +274,8 @@ class FRDataGouvListOrganizationsParams(BaseModel):
 
     page: int = Field(default=1, description="1-indexed page number.")
     page_size: int = Field(
-        default=20, description="Number of organisations to return per page."
+        default=20,
+        description="Number of organisations to return per page.",
     )
 
 
@@ -284,7 +288,9 @@ def fetch_fr_datagouv_list_organizations(
         "page_size": params.page_size,
     }
     response = http_get(
-        f"{BASE_URL}/organizations/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/organizations/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -306,8 +312,8 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-list-organizations",
         description="List publishing organisations on data.gouv.fr.",
-        inputSchema=FRDataGouvListOrganizationsParams.model_json_schema(),
-    )
+        input_schema=FRDataGouvListOrganizationsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-list-organizations"] = (
     handle_fr_datagouv_list_organizations
@@ -355,8 +361,8 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-get-organization",
         description="Fetch full details for a data.gouv.fr publishing organisation.",
-        inputSchema=FRDataGouvGetOrganizationParams.model_json_schema(),
-    )
+        input_schema=FRDataGouvGetOrganizationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-get-organization"] = handle_fr_datagouv_get_organization
 
@@ -369,12 +375,13 @@ TOOLS_HANDLERS["fr-data-gouv-get-organization"] = handle_fr_datagouv_get_organiz
 class FRDataGouvSearchReusesParams(BaseModel):
     """Parameters for searching reuses (apps/sites built on the data)."""
 
-    q: Optional[str] = Field(
+    q: str | None = Field(
         None,
         description="Free-text search query for reuse titles/descriptions.",
     )
     page_size: int = Field(
-        default=20, description="Number of reuses to return per page."
+        default=20,
+        description="Number of reuses to return per page.",
     )
 
 
@@ -384,7 +391,9 @@ def fetch_fr_datagouv_search_reuses(params: FRDataGouvSearchReusesParams) -> dic
     if params.q:
         query_params["q"] = params.q
     response = http_get(
-        f"{BASE_URL}/reuses/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/reuses/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -406,8 +415,8 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-search-reuses",
         description="Search community-built reuses on data.gouv.fr.",
-        inputSchema=FRDataGouvSearchReusesParams.model_json_schema(),
-    )
+        input_schema=FRDataGouvSearchReusesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-search-reuses"] = handle_fr_datagouv_search_reuses
 
@@ -421,7 +430,8 @@ class FRDataGouvListTopicsParams(BaseModel):
     """Parameters for listing thematic topics."""
 
     page_size: int = Field(
-        default=20, description="Number of topics to return per page."
+        default=20,
+        description="Number of topics to return per page.",
     )
 
 
@@ -429,7 +439,9 @@ def fetch_fr_datagouv_list_topics(params: FRDataGouvListTopicsParams) -> dict:
     """Call /topics/ on data.gouv.fr."""
     query_params: dict[str, Any] = {"page_size": params.page_size}
     response = http_get(
-        f"{BASE_URL}/topics/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/topics/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -451,8 +463,8 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-list-topics",
         description="List thematic topics defined on data.gouv.fr.",
-        inputSchema=FRDataGouvListTopicsParams.model_json_schema(),
-    )
+        input_schema=FRDataGouvListTopicsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-list-topics"] = handle_fr_datagouv_list_topics
 
@@ -465,7 +477,7 @@ TOOLS_HANDLERS["fr-data-gouv-list-topics"] = handle_fr_datagouv_list_topics
 class FRDataGouvListTagsParams(BaseModel):
     """Parameters for tag-name autosuggestion."""
 
-    q: Optional[str] = Field(
+    q: str | None = Field(
         None,
         description="Substring to suggest tags for (uData /tags/suggest/?q=).",
     )
@@ -477,7 +489,9 @@ def fetch_fr_datagouv_list_tags(params: FRDataGouvListTagsParams) -> dict | list
     if params.q:
         query_params["q"] = params.q
     response = http_get(
-        f"{BASE_URL}/tags/suggest/", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/tags/suggest/",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -499,8 +513,8 @@ TOOLS.append(
     types.Tool(
         name="fr-data-gouv-list-tags",
         description="Autosuggest tag names on data.gouv.fr.",
-        inputSchema=FRDataGouvListTagsParams.model_json_schema(),
-    )
+        input_schema=FRDataGouvListTagsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["fr-data-gouv-list-tags"] = handle_fr_datagouv_list_tags
 
@@ -509,7 +523,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "fr-data-gouv", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "fr-data-gouv",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

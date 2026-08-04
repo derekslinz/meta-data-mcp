@@ -90,7 +90,7 @@ def test_subscription_key_sent_when_env_set(monkeypatch):
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"data": []})
         fetch_comtrade_trade_data(
-            ComtradeTradeDataParams(period="2022", reporter_code="840")
+            ComtradeTradeDataParams(period="2022", reporter_code="840"),
         )
         sent_headers = mock_get.call_args[1]["headers"]
         assert sent_headers["Ocp-Apim-Subscription-Key"] == "subscr-key"
@@ -102,7 +102,7 @@ async def test_handle():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok(payload)
         result = await handle_comtrade_trade_data(
-            {"period": "2022", "reporter_code": "840"}
+            {"period": "2022", "reporter_code": "840"},
         )
         assert "USA" in result[0].text
 

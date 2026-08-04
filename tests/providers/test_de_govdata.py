@@ -10,9 +10,9 @@ import httpx
 import pytest
 
 from meta_data_mcp.providers.de_govdata import (
-    handle_de_govdata_package_search,
-    handle_de_govdata_organization_list,
     handle_de_govdata_group_list,
+    handle_de_govdata_organization_list,
+    handle_de_govdata_package_search,
 )
 
 

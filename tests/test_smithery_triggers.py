@@ -28,7 +28,7 @@ async def test_oversized_request_replays_buffered_prefix_without_draining(monkey
         assert await downstream_receive() == events[0]
         assert await downstream_receive() == events[1]
         await downstream_send(
-            {"type": "http.response.start", "status": 200, "headers": []}
+            {"type": "http.response.start", "status": 200, "headers": []},
         )
         await downstream_send({"type": "http.response.body", "body": b""})
 

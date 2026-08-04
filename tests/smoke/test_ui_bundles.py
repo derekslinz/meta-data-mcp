@@ -69,7 +69,7 @@ SAMPLE_PAYLOADS: dict[str, dict[str, Any] | None] = {
                 {"name": "id", "type": "number"},
                 {"name": "name", "type": "string"},
                 {"name": "active", "type": "boolean"},
-            ]
+            ],
         },
     },
     "app_discovery_v1.html": None,
@@ -263,7 +263,8 @@ def _is_cdn_error(text: str) -> bool:
 @pytest.mark.parametrize("bundle_name", sorted(SAMPLE_PAYLOADS))
 def test_bundle_loads_without_uncaught_errors(browser, bundle_name: str) -> None:
     """Each ``ui://`` bundle reaches DOMContentLoaded without uncaught JS
-    errors and exposes its expected root mount point."""
+    errors and exposes its expected root mount point.
+    """
     bundle_path = BUNDLES_DIR / bundle_name
     assert bundle_path.exists(), f"bundle file missing: {bundle_path}"
 
@@ -312,7 +313,8 @@ def test_bundle_loads_without_uncaught_errors(browser, bundle_name: str) -> None
 
 def test_every_bundle_in_repo_has_a_smoke_case() -> None:
     """If a new ``ui://`` bundle lands without a smoke entry, this fails
-    loudly. Keeps Phase 6c coverage honest as Phase 5 ships more apps."""
+    loudly. Keeps Phase 6c coverage honest as Phase 5 ships more apps.
+    """
     on_disk = {p.name for p in BUNDLES_DIR.glob("*.html")}
     covered = set(SAMPLE_PAYLOADS)
     missing = sorted(on_disk - covered)

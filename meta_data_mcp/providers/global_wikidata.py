@@ -1,5 +1,4 @@
-"""
-Wikidata Provider
+"""Wikidata Provider
 
 This module exposes Wikidata's public MediaWiki Action API and the Wikidata
 Query Service (SPARQL) endpoint. Wikidata is a free, collaboratively edited
@@ -26,9 +25,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
@@ -43,9 +43,9 @@ BASE_URL = "https://www.wikidata.org/w/api.php"
 SPARQL_URL = "https://query.wikidata.org/sparql"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -61,7 +61,7 @@ class WikidataGetEntitiesParams(BaseModel):
         ...,
         description="Comma-separated list of entity ids, e.g. 'Q42,Q5' or 'P31'.",
     )
-    languages: Optional[str] = Field(
+    languages: str | None = Field(
         None,
         description="Optional comma-separated language codes to restrict labels/descriptions, e.g. 'en,fr'.",
     )
@@ -99,8 +99,8 @@ TOOLS.append(
     types.Tool(
         name="wikidata-get-entities",
         description="Fetch one or more Wikidata entities by Q/P id (action=wbgetentities).",
-        inputSchema=WikidataGetEntitiesParams.model_json_schema(),
-    )
+        input_schema=WikidataGetEntitiesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikidata-get-entities"] = handle_wikidata_get_entities
 
@@ -155,7 +155,7 @@ def _wikidata_search_to_entity_graph_payload(data: dict, query: str = "") -> dic
             "label": "Search: " + (query or ""),
             "type": "anchor",
             "attrs": {"query": query, "source": "wikidata-search-entities"},
-        }
+        },
     )
 
     for idx, entry in enumerate(results):
@@ -180,7 +180,7 @@ def _wikidata_search_to_entity_graph_payload(data: dict, query: str = "") -> dic
                     "url": entry.get("url"),
                     "match": entry.get("match"),
                 },
-            }
+            },
         )
         # Edge weight degrades with rank so the layout pulls the top
         # match toward the anchor — visually communicates relevance.
@@ -190,7 +190,7 @@ def _wikidata_search_to_entity_graph_payload(data: dict, query: str = "") -> dic
                 "target": entity_id,
                 "label": "matches",
                 "weight": max(0.25, 1.0 - (idx * 0.05)),
-            }
+            },
         )
 
     return {"nodes": nodes, "edges": edges}
@@ -221,11 +221,11 @@ TOOLS.append(
     types.Tool(
         name="wikidata-search-entities",
         description="Free-text search for Wikidata item entities (Q-ids).",
-        inputSchema=WikidataSearchEntitiesParams.model_json_schema(),
+        input_schema=WikidataSearchEntitiesParams.model_json_schema(),
         # MCP Apps binding: render via entity-graph app as a fan-out
         # from the query anchor. Use the alias keyword (``_meta=``).
         _meta={"ui": {"resourceUri": ENTITY_GRAPH_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["wikidata-search-entities"] = handle_wikidata_search_entities
 
@@ -239,7 +239,7 @@ class WikidataGetClaimsParams(BaseModel):
     """Parameters for fetching claims on a Wikidata entity."""
 
     entity: str = Field(..., description="Entity id, e.g. 'Q42'.")
-    property: Optional[str] = Field(
+    property: str | None = Field(
         None,
         description="Optional property id to filter to a single property, e.g. 'P31'.",
     )
@@ -277,8 +277,8 @@ TOOLS.append(
     types.Tool(
         name="wikidata-get-claims",
         description="Fetch claims (statements) for a Wikidata entity, optionally filtered by property.",
-        inputSchema=WikidataGetClaimsParams.model_json_schema(),
-    )
+        input_schema=WikidataGetClaimsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikidata-get-claims"] = handle_wikidata_get_claims
 
@@ -324,8 +324,8 @@ TOOLS.append(
     types.Tool(
         name="wikidata-sparql",
         description="Run a SPARQL query against the Wikidata Query Service.",
-        inputSchema=WikidataSPARQLParams.model_json_schema(),
-    )
+        input_schema=WikidataSPARQLParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikidata-sparql"] = handle_wikidata_sparql
 
@@ -376,8 +376,8 @@ TOOLS.append(
     types.Tool(
         name="wikidata-list-properties",
         description="Search Wikidata property entities (P-ids) by name.",
-        inputSchema=WikidataListPropertiesParams.model_json_schema(),
-    )
+        input_schema=WikidataListPropertiesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikidata-list-properties"] = handle_wikidata_list_properties
 
@@ -431,8 +431,8 @@ TOOLS.append(
     types.Tool(
         name="wikidata-get-entity-by-title",
         description="Resolve Wikidata entities from Wikipedia article titles (sites+titles).",
-        inputSchema=WikidataGetByTitleParams.model_json_schema(),
-    )
+        input_schema=WikidataGetByTitleParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikidata-get-entity-by-title"] = handle_wikidata_get_by_title
 
@@ -441,7 +441,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-wikidata", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-wikidata",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

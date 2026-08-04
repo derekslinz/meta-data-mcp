@@ -1,5 +1,4 @@
-"""
-Live integration test configuration.
+"""Live integration test configuration.
 
 These tests make real HTTP calls against external APIs. They are skipped by
 default in CI and during normal ``pytest tests/`` runs. Run them explicitly:

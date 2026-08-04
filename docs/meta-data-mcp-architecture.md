@@ -197,6 +197,7 @@ class MyCustomScorer(Scorer):
         # Your logic here
         return score  # 0.0-1.0
 
+
 engine = RoutingEngine(
     scorers={
         "token": TokenScorer(),
@@ -205,7 +206,7 @@ engine = RoutingEngine(
     weights={
         "token": 0.4,
         "custom": 0.6,
-    }
+    },
 )
 ```
 
@@ -235,9 +236,9 @@ engine.on_no_match = async lambda query: await generate_provider(query)
 
 ```python
 engine = RoutingEngine(
-    cache_size=1000,           # Adjust for memory constraints
-    cache_ttl_seconds=3600,    # Adjust for freshness needs
-    weights={...}              # Tune for your use case
+    cache_size=1000,  # Adjust for memory constraints
+    cache_ttl_seconds=3600,  # Adjust for freshness needs
+    weights={...},  # Tune for your use case
 )
 ```
 

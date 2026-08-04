@@ -1,5 +1,4 @@
-"""
-IMF SDMX 2.1 Provider
+"""IMF SDMX 2.1 Provider
 
 This module provides interfaces to the International Monetary Fund's public
 SDMX 2.1 REST API, exposing macroeconomic and financial statistics for member
@@ -21,9 +20,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -40,9 +40,9 @@ SDMX_DATA_ACCEPT = "application/vnd.sdmx.data+json;version=1.0.0"
 SDMX_STRUCT_ACCEPT = "application/vnd.sdmx.structure+json;version=1.0.0"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -88,8 +88,8 @@ TOOLS.append(
     types.Tool(
         name="imf-list-dataflows",
         description="List IMF SDMX dataflows for the given agency (default 'IMF.STA').",
-        inputSchema=IMFListDataflowsParams.model_json_schema(),
-    )
+        input_schema=IMFListDataflowsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["imf-list-dataflows"] = handle_list_dataflows
 
@@ -103,7 +103,8 @@ class IMFGetDataflowParams(BaseModel):
     """Parameters for fetching a single IMF dataflow."""
 
     agencyId: str = Field(
-        default=DEFAULT_AGENCY, description="SDMX agency ID (default 'IMF.STA')"
+        default=DEFAULT_AGENCY,
+        description="SDMX agency ID (default 'IMF.STA')",
     )
     flowId: str = Field(..., description="Dataflow ID (e.g. 'IFS' or 'BOP')")
 
@@ -138,8 +139,8 @@ TOOLS.append(
     types.Tool(
         name="imf-get-dataflow",
         description="Get metadata for a single IMF dataflow.",
-        inputSchema=IMFGetDataflowParams.model_json_schema(),
-    )
+        input_schema=IMFGetDataflowParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["imf-get-dataflow"] = handle_get_dataflow
 
@@ -160,11 +161,13 @@ class IMFGetDataParams(BaseModel):
         default="all",
         description="SDMX series key with dimension values separated by dots, or 'all'",
     )
-    startPeriod: Optional[str] = Field(
-        None, description="Start period (e.g. '2010' or '2010-Q1')"
+    startPeriod: str | None = Field(
+        None,
+        description="Start period (e.g. '2010' or '2010-Q1')",
     )
-    endPeriod: Optional[str] = Field(
-        None, description="End period (e.g. '2020' or '2020-Q4')"
+    endPeriod: str | None = Field(
+        None,
+        description="End period (e.g. '2020' or '2020-Q4')",
     )
 
 
@@ -303,9 +306,9 @@ TOOLS.append(
     types.Tool(
         name="imf-get-data",
         description="Fetch IMF SDMX time-series data for a given flow reference and series key.",
-        inputSchema=IMFGetDataParams.model_json_schema(),
+        input_schema=IMFGetDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["imf-get-data"] = handle_get_data
 
@@ -319,7 +322,8 @@ class IMFGetDataStructureParams(BaseModel):
     """Parameters for fetching an IMF SDMX data-structure definition."""
 
     agencyId: str = Field(
-        default=DEFAULT_AGENCY, description="SDMX agency ID (default 'IMF.STA')"
+        default=DEFAULT_AGENCY,
+        description="SDMX agency ID (default 'IMF.STA')",
     )
     structureId: str = Field(..., description="Data-structure ID (e.g. 'DSD_IFS')")
 
@@ -354,8 +358,8 @@ TOOLS.append(
     types.Tool(
         name="imf-get-datastructure",
         description="Get an IMF data-structure definition (DSD) describing dimensions and attributes.",
-        inputSchema=IMFGetDataStructureParams.model_json_schema(),
-    )
+        input_schema=IMFGetDataStructureParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["imf-get-datastructure"] = handle_get_datastructure
 
@@ -369,7 +373,8 @@ class IMFListCodelistParams(BaseModel):
     """Parameters for fetching an IMF SDMX codelist."""
 
     agencyId: str = Field(
-        default=DEFAULT_AGENCY, description="SDMX agency ID (default 'IMF.STA')"
+        default=DEFAULT_AGENCY,
+        description="SDMX agency ID (default 'IMF.STA')",
     )
     codelistId: str = Field(..., description="Codelist ID (e.g. 'CL_AREA')")
 
@@ -404,8 +409,8 @@ TOOLS.append(
     types.Tool(
         name="imf-list-codelist",
         description="Fetch a codelist (controlled vocabulary) from the IMF SDMX API.",
-        inputSchema=IMFListCodelistParams.model_json_schema(),
-    )
+        input_schema=IMFListCodelistParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["imf-list-codelist"] = handle_list_codelist
 
@@ -414,7 +419,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-imf", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-imf",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

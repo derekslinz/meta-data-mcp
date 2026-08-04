@@ -1,5 +1,4 @@
-"""
-OpenStreetMap Nominatim Provider
+"""OpenStreetMap Nominatim Provider
 
 This module exposes the OpenStreetMap Nominatim geocoding API (forward and
 reverse geocoding) as MCP tools.
@@ -27,9 +26,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -43,9 +43,9 @@ PROVIDER_ID = "global-osm-nominatim"
 BASE_URL = "https://nominatim.openstreetmap.org"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -71,7 +71,10 @@ def fetch_search(params: NominatimSearchParams) -> Any:
         "extratags": 1,
     }
     response = http_get(
-        f"{BASE_URL}/search", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/search",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -130,12 +133,12 @@ TOOLS.append(
             "Forward-geocode a free-text query against OpenStreetMap Nominatim. "
             "Respect Nominatim's 1 req/s usage policy."
         ),
-        inputSchema=NominatimSearchParams.model_json_schema(),
+        input_schema=NominatimSearchParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["nominatim-search"] = handle_search
 
@@ -149,10 +152,16 @@ class NominatimReverseParams(BaseModel):
     """Parameters for reverse geocoding."""
 
     lat: float = Field(
-        ..., ge=-90.0, le=90.0, description="Latitude in decimal degrees"
+        ...,
+        ge=-90.0,
+        le=90.0,
+        description="Latitude in decimal degrees",
     )
     lon: float = Field(
-        ..., ge=-180.0, le=180.0, description="Longitude in decimal degrees"
+        ...,
+        ge=-180.0,
+        le=180.0,
+        description="Longitude in decimal degrees",
     )
 
 
@@ -165,7 +174,10 @@ def fetch_reverse(params: NominatimReverseParams) -> Any:
         "addressdetails": 1,
     }
     response = http_get(
-        f"{BASE_URL}/reverse", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/reverse",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -192,8 +204,8 @@ TOOLS.append(
             "Reverse-geocode a latitude/longitude pair into an OpenStreetMap address. "
             "Respect Nominatim's 1 req/s usage policy."
         ),
-        inputSchema=NominatimReverseParams.model_json_schema(),
-    )
+        input_schema=NominatimReverseParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nominatim-reverse"] = handle_reverse
 
@@ -220,7 +232,10 @@ def fetch_lookup(params: NominatimLookupParams) -> Any:
         "addressdetails": 1,
     }
     response = http_get(
-        f"{BASE_URL}/lookup", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/lookup",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -247,8 +262,8 @@ TOOLS.append(
             "Look up one or more OSM objects by ID (e.g. 'N123,W456,R789'). "
             "Respect Nominatim's 1 req/s usage policy."
         ),
-        inputSchema=NominatimLookupParams.model_json_schema(),
-    )
+        input_schema=NominatimLookupParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nominatim-lookup"] = handle_lookup
 
@@ -261,13 +276,14 @@ TOOLS_HANDLERS["nominatim-lookup"] = handle_lookup
 class NominatimSearchStructuredParams(BaseModel):
     """Parameters for structured forward geocoding."""
 
-    country: Optional[str] = Field(None, description="Country name or code")
-    state: Optional[str] = Field(None, description="State / region")
-    city: Optional[str] = Field(None, description="City")
-    street: Optional[str] = Field(
-        None, description="Street (with optional housenumber)"
+    country: str | None = Field(None, description="Country name or code")
+    state: str | None = Field(None, description="State / region")
+    city: str | None = Field(None, description="City")
+    street: str | None = Field(
+        None,
+        description="Street (with optional housenumber)",
     )
-    postalcode: Optional[str] = Field(None, description="Postal code")
+    postalcode: str | None = Field(None, description="Postal code")
     limit: int = Field(default=10, ge=1, le=50, description="Maximum results")
 
 
@@ -286,7 +302,10 @@ def fetch_search_structured(params: NominatimSearchStructuredParams) -> Any:
         query_params["postalcode"] = params.postalcode
 
     response = http_get(
-        f"{BASE_URL}/search", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/search",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -311,8 +330,8 @@ TOOLS.append(
             "Structured forward geocoding: combine country, state, city, street, "
             "postalcode fields. Respect Nominatim's 1 req/s usage policy."
         ),
-        inputSchema=NominatimSearchStructuredParams.model_json_schema(),
-    )
+        input_schema=NominatimSearchStructuredParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nominatim-search-structured"] = handle_search_structured
 
@@ -324,8 +343,6 @@ TOOLS_HANDLERS["nominatim-search-structured"] = handle_search_structured
 
 class NominatimStatusParams(BaseModel):
     """Parameters for the Nominatim status endpoint."""
-
-    pass
 
 
 def fetch_status(_params: NominatimStatusParams) -> Any:
@@ -356,8 +373,8 @@ TOOLS.append(
     types.Tool(
         name="nominatim-status",
         description="Get the OSM Nominatim service status (JSON).",
-        inputSchema=NominatimStatusParams.model_json_schema(),
-    )
+        input_schema=NominatimStatusParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nominatim-status"] = handle_status
 
@@ -366,7 +383,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-osm-nominatim", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-osm-nominatim",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

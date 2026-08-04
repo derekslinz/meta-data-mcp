@@ -1,9 +1,9 @@
 import json
+from unittest.mock import patch
 
 import httpx
 import pytest
 from pydantic import ValidationError
-from unittest.mock import patch
 
 from meta_data_mcp.providers.nl_rechtspraak import (
     TOOLS,
@@ -47,7 +47,7 @@ def test_search_rechtspraak_parses_feed_and_handles_missing_link():
         mock_get.return_value.content = ATOM_XML.encode("utf-8")
 
         result = search_rechtspraak(
-            RechtspraakSearchParams(query="arbeidsrecht", max_results=2)
+            RechtspraakSearchParams(query="arbeidsrecht", max_results=2),
         )
 
         assert len(result) == 2
@@ -67,7 +67,7 @@ def test_search_rechtspraak_passes_expected_query_params():
                 query="belastingrecht",
                 max_results=7,
                 date_from="2024-01-01",
-            )
+            ),
         )
 
         _, kwargs = mock_get.call_args
@@ -84,7 +84,7 @@ async def test_handle_rechtspraak_search_returns_serialized_results():
         mock_get.return_value.content = ATOM_XML.encode("utf-8")
 
         result = await handle_rechtspraak_search(
-            {"query": "arbeidsrecht", "max_results": 2}
+            {"query": "arbeidsrecht", "max_results": 2},
         )
 
         assert len(result) == 1
@@ -115,7 +115,7 @@ def test_fetch_rechtspraak_content_returns_raw_xml_text():
         )
 
         xml = fetch_rechtspraak_content(
-            RechtspraakContentParams(ecli="ECLI:NL:HR:2020:1234")
+            RechtspraakContentParams(ecli="ECLI:NL:HR:2020:1234"),
         )
 
         assert "Volledige tekst" in xml
@@ -165,7 +165,7 @@ def test_rechtspraak_adapter_wraps_list_into_rows():
             "summary": "Korte samenvatting",
             "updated": "2020-01-02T03:04:05Z",
             "link": "https://uitspraken.rechtspraak.nl/details?id=ECLI:NL:HR:2020:1234",
-        }
+        },
     ]
     payload = _rechtspraak_search_to_shape_payload(raw)
     assert payload["rows"][0]["ecli"] == "ECLI:NL:HR:2020:1234"

@@ -1,5 +1,4 @@
-"""
-iNaturalist Provider
+"""iNaturalist Provider
 
 This module exposes the public iNaturalist v1 REST API, a citizen-science
 platform that records biodiversity observations submitted (and identified)
@@ -25,9 +24,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -41,9 +41,9 @@ PROVIDER_ID = "global-inaturalist"
 BASE_URL = "https://api.inaturalist.org/v1"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -55,19 +55,23 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class INaturalistSearchObservationsParams(BaseModel):
     """Parameters for searching iNaturalist observations."""
 
-    q: Optional[str] = Field(None, description="Free-text query.")
-    taxon_name: Optional[str] = Field(
-        None, description="Filter by scientific/common taxon name."
+    q: str | None = Field(None, description="Free-text query.")
+    taxon_name: str | None = Field(
+        None,
+        description="Filter by scientific/common taxon name.",
     )
-    place_id: Optional[int] = Field(None, description="Filter by iNaturalist place id.")
-    user_id: Optional[str] = Field(
-        None, description="Filter by iNaturalist user login or numeric id."
+    place_id: int | None = Field(None, description="Filter by iNaturalist place id.")
+    user_id: str | None = Field(
+        None,
+        description="Filter by iNaturalist user login or numeric id.",
     )
-    d1: Optional[str] = Field(
-        None, description="Observed on or after this date (YYYY-MM-DD)."
+    d1: str | None = Field(
+        None,
+        description="Observed on or after this date (YYYY-MM-DD).",
     )
-    d2: Optional[str] = Field(
-        None, description="Observed on or before this date (YYYY-MM-DD)."
+    d2: str | None = Field(
+        None,
+        description="Observed on or before this date (YYYY-MM-DD).",
     )
     per_page: int = Field(default=30, ge=1, le=200, description="Page size.")
     page: int = Field(default=1, ge=1, description="Page number (1-indexed).")
@@ -86,7 +90,9 @@ def fetch_inaturalist_search_observations(
         if value is not None:
             query_params[key] = value
     response = http_get(
-        f"{BASE_URL}/observations", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/observations",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -123,7 +129,7 @@ def _inaturalist_observations_to_shape_payload(data: dict) -> dict:
                 "quality_grade": obs.get("quality_grade"),
                 "license_code": obs.get("license_code"),
                 "uri": obs.get("uri"),
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -168,7 +174,7 @@ def _inaturalist_observations_to_shape_payload(data: dict) -> dict:
                     "description": "Observation licence",
                 },
                 {"name": "uri", "type": "string", "description": "Observation URL"},
-            ]
+            ],
         },
         "default_facets": ["iconic_taxon", "quality_grade", "rank"],
     }
@@ -200,9 +206,9 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-search-observations",
         description="Search iNaturalist observations by query, taxon, place, user, and date range.",
-        inputSchema=INaturalistSearchObservationsParams.model_json_schema(),
+        input_schema=INaturalistSearchObservationsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["inaturalist-search-observations"] = (
     handle_inaturalist_search_observations
@@ -247,8 +253,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-get-observation",
         description="Fetch a single iNaturalist observation by id.",
-        inputSchema=INaturalistGetObservationParams.model_json_schema(),
-    )
+        input_schema=INaturalistGetObservationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-get-observation"] = handle_inaturalist_get_observation
 
@@ -262,7 +268,7 @@ class INaturalistSearchTaxaParams(BaseModel):
     """Parameters for searching iNaturalist taxa."""
 
     q: str = Field(..., description="Free-text query against taxon names.")
-    rank: Optional[str] = Field(
+    rank: str | None = Field(
         None,
         description="Restrict to taxon rank (e.g. species, genus, family).",
     )
@@ -297,8 +303,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-search-taxa",
         description="Search the iNaturalist taxonomic database by query and optional rank.",
-        inputSchema=INaturalistSearchTaxaParams.model_json_schema(),
-    )
+        input_schema=INaturalistSearchTaxaParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-search-taxa"] = handle_inaturalist_search_taxa
 
@@ -339,8 +345,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-get-taxon",
         description="Fetch a single iNaturalist taxon by id.",
-        inputSchema=INaturalistGetTaxonParams.model_json_schema(),
-    )
+        input_schema=INaturalistGetTaxonParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-get-taxon"] = handle_inaturalist_get_taxon
 
@@ -361,7 +367,9 @@ def fetch_inaturalist_list_places(params: INaturalistListPlacesParams) -> dict:
     """Call /places/autocomplete."""
     query_params: dict[str, Any] = {"q": params.q, "per_page": params.per_page}
     response = http_get(
-        f"{BASE_URL}/places/autocomplete", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/places/autocomplete",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -385,8 +393,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-list-places",
         description="Autocomplete iNaturalist places by partial name.",
-        inputSchema=INaturalistListPlacesParams.model_json_schema(),
-    )
+        input_schema=INaturalistListPlacesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-list-places"] = handle_inaturalist_list_places
 
@@ -427,8 +435,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-get-place",
         description="Fetch a single iNaturalist place by id.",
-        inputSchema=INaturalistGetPlaceParams.model_json_schema(),
-    )
+        input_schema=INaturalistGetPlaceParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-get-place"] = handle_inaturalist_get_place
 
@@ -441,7 +449,7 @@ TOOLS_HANDLERS["inaturalist-get-place"] = handle_inaturalist_get_place
 class INaturalistListProjectsParams(BaseModel):
     """Parameters for listing iNaturalist projects."""
 
-    q: Optional[str] = Field(None, description="Free-text query against project name.")
+    q: str | None = Field(None, description="Free-text query against project name.")
     per_page: int = Field(default=20, ge=1, le=200, description="Page size.")
 
 
@@ -451,7 +459,9 @@ def fetch_inaturalist_list_projects(params: INaturalistListProjectsParams) -> di
     if params.q:
         query_params["q"] = params.q
     response = http_get(
-        f"{BASE_URL}/projects", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/projects",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -473,8 +483,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-list-projects",
         description="List or search iNaturalist projects.",
-        inputSchema=INaturalistListProjectsParams.model_json_schema(),
-    )
+        input_schema=INaturalistListProjectsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-list-projects"] = handle_inaturalist_list_projects
 
@@ -515,8 +525,8 @@ TOOLS.append(
     types.Tool(
         name="inaturalist-get-user",
         description="Fetch an iNaturalist user profile by login or numeric id.",
-        inputSchema=INaturalistGetUserParams.model_json_schema(),
-    )
+        input_schema=INaturalistGetUserParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["inaturalist-get-user"] = handle_inaturalist_get_user
 
@@ -525,7 +535,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-inaturalist", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-inaturalist",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

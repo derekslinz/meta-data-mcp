@@ -1,5 +1,4 @@
-"""
-Europe PMC Provider
+"""Europe PMC Provider
 
 This module exposes the Europe PMC REST API, a discovery service for life
 sciences and biomedical literature. Europe PMC aggregates PubMed,
@@ -24,9 +23,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -46,9 +46,9 @@ _MAX_ABSTRACT_CHARS = 500
 _XML_HEADERS = {"Accept": "application/xml"}
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -65,7 +65,8 @@ class EuropePmcSearchParams(BaseModel):
         description="Europe PMC query string (e.g. 'CRISPR cas9', 'AUTH:\"Doudna J\"').",
     )
     pageSize: int = Field(
-        default=25, description="Number of records per page (max 1000)."
+        default=25,
+        description="Number of records per page (max 1000).",
     )
     cursorMark: str = Field(
         default="*",
@@ -120,7 +121,7 @@ def _europepmc_search_to_shape_payload(data: dict) -> dict:
                 "isOpenAccess": art.get("isOpenAccess"),
                 "citedByCount": art.get("citedByCount"),
                 "abstract": abstract,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -162,7 +163,7 @@ def _europepmc_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Abstract (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["source", "pubType", "journal"],
     }
@@ -197,9 +198,9 @@ TOOLS.append(
     types.Tool(
         name="europepmc-search",
         description="Search Europe PMC biomedical literature with cursor-based pagination.",
-        inputSchema=EuropePmcSearchParams.model_json_schema(),
+        input_schema=EuropePmcSearchParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["europepmc-search"] = handle_europepmc_search
 
@@ -213,7 +214,8 @@ class EuropePmcGetArticleParams(BaseModel):
     """Parameters for fetching a single Europe PMC article."""
 
     source: str = Field(
-        ..., description="Source database (e.g. 'MED', 'PMC', 'AGR', 'CBA')."
+        ...,
+        description="Source database (e.g. 'MED', 'PMC', 'AGR', 'CBA').",
     )
     id: str = Field(..., description="Article identifier (PMID or PMC id).")
 
@@ -251,8 +253,8 @@ TOOLS.append(
     types.Tool(
         name="europepmc-get-article",
         description="Fetch a single Europe PMC article (core record) by source and identifier.",
-        inputSchema=EuropePmcGetArticleParams.model_json_schema(),
-    )
+        input_schema=EuropePmcGetArticleParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["europepmc-get-article"] = handle_europepmc_get_article
 
@@ -303,8 +305,8 @@ TOOLS.append(
     types.Tool(
         name="europepmc-references",
         description="Fetch the reference list for a Europe PMC article.",
-        inputSchema=EuropePmcReferencesParams.model_json_schema(),
-    )
+        input_schema=EuropePmcReferencesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["europepmc-references"] = handle_europepmc_references
 
@@ -355,8 +357,8 @@ TOOLS.append(
     types.Tool(
         name="europepmc-citations",
         description="Fetch the list of articles citing a Europe PMC article.",
-        inputSchema=EuropePmcCitationsParams.model_json_schema(),
-    )
+        input_schema=EuropePmcCitationsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["europepmc-citations"] = handle_europepmc_citations
 
@@ -370,7 +372,8 @@ class EuropePmcFullTextXmlParams(BaseModel):
     """Parameters for retrieving full-text XML."""
 
     source: str = Field(
-        ..., description="Source database (usually 'PMC' for open-access full text)."
+        ...,
+        description="Source database (usually 'PMC' for open-access full text).",
     )
     id: str = Field(..., description="Article identifier (e.g. PMC id).")
 
@@ -404,8 +407,8 @@ TOOLS.append(
     types.Tool(
         name="europepmc-fulltext-xml",
         description="Fetch the JATS XML full text for an open-access Europe PMC article.",
-        inputSchema=EuropePmcFullTextXmlParams.model_json_schema(),
-    )
+        input_schema=EuropePmcFullTextXmlParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["europepmc-fulltext-xml"] = handle_europepmc_fulltext_xml
 
@@ -420,7 +423,7 @@ class EuropePmcSupplementaryFilesParams(BaseModel):
 
     source: str = Field(..., description="Source database (e.g. 'PMC').")
     id: str = Field(..., description="Article identifier (e.g. PMC id).")
-    includeInlineImage: Optional[bool] = Field(
+    includeInlineImage: bool | None = Field(
         default=True,
         description="Whether to include inline images in the listing.",
     )
@@ -460,8 +463,8 @@ TOOLS.append(
     types.Tool(
         name="europepmc-supplementaryfiles",
         description="List supplementary files attached to a Europe PMC article.",
-        inputSchema=EuropePmcSupplementaryFilesParams.model_json_schema(),
-    )
+        input_schema=EuropePmcSupplementaryFilesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["europepmc-supplementaryfiles"] = handle_europepmc_supplementaryfiles
 
@@ -470,7 +473,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-europepmc", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-europepmc",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

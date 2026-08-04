@@ -1,5 +1,4 @@
-"""
-Canada Open Government Data Catalog (open.canada.ca) Provider
+"""Canada Open Government Data Catalog (open.canada.ca) Provider
 
 This module exposes the public CKAN API hosted at open.canada.ca/data, the
 Government of Canada's open data portal. The catalog aggregates datasets from
@@ -24,9 +23,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -43,9 +43,9 @@ BASE_URL = "https://open.canada.ca/data/api/action"
 _MAX_NOTES_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,7 +57,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class CAOpenGovSearchDatasetsParams(BaseModel):
     """Parameters for searching datasets in the open.canada.ca CKAN catalog."""
 
-    q: Optional[str] = Field(
+    q: str | None = Field(
         None,
         description="Free-text search query (CKAN 'q' parameter). Leave blank to list all.",
     )
@@ -79,7 +79,9 @@ def fetch_ca_opengov_search_datasets(params: CAOpenGovSearchDatasetsParams) -> d
         "start": params.start,
     }
     response = http_get(
-        f"{BASE_URL}/package_search", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/package_search",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -118,7 +120,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                 (r.get("format") or "").upper()
                 for r in resources
                 if isinstance(r, dict) and r.get("format")
-            }
+            },
         )
         notes = pkg.get("notes") or ""
         if isinstance(notes, str) and len(notes) > _MAX_NOTES_CHARS:
@@ -137,7 +139,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                 "metadata_created": pkg.get("metadata_created"),
                 "metadata_modified": pkg.get("metadata_modified"),
                 "notes": notes,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -182,7 +184,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Description (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["organization", "license", "formats"],
     }
@@ -213,9 +215,9 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-search-datasets",
         description="Search the Canada open.canada.ca catalog (CKAN package_search).",
-        inputSchema=CAOpenGovSearchDatasetsParams.model_json_schema(),
+        input_schema=CAOpenGovSearchDatasetsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-search-datasets"] = handle_ca_opengov_search_datasets
 
@@ -234,7 +236,9 @@ class CAOpenGovGetDatasetParams(BaseModel):
 def fetch_ca_opengov_get_dataset(params: CAOpenGovGetDatasetParams) -> dict:
     """Call CKAN package_show on open.canada.ca."""
     response = http_get(
-        f"{BASE_URL}/package_show", params={"id": params.id}, provider=PROVIDER_ID
+        f"{BASE_URL}/package_show",
+        params={"id": params.id},
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -258,8 +262,8 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-get-dataset",
         description="Fetch full metadata for an open.canada.ca dataset by id or slug.",
-        inputSchema=CAOpenGovGetDatasetParams.model_json_schema(),
-    )
+        input_schema=CAOpenGovGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-get-dataset"] = handle_ca_opengov_get_dataset
 
@@ -287,7 +291,9 @@ def fetch_ca_opengov_list_organizations(
         "limit": params.limit,
     }
     response = http_get(
-        f"{BASE_URL}/organization_list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/organization_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -309,8 +315,8 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-list-organizations",
         description="List publishing organisations on open.canada.ca with full fields.",
-        inputSchema=CAOpenGovListOrganizationsParams.model_json_schema(),
-    )
+        input_schema=CAOpenGovListOrganizationsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-list-organizations"] = handle_ca_opengov_list_organizations
 
@@ -329,7 +335,9 @@ class CAOpenGovGetOrganizationParams(BaseModel):
 def fetch_ca_opengov_get_organization(params: CAOpenGovGetOrganizationParams) -> dict:
     """Call CKAN organization_show on open.canada.ca."""
     response = http_get(
-        f"{BASE_URL}/organization_show", params={"id": params.id}, provider=PROVIDER_ID
+        f"{BASE_URL}/organization_show",
+        params={"id": params.id},
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -353,8 +361,8 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-get-organization",
         description="Fetch full details for an open.canada.ca publishing organisation.",
-        inputSchema=CAOpenGovGetOrganizationParams.model_json_schema(),
-    )
+        input_schema=CAOpenGovGetOrganizationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-get-organization"] = handle_ca_opengov_get_organization
 
@@ -379,7 +387,9 @@ def fetch_ca_opengov_list_groups(params: CAOpenGovListGroupsParams) -> dict:
         "all_fields": "true" if params.all_fields else "false",
     }
     response = http_get(
-        f"{BASE_URL}/group_list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/group_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -401,8 +411,8 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-list-groups",
         description="List groups defined on open.canada.ca.",
-        inputSchema=CAOpenGovListGroupsParams.model_json_schema(),
-    )
+        input_schema=CAOpenGovListGroupsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-list-groups"] = handle_ca_opengov_list_groups
 
@@ -415,7 +425,7 @@ TOOLS_HANDLERS["ca-open-gov-list-groups"] = handle_ca_opengov_list_groups
 class CAOpenGovListTagsParams(BaseModel):
     """Parameters for listing or searching tags."""
 
-    query: Optional[str] = Field(
+    query: str | None = Field(
         None,
         description="Optional substring to filter tag names (CKAN 'query').",
     )
@@ -427,7 +437,9 @@ def fetch_ca_opengov_list_tags(params: CAOpenGovListTagsParams) -> dict:
     if params.query:
         query_params["query"] = params.query
     response = http_get(
-        f"{BASE_URL}/tag_list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/tag_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -449,8 +461,8 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-list-tags",
         description="List or search tag names on open.canada.ca.",
-        inputSchema=CAOpenGovListTagsParams.model_json_schema(),
-    )
+        input_schema=CAOpenGovListTagsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-list-tags"] = handle_ca_opengov_list_tags
 
@@ -462,8 +474,6 @@ TOOLS_HANDLERS["ca-open-gov-list-tags"] = handle_ca_opengov_list_tags
 
 class CAOpenGovListLicensesParams(BaseModel):
     """Parameters for listing the licence catalog (no fields required)."""
-
-    pass
 
 
 def fetch_ca_opengov_list_licenses(params: CAOpenGovListLicensesParams) -> dict:
@@ -489,8 +499,8 @@ TOOLS.append(
     types.Tool(
         name="ca-open-gov-list-licenses",
         description="List the licence catalog used by open.canada.ca datasets.",
-        inputSchema=CAOpenGovListLicensesParams.model_json_schema(),
-    )
+        input_schema=CAOpenGovListLicensesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ca-open-gov-list-licenses"] = handle_ca_opengov_list_licenses
 
@@ -499,7 +509,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "ca-open-gov", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "ca-open-gov",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

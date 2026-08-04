@@ -1,5 +1,4 @@
-"""
-Tweedekamer OData v4 Data Provider
+"""Tweedekamer OData v4 Data Provider
 
 This module provides an MCP interface for the Dutch House of Representatives'
 OData v4 Gegevensmagazijn API.
@@ -14,9 +13,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -31,9 +31,9 @@ PROVIDER_ID = "nl-tweedekamer"
 BASE_URL = "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -41,7 +41,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 ###################
 
 
-def list_tk_entities() -> List[str]:
+def list_tk_entities() -> list[str]:
     """Return a hardcoded list of available entities from Tweedekamer Gegevensmagazijn."""
     # This list is distilled from the $metadata document
     return [
@@ -82,8 +82,8 @@ TOOLS.append(
     types.Tool(
         name="tk-list-entities",
         description="List all available OData entity sets in the Tweedekamer Gegevensmagazijn.",
-        inputSchema={"type": "object", "properties": {}},
-    )
+        input_schema={"type": "object", "properties": {}},
+    ),
 )
 TOOLS_HANDLERS["tk-list-entities"] = handle_tk_list_entities
 
@@ -96,15 +96,18 @@ class TkQueryEntityParams(BaseModel):
     """Parameters for querying a Tweedekamer entity set using OData v4."""
 
     entity: str = Field(
-        ..., description="The name of the entity set (e.g. 'Persoon', 'Fractie')"
+        ...,
+        description="The name of the entity set (e.g. 'Persoon', 'Fractie')",
     )
-    filter: Optional[str] = Field(
-        None, description="OData $filter string (e.g., \"Achternaam eq 'Dijkhoff'\")"
+    filter: str | None = Field(
+        None,
+        description="OData $filter string (e.g., \"Achternaam eq 'Dijkhoff'\")",
     )
-    select: Optional[str] = Field(
-        None, description="OData $select string (e.g., 'Id,Voornamen,Achternaam')"
+    select: str | None = Field(
+        None,
+        description="OData $select string (e.g., 'Id,Voornamen,Achternaam')",
     )
-    expand: Optional[str] = Field(
+    expand: str | None = Field(
         None,
         description="OData $expand string for related entities (e.g., 'FractieZetelPersoon')",
     )
@@ -118,7 +121,7 @@ def query_tk_entity(params: TkQueryEntityParams) -> dict:
     known_entities = set(list_tk_entities())
     if params.entity not in known_entities:
         raise ValueError(
-            f"Unknown entity '{params.entity}'. Valid entities: {sorted(known_entities)}"
+            f"Unknown entity '{params.entity}'. Valid entities: {sorted(known_entities)}",
         )
     url = f"{BASE_URL}/{params.entity}"
     query_params = {
@@ -180,7 +183,7 @@ async def handle_tk_query(
         return [types.TextContent(type="text", text=to_records_text(payload))]
     except Exception as e:
         log.error(
-            f"Error querying TK entity {arguments.get('entity') if arguments else ''}: {e}"
+            f"Error querying TK entity {arguments.get('entity') if arguments else ''}: {e}",
         )
         raise
 
@@ -189,9 +192,9 @@ TOOLS.append(
     types.Tool(
         name="tk-query",
         description="Query a Tweedekamer entity set using OData v4 parameters.",
-        inputSchema=TkQueryEntityParams.model_json_schema(),
+        input_schema=TkQueryEntityParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["tk-query"] = handle_tk_query
 
@@ -200,7 +203,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "nl-tweedekamer", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "nl-tweedekamer",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

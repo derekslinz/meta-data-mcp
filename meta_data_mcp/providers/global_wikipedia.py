@@ -1,5 +1,4 @@
-"""
-Wikipedia Provider
+"""Wikipedia Provider
 
 This module exposes the public Wikipedia REST API (api/rest_v1) plus a small
 slice of the MediaWiki Action API for title search. The provider supports
@@ -29,9 +28,10 @@ Usage:
 
 import logging
 import urllib.parse
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -62,9 +62,9 @@ def _encode_title(title: str) -> str:
 
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -106,8 +106,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-summary",
         description="Fetch a Wikipedia page summary (lead extract + thumbnail).",
-        inputSchema=WikipediaSummaryParams.model_json_schema(),
-    )
+        input_schema=WikipediaSummaryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-summary"] = handle_wikipedia_get_summary
 
@@ -150,8 +150,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-html",
         description="Fetch the full rendered HTML of a Wikipedia page (truncated to 20k chars).",
-        inputSchema=WikipediaHtmlParams.model_json_schema(),
-    )
+        input_schema=WikipediaHtmlParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-html"] = handle_wikipedia_get_html
 
@@ -196,8 +196,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-mobile-sections",
         description="Fetch a Wikipedia page broken into mobile-friendly sections.",
-        inputSchema=WikipediaMobileSectionsParams.model_json_schema(),
-    )
+        input_schema=WikipediaMobileSectionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-mobile-sections"] = handle_wikipedia_get_mobile_sections
 
@@ -240,8 +240,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-related",
         description="Fetch related-page recommendations for a Wikipedia title.",
-        inputSchema=WikipediaRelatedParams.model_json_schema(),
-    )
+        input_schema=WikipediaRelatedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-related"] = handle_wikipedia_get_related
 
@@ -284,8 +284,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-media-list",
         description="Fetch the media list (images, sounds) for a Wikipedia page.",
-        inputSchema=WikipediaMediaListParams.model_json_schema(),
-    )
+        input_schema=WikipediaMediaListParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-media-list"] = handle_wikipedia_get_media_list
 
@@ -312,7 +312,9 @@ def fetch_wikipedia_search_title(params: WikipediaSearchTitleParams) -> list:
         "format": "json",
     }
     response = http_get(
-        _action_api(params.lang), params=query_params, provider=PROVIDER_ID
+        _action_api(params.lang),
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -344,7 +346,7 @@ def _wikipedia_opensearch_to_shape_payload(data: list) -> dict:
                     "url": urls[i]
                     if i < len(urls) and isinstance(urls[i], str)
                     else "",
-                }
+                },
             )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -357,7 +359,7 @@ def _wikipedia_opensearch_to_shape_payload(data: list) -> dict:
                     "description": "Short description",
                 },
                 {"name": "url", "type": "string", "description": "Article URL"},
-            ]
+            ],
         },
         "default_facets": [],
     }
@@ -389,9 +391,9 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-search-title",
         description="Prefix-search Wikipedia article titles via the MediaWiki opensearch endpoint.",
-        inputSchema=WikipediaSearchTitleParams.model_json_schema(),
+        input_schema=WikipediaSearchTitleParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["wikipedia-search-title"] = handle_wikipedia_search_title
 
@@ -448,8 +450,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-page-views",
         description="Fetch daily Wikipedia page-view metrics for an article between two YYYYMMDD dates.",
-        inputSchema=WikipediaPageViewsParams.model_json_schema(),
-    )
+        input_schema=WikipediaPageViewsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-page-views"] = handle_wikipedia_get_page_views
 
@@ -500,8 +502,8 @@ TOOLS.append(
     types.Tool(
         name="wikipedia-get-on-this-day",
         description="Fetch Wikipedia's 'on this day' feed (events, holidays, births, deaths, selected) for a given month/day.",
-        inputSchema=WikipediaOnThisDayParams.model_json_schema(),
-    )
+        input_schema=WikipediaOnThisDayParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["wikipedia-get-on-this-day"] = handle_wikipedia_get_on_this_day
 

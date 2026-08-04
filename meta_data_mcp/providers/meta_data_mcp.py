@@ -1,5 +1,4 @@
-"""
-meta-data-mcp — the one MCP server.
+"""meta-data-mcp — the one MCP server.
 
 A single MCP server that transparently routes user requests to internal
 data plugins. The ~60 modules alongside this one are *plugins*, not
@@ -19,15 +18,16 @@ The CLI's `meta-data-mcp run` calls `main()` here. There is no second
 server.
 """
 
-import importlib
 import asyncio
+import importlib
 import logging
 import re
 import time
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
-from pydantic import AnyUrl, BaseModel, Field
+from mcp import types
+from pydantic import BaseModel, Field
 
 from meta_data_mcp import federate, health
 from meta_data_mcp.contribute import ContributionResult, contribute_plugin
@@ -42,10 +42,10 @@ from meta_data_mcp.contribute_consent import resolve_consent
 from meta_data_mcp.discovery.loader import (
     _NON_PLUGIN_MODULES,  # noqa: F401
     _activate_provider,
-    _deactivate_provider,  # noqa: F401
+    _deactivate_provider,
     _load_all_plugins,
-    _merge_plugin,  # noqa: F401
-    _notify_tools_changed,  # noqa: F401
+    _merge_plugin,
+    _notify_tools_changed,
     _resolve_provider_id,  # noqa: F401
 )
 from meta_data_mcp.discovery.state import (
@@ -54,12 +54,10 @@ from meta_data_mcp.discovery.state import (
     TOOLS,
     TOOLS_HANDLERS,
     ActivationState,  # noqa: F401
-    _active_providers,  # noqa: F401
-    _owner_by_tool,  # noqa: F401
+    _active_providers,
+    _owner_by_tool,
     _state,
 )
-from meta_data_mcp.utils import serialize_for_llm
-
 from meta_data_mcp.registry import (
     REGISTRY,
     get_provider,
@@ -69,6 +67,7 @@ from meta_data_mcp.registry import (
 )
 from meta_data_mcp.routing import RoutingEngine
 from meta_data_mcp.ui_resources.app_discovery_v1 import URI as DISCOVERY_APP_URI
+from meta_data_mcp.utils import serialize_for_llm
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +75,7 @@ log = logging.getLogger(__name__)
 def _log_background_event_failure(task: asyncio.Task[None]) -> None:
     try:
         task.result()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning(f"plugin.created event delivery failed: {exc}", exc_info=True)
 
 
@@ -113,15 +112,15 @@ _engine = RoutingEngine()
 class FindProvidersParams(BaseModel):
     """Filters for `opendata_providers_find`."""
 
-    query: Optional[str] = Field(
+    query: str | None = Field(
         None,
         description="Free-text query. Matched against id, title, description, keywords, domains, regions. Tokens with exact keyword hits score higher.",
     )
-    domain: Optional[str] = Field(
+    domain: str | None = Field(
         None,
         description="Restrict to providers tagged with this domain (e.g. 'health', 'legal', 'finance'). Use opendata_domains_list to enumerate.",
     )
-    region: Optional[str] = Field(
+    region: str | None = Field(
         None,
         description="Restrict to providers tagged with this region (e.g. 'us', 'eu', 'uk', 'global'). Use opendata_regions_list to enumerate.",
     )
@@ -243,15 +242,7 @@ async def handle_find_providers(
 TOOLS.append(
     types.Tool(
         name="opendata_providers_find",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "count": {"type": "integer"},
-                "providers": {"type": "array", "items": {"type": "object"}},
-                "next_step": {"type": "string"},
-                "no_match": {"type": "boolean"},
-            },
-        },
+        input_schema=FindProvidersParams.model_json_schema(),
         title="Find Providers",
         description=(
             "Search the meta-data-mcp plugin registry. Returns plugins that "
@@ -261,14 +252,13 @@ TOOLS.append(
             "that explains how to autonomously create one via "
             "`opendata_plugins_create`."
         ),
-        inputSchema=FindProvidersParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         # Phase 3: bind to the discovery app so MCP Apps hosts render the
         # result in the faceted panel. Use the alias keyword (``_meta=``) —
         # ``meta=`` silently drops into extras; see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_providers_find"] = handle_find_providers
 
@@ -364,7 +354,7 @@ _AST_BANNED_CALL_NAMES = frozenset(
         "locals",
         "vars",
         "dir",
-    }
+    },
 )
 # Suffix names that are dangerous regardless of which root object they live
 # on — covers indirect access through `__builtins__`, module aliases, or any
@@ -374,7 +364,7 @@ _AST_BANNED_CALL_NAMES = frozenset(
 # `__builtins__` Name check higher up closes the most common indirect path
 # (`__builtins__["__import__"]("subprocess").run(...)`).
 _AST_BANNED_CALL_ATTR_SUFFIXES = frozenset(
-    {"ev" + "al", "ex" + "ec", "compile", "__import__", "system", "popen", "getenv"}
+    {"ev" + "al", "ex" + "ec", "compile", "__import__", "system", "popen", "getenv"},
 )
 # Built as concatenation to keep the constant out of literal-string grep
 # checks that flag dangerous-looking strings in source.
@@ -429,7 +419,7 @@ _AST_BANNED_CALL_ATTRS = frozenset(
             "getoutput",
             "getstatusoutput",
         )
-    }
+    },
 )
 
 
@@ -566,7 +556,10 @@ async def _run_contribution(plugin_id: str, *, meta: dict[str, Any]) -> dict[str
         repo_root / "tests" / "providers" / f"test_{plugin_id}.py",
     ]
     result: ContributionResult = await contribute_plugin(
-        plugin_id, files, repo_root=repo_root, meta=meta
+        plugin_id,
+        files,
+        repo_root=repo_root,
+        meta=meta,
     )
     return result.to_dict()
 
@@ -611,7 +604,7 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm({"error": f"YAML parse error: {exc}"}),
-                )
+                ),
             ]
 
         if not isinstance(spec, dict):
@@ -619,9 +612,9 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm(
-                        {"error": "Spec must be a YAML mapping at the top level."}
+                        {"error": "Spec must be a YAML mapping at the top level."},
                     ),
-                )
+                ),
             ]
 
         required = ("id", "server_name", "base_url", "description", "tools")
@@ -631,9 +624,9 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm(
-                        {"error": f"Spec missing required keys: {missing}"}
+                        {"error": f"Spec missing required keys: {missing}"},
                     ),
-                )
+                ),
             ]
 
         plugin_id = spec["id"]
@@ -648,10 +641,10 @@ async def handle_create_plugin(
                                 f"Plugin id {plugin_id!r} must match "
                                 f"/{_CREATE_PLUGIN_ID_RE.pattern}/ "
                                 "(lowercase snake_case)."
-                            )
-                        }
+                            ),
+                        },
                     ),
-                )
+                ),
             ]
 
         if get_provider(plugin_id) is not None:
@@ -663,10 +656,10 @@ async def handle_create_plugin(
                             "error": (
                                 f"Plugin '{plugin_id}' already registered. "
                                 "Use a different id or call its existing tools."
-                            )
-                        }
+                            ),
+                        },
                     ),
-                )
+                ),
             ]
 
         # Resolve repo paths. When installed via uvx, the source tree is in
@@ -688,10 +681,10 @@ async def handle_create_plugin(
                                 f"Generator not found at {generator}. Autonomous "
                                 "plugin creation requires running from a source "
                                 "checkout, not a uvx install."
-                            )
-                        }
+                            ),
+                        },
                     ),
-                )
+                ),
             ]
 
         try:
@@ -711,10 +704,10 @@ async def handle_create_plugin(
                                 "error": (
                                     "Refusing to write spec outside specs "
                                     f"directory: {resolved_spec}"
-                                )
-                            }
+                                ),
+                            },
                         ),
-                    )
+                    ),
                 ]
             spec_path.write_text(params.spec_yaml)
         except OSError as exc:
@@ -722,9 +715,9 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm(
-                        {"error": f"Could not write spec file: {exc}"}
+                        {"error": f"Could not write spec file: {exc}"},
                     ),
-                )
+                ),
             ]
 
         proc = subprocess.run(
@@ -743,9 +736,9 @@ async def handle_create_plugin(
                             "error": "Generator failed",
                             "stderr": proc.stderr,
                             "stdout": proc.stdout,
-                        }
+                        },
                     ),
-                )
+                ),
             ]
 
         # Defense-in-depth: AST-validate the generated module before
@@ -762,9 +755,9 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm(
-                        {"error": f"Could not read generated plugin: {exc}"}
+                        {"error": f"Could not read generated plugin: {exc}"},
                     ),
-                )
+                ),
             ]
         ast_error = _validate_generated_provider_ast(generated_source)
         if ast_error is not None:
@@ -779,9 +772,9 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm(
-                        {"error": f"Generated plugin rejected: {ast_error}"}
+                        {"error": f"Generated plugin rejected: {ast_error}"},
                     ),
-                )
+                ),
             ]
 
         # Import the freshly-written plugin module.
@@ -799,9 +792,9 @@ async def handle_create_plugin(
                 types.TextContent(
                     type="text",
                     text=serialize_for_llm(
-                        {"error": f"Generated plugin failed to import: {exc}"}
+                        {"error": f"Generated plugin failed to import: {exc}"},
                     ),
-                )
+                ),
             ]
 
         # Register in the in-memory dynamic registry.
@@ -837,7 +830,7 @@ async def handle_create_plugin(
                     "tools_added": added,
                     "new_tool_names": new_tool_names,
                 },
-            )
+            ),
         )
         event_task.add_done_callback(_log_background_event_failure)
 
@@ -869,9 +862,9 @@ async def handle_create_plugin(
                             "Call them directly to answer the user's original query."
                         ),
                         "contribution": contribution,
-                    }
+                    },
                 ),
-            )
+            ),
         ]
     except Exception as e:
         log.error(f"Error in opendata_plugins_create: {e}")
@@ -879,7 +872,7 @@ async def handle_create_plugin(
             types.TextContent(
                 type="text",
                 text=serialize_for_llm({"error": str(e)}),
-            )
+            ),
         ]
 
 
@@ -898,9 +891,9 @@ TOOLS.append(
             "public contribution PR of the generated plugin to the project so "
             "others can use it; set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
         ),
-        inputSchema=CreatePluginParams.model_json_schema(),
+        input_schema=CreatePluginParams.model_json_schema(),
         annotations=types.ToolAnnotations(destructiveHint=False),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_plugins_create"] = handle_create_plugin
 
@@ -1053,10 +1046,10 @@ async def handle_draft_spec(
                             "error": (
                                 f"id {params.id!r} must be lowercase snake_case "
                                 "(matches /^[a-z][a-z0-9_]*$/)."
-                            )
-                        }
+                            ),
+                        },
                     ),
-                )
+                ),
             ]
 
         server_name = params.server_name or params.id.replace("_", "-")
@@ -1069,10 +1062,10 @@ async def handle_draft_spec(
                             "error": (
                                 f"server_name {server_name!r} must be lowercase "
                                 "kebab-case."
-                            )
-                        }
+                            ),
+                        },
                     ),
-                )
+                ),
             ]
 
         # Validate every tool entry.
@@ -1086,10 +1079,10 @@ async def handle_draft_spec(
                                 "error": (
                                     f"tools[{i}].name {tool.name!r} must be "
                                     "lowercase kebab-case."
-                                )
-                            }
+                                ),
+                            },
                         ),
-                    )
+                    ),
                 ]
             if tool.response_format not in ("json", "text"):
                 return [
@@ -1100,10 +1093,10 @@ async def handle_draft_spec(
                                 "error": (
                                     f"tools[{i}].response_format must be 'json' "
                                     f"or 'text', got {tool.response_format!r}."
-                                )
-                            }
+                                ),
+                            },
                         ),
-                    )
+                    ),
                 ]
             placeholders = _PLACEHOLDER_RE.findall(tool.endpoint)
             param_names = {p.name for p in tool.params}
@@ -1118,10 +1111,10 @@ async def handle_draft_spec(
                                     f"tools[{i}] endpoint has placeholders "
                                     f"{missing_placeholders} that are not declared "
                                     "as params."
-                                )
-                            }
+                                ),
+                            },
                         ),
-                    )
+                    ),
                 ]
             for j, p in enumerate(tool.params):
                 if p.type not in _ALLOWED_PARAM_TYPES:
@@ -1134,10 +1127,10 @@ async def handle_draft_spec(
                                         f"tools[{i}].params[{j}].type "
                                         f"{p.type!r} must be one of "
                                         f"{list(_ALLOWED_PARAM_TYPES)}."
-                                    )
-                                }
+                                    ),
+                                },
                             ),
-                        )
+                        ),
                     ]
                 if p.name in placeholders and not p.required:
                     return [
@@ -1148,10 +1141,10 @@ async def handle_draft_spec(
                                     "error": (
                                         f"tools[{i}].params[{j}] {p.name!r} is a "
                                         "path placeholder and must be required=true."
-                                    )
-                                }
+                                    ),
+                                },
                             ),
-                        )
+                        ),
                     ]
 
         # Build the plain-dict spec, in the same field order the example uses
@@ -1209,9 +1202,9 @@ async def handle_draft_spec(
                             "keywords/requires_env) to `opendata_plugins_create` to "
                             "materialize and hot-load the plugin."
                         ),
-                    }
+                    },
                 ),
-            )
+            ),
         ]
     except Exception as e:
         log.error(f"Error in opendata_plugins_draft: {e}")
@@ -1219,7 +1212,7 @@ async def handle_draft_spec(
             types.TextContent(
                 type="text",
                 text=serialize_for_llm({"error": str(e)}),
-            )
+            ),
         ]
 
 
@@ -1235,9 +1228,9 @@ TOOLS.append(
             "format. Returns the YAML string ready to feed into "
             "`opendata_plugins_create`."
         ),
-        inputSchema=DraftSpecParams.model_json_schema(),
+        input_schema=DraftSpecParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_plugins_draft"] = handle_draft_spec
 
@@ -1250,15 +1243,15 @@ TOOLS_HANDLERS["opendata_plugins_draft"] = handle_draft_spec
 class ExplainChoiceParams(BaseModel):
     """Parameters for explain-choice tool."""
 
-    query: Optional[str] = Field(
+    query: str | None = Field(
         None,
         description="The original search query to explain scoring for.",
     )
-    domain: Optional[str] = Field(
+    domain: str | None = Field(
         None,
         description="Domain filter used in search.",
     )
-    region: Optional[str] = Field(
+    region: str | None = Field(
         None,
         description="Region filter used in search.",
     )
@@ -1317,18 +1310,11 @@ async def handle_explain_choice(
 TOOLS.append(
     types.Tool(
         name="opendata_explain_choice",
-        outputSchema={
-            "type": "object",
-            "properties": {
-                "query": {"type": ["string", "null"]},
-                "results": {"type": "array", "items": {"type": "object"}},
-            },
-        },
         title="Explain Choice",
         description="Explain the scoring breakdown for a provider search. Shows how each provider was ranked using token matching, fuzzy matching, semantic similarity, and metadata filters.",
-        inputSchema=ExplainChoiceParams.model_json_schema(),
+        input_schema=ExplainChoiceParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_explain_choice"] = handle_explain_choice
 
@@ -1356,16 +1342,18 @@ async def handle_list_domains(
 TOOLS.append(
     types.Tool(
         name="opendata_domains_list",
-        outputSchema={
+        output_schema={
             "type": "object",
-            "properties": {"domains": {"type": "array", "items": {"type": "string"}}},
+            "properties": {
+                "domains": {"type": "array", "items": {"type": "string"}},
+            },
         },
         title="List Domains",
         description="List the controlled domain vocabulary used by the provider registry (e.g. 'health', 'legal', 'finance', 'earth-science').",
-        inputSchema=ListDomainsParams.model_json_schema(),
+        input_schema=ListDomainsParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_domains_list"] = handle_list_domains
 
@@ -1393,16 +1381,12 @@ async def handle_list_regions(
 TOOLS.append(
     types.Tool(
         name="opendata_regions_list",
-        outputSchema={
-            "type": "object",
-            "properties": {"regions": {"type": "array", "items": {"type": "string"}}},
-        },
         title="List Regions",
         description="List the controlled region vocabulary used by the provider registry (e.g. 'us', 'eu', 'uk', 'global').",
-        inputSchema=ListRegionsParams.model_json_schema(),
+        input_schema=ListRegionsParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_regions_list"] = handle_list_regions
 
@@ -1443,7 +1427,7 @@ async def handle_describe_provider(
 TOOLS.append(
     types.Tool(
         name="opendata_providers_describe",
-        outputSchema={
+        output_schema={
             "type": "object",
             "properties": {
                 "id": {"type": "string"},
@@ -1456,9 +1440,9 @@ TOOLS.append(
         },
         title="Describe Provider",
         description="Fetch the full registry entry for a single provider id — title, description, domains, regions, keywords, homepage, license note, required environment variables.",
-        inputSchema=DescribeProviderParams.model_json_schema(),
+        input_schema=DescribeProviderParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_providers_describe"] = handle_describe_provider
 
@@ -1516,7 +1500,7 @@ async def handle_list_providers(
 TOOLS.append(
     types.Tool(
         name="opendata_providers_list",
-        outputSchema={
+        output_schema={
             "type": "object",
             "properties": {
                 "total": {"type": "integer"},
@@ -1527,9 +1511,9 @@ TOOLS.append(
         },
         title="List Providers",
         description="Enumerate all providers in the opendata-mcp registry (paginated, terse). Returns id, title, domains, regions, and any required env vars per provider.",
-        inputSchema=ListProvidersParams.model_json_schema(),
+        input_schema=ListProvidersParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_providers_list"] = handle_list_providers
 
@@ -1544,11 +1528,11 @@ RESOURCES.append(
         name="All OpenData Providers",
         description="A complete list of all currently registered OpenData MCP providers and their metadata.",
         mimeType="application/json",
-    )
+    ),
 )
 
 
-def handle_read_all_providers(uri: AnyUrl) -> str:
+def handle_read_all_providers(uri: str) -> str:
     payload = [entry.to_dict() for entry in REGISTRY]
     return serialize_for_llm(payload)
 
@@ -1576,7 +1560,7 @@ register_apps(RESOURCES, RESOURCES_HANDLERS)
 ###################
 
 # Create a module-level variable for prompts
-PROMPTS: List[types.Prompt] = []
+PROMPTS: list[types.Prompt] = []
 PROMPTS_HANDLERS: dict[str, Any] = {}
 
 PROMPTS.append(
@@ -1588,9 +1572,9 @@ PROMPTS.append(
                 name="use_case",
                 description="What are you trying to build? (e.g., 'a dashboard for weather and flights')",
                 required=True,
-            )
+            ),
         ],
-    )
+    ),
 )
 
 
@@ -1608,7 +1592,7 @@ async def handle_discover_providers(
                     type="text",
                     text=f"I want to build the following: {use_case}\n\nPlease use your `opendata_providers_find` tool to search the registry and recommend the 3 most relevant providers for my project. Explain why each one is a good fit and how I can use them together.",
                 ),
-            )
+            ),
         ],
     )
 
@@ -1641,7 +1625,9 @@ USE_CASES = {
 
 for prompt_id, case_info in USE_CASES.items():
     PROMPTS.append(
-        types.Prompt(name=prompt_id, description=case_info["description"], arguments=[])
+        types.Prompt(
+            name=prompt_id, description=case_info["description"], arguments=[]
+        ),
     )
 
     # Need a factory function to capture the correct text in the closure
@@ -1651,8 +1637,9 @@ for prompt_id, case_info in USE_CASES.items():
                 description=f"Recommendations for: {title}",
                 messages=[
                     types.PromptMessage(
-                        role="user", content=types.TextContent(type="text", text=text)
-                    )
+                        role="user",
+                        content=types.TextContent(type="text", text=text),
+                    ),
                 ],
             )
 
@@ -1707,7 +1694,7 @@ async def handle_activate_provider(
 TOOLS.append(
     types.Tool(
         name="opendata_providers_activate",
-        outputSchema={
+        output_schema={
             "type": "object",
             "properties": {
                 "status": {"type": "string"},
@@ -1724,10 +1711,10 @@ TOOLS.append(
             "advertised list, then sends a tools/list_changed notification so the "
             "client refetches its catalog. Idempotent."
         ),
-        inputSchema=ActivateProviderParams.model_json_schema(),
+        input_schema=ActivateProviderParams.model_json_schema(),
         annotations=types.ToolAnnotations(idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_providers_activate"] = handle_activate_provider
 
@@ -1770,7 +1757,7 @@ async def handle_deactivate_provider(
 TOOLS.append(
     types.Tool(
         name="opendata_providers_deactivate",
-        outputSchema={
+        output_schema={
             "type": "object",
             "properties": {
                 "status": {"type": "string"},
@@ -1785,9 +1772,9 @@ TOOLS.append(
             "modules) but its tools no longer appear in tools/list. A "
             "tools/list_changed notification is sent so the client refetches."
         ),
-        inputSchema=DeactivateProviderParams.model_json_schema(),
+        input_schema=DeactivateProviderParams.model_json_schema(),
         annotations=types.ToolAnnotations(idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_providers_deactivate"] = handle_deactivate_provider
 
@@ -1828,7 +1815,7 @@ async def handle_list_active_providers(
 TOOLS.append(
     types.Tool(
         name="opendata_providers_list_active",
-        outputSchema={
+        output_schema={
             "type": "object",
             "properties": {
                 "count": {"type": "integer"},
@@ -1843,10 +1830,10 @@ TOOLS.append(
             "the tool names each contributes. Useful for inspecting why a "
             "particular tool is (or isn't) advertised."
         ),
-        inputSchema=ListActiveProvidersParams.model_json_schema(),
+        input_schema=ListActiveProvidersParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_providers_list_active"] = handle_list_active_providers
 
@@ -1859,7 +1846,7 @@ TOOLS_HANDLERS["opendata_providers_list_active"] = handle_list_active_providers
 class HealthSnapshotParams(BaseModel):
     """Parameters for opendata_health_snapshot."""
 
-    provider_ids: Optional[List[str]] = Field(
+    provider_ids: list[str] | None = Field(
         None,
         description=(
             "Optional list of provider ids to query. When omitted, returns "
@@ -1932,7 +1919,7 @@ async def handle_health_snapshot(
 TOOLS.append(
     types.Tool(
         name="opendata_health_snapshot",
-        outputSchema={
+        output_schema={
             "type": "object",
             "properties": {
                 "snapshot": {"type": "object"},
@@ -1949,10 +1936,10 @@ TOOLS.append(
             "caller misconfig. The discovery app uses this to paint live "
             "health badges next to each search result."
         ),
-        inputSchema=HealthSnapshotParams.model_json_schema(),
+        input_schema=HealthSnapshotParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
         _meta={"ui": {"resourceUri": DISCOVERY_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_health_snapshot"] = handle_health_snapshot
 
@@ -2029,9 +2016,9 @@ TOOLS.append(
             "then call this tool with the tool name and arguments from the "
             "activation response's tool_schemas field."
         ),
-        inputSchema=CallToolParams.model_json_schema(),
+        input_schema=CallToolParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_tool_call"] = handle_call_tool
 
@@ -2056,7 +2043,7 @@ class FederateSubQuery(BaseModel):
         default_factory=dict,
         description="Arguments to pass to the tool, matching its inputSchema.",
     )
-    label: Optional[str] = Field(
+    label: str | None = Field(
         None,
         description=(
             "Human-friendly source label used in the merged output "
@@ -2068,7 +2055,7 @@ class FederateSubQuery(BaseModel):
 class FederateParams(BaseModel):
     """Parameters shared by the federate query + compare meta tools."""
 
-    queries: List[FederateSubQuery] = Field(
+    queries: list[FederateSubQuery] = Field(
         default_factory=list,
         description=(
             "Sub-calls to run and harmonize. Each names a plugin tool "
@@ -2094,7 +2081,7 @@ def _autoactivate_owner(tool_name: str) -> None:
     the same auto-activation contract the plan specifies for federation.
     Best-effort: unknown tools are left for the caller to report.
     """
-    best: Optional[str] = None
+    best: str | None = None
     for entry in iter_registry():
         server_name = entry.server_name
         if tool_name == server_name or tool_name.startswith(f"{server_name}-"):
@@ -2180,7 +2167,7 @@ async def _gather_federation(
     geo = params.harmonize.get("geo", True)
     time_axis = params.harmonize.get("time", True)
     outcomes = await asyncio.gather(
-        *(_run_federate_subquery(q, geo=geo, time=time_axis) for q in params.queries)
+        *(_run_federate_subquery(q, geo=geo, time=time_axis) for q in params.queries),
     )
     sources = [status for status, _ in outcomes]
     all_rows: list[dict[str, Any]] = []
@@ -2247,9 +2234,9 @@ TOOLS.append(
             "overlay the same indicator from different open-data sources "
             "(e.g. Eurostat vs World Bank) in a single answer."
         ),
-        inputSchema=FederateParams.model_json_schema(),
+        input_schema=FederateParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_federate_query"] = handle_federate_query
 
@@ -2264,9 +2251,9 @@ TOOLS.append(
             "alongside the merged series. Use this to spot gaps or "
             "disagreements between open-data sources."
         ),
-        inputSchema=FederateParams.model_json_schema(),
+        input_schema=FederateParams.model_json_schema(),
         annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
-    )
+    ),
 )
 TOOLS_HANDLERS["opendata_federate_compare"] = handle_federate_compare
 

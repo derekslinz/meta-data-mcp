@@ -1,18 +1,18 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.uk_legislation import (
     TOOLS,
     _uk_legislation_atom_to_shape_payload,
-    handle_uk_legislation_search,
-    handle_uk_legislation_list_by_year,
-    handle_uk_legislation_get_document_xml,
-    handle_uk_legislation_get_document_html,
-    handle_uk_legislation_list_types,
     handle_uk_legislation_changes_feed,
+    handle_uk_legislation_get_document_html,
+    handle_uk_legislation_get_document_xml,
+    handle_uk_legislation_list_by_year,
+    handle_uk_legislation_list_types,
+    handle_uk_legislation_search,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -80,7 +80,7 @@ async def test_uk_legislation_list_by_year_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_uk_legislation_list_by_year(
-            {"type": "ukpga", "year": 2018}
+            {"type": "ukpga", "year": 2018},
         )
         assert "Data Protection Act 2018" in result[0].text
 
@@ -98,7 +98,7 @@ async def test_uk_legislation_get_document_xml_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_uk_legislation_get_document_xml(
-            {"type": "ukpga", "year": 2018, "number": 12}
+            {"type": "ukpga", "year": 2018, "number": 12},
         )
         assert "Test Act" in result[0].text
         assert "akomaNtoso" in result[0].text
@@ -111,7 +111,7 @@ async def test_uk_legislation_get_document_xml_url():
         mock_get.return_value.raise_for_status = Mock()
 
         await handle_uk_legislation_get_document_xml(
-            {"type": "ukpga", "year": 2018, "number": 12}
+            {"type": "ukpga", "year": 2018, "number": 12},
         )
         called_url = mock_get.call_args.args[0]
         assert called_url.endswith("/ukpga/2018/12/data.xml")
@@ -124,7 +124,7 @@ async def test_uk_legislation_get_document_html_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_uk_legislation_get_document_html(
-            {"type": "ukpga", "year": 2018, "number": 12}
+            {"type": "ukpga", "year": 2018, "number": 12},
         )
         assert "Browse Legislation" in result[0].text
 
@@ -147,7 +147,7 @@ async def test_uk_legislation_changes_feed_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_uk_legislation_changes_feed(
-            {"type": "ukpga", "year": 2018, "number": 12}
+            {"type": "ukpga", "year": 2018, "number": 12},
         )
         assert "UK Legislation Search" in result[0].text
 
@@ -172,7 +172,7 @@ def test_uk_legislation_adapter_parses_atom_feed_into_rows():
 
 def test_uk_legislation_adapter_handles_empty_feed():
     payload = _uk_legislation_atom_to_shape_payload(
-        '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
+        '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>',
     )
     assert payload["rows"] == []
 

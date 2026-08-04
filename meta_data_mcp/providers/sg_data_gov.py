@@ -1,5 +1,4 @@
-"""
-Singapore Government Open Data (data.gov.sg) Provider
+"""Singapore Government Open Data (data.gov.sg) Provider
 
 This module exposes the public v2 REST API hosted at api-production.data.gov.sg,
 the Singapore Government's open data portal. The catalog publishes datasets and
@@ -23,9 +22,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -42,9 +42,9 @@ BASE_URL = "https://api-production.data.gov.sg/v2/public/api"
 _MAX_DESC_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -73,7 +73,9 @@ def fetch_sg_datagov_list_datasets(params: SGDataGovListDatasetsParams) -> dict:
         "per_page": params.per_page,
     }
     response = http_get(
-        f"{BASE_URL}/datasets", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/datasets",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -103,7 +105,7 @@ def _sg_datasets_to_shape_payload(data: dict) -> dict:
                 "createdAt": ds.get("createdAt"),
                 "lastUpdatedAt": ds.get("lastUpdatedAt"),
                 "description": desc,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -141,7 +143,7 @@ def _sg_datasets_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Description (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["managedByAgencyName", "format", "status"],
     }
@@ -171,9 +173,9 @@ TOOLS.append(
     types.Tool(
         name="sg-data-gov-list-datasets",
         description="List datasets in the Singapore data.gov.sg catalog (paged).",
-        inputSchema=SGDataGovListDatasetsParams.model_json_schema(),
+        input_schema=SGDataGovListDatasetsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["sg-data-gov-list-datasets"] = handle_sg_datagov_list_datasets
 
@@ -195,7 +197,8 @@ class SGDataGovGetDatasetParams(BaseModel):
 def fetch_sg_datagov_get_dataset(params: SGDataGovGetDatasetParams) -> dict:
     """Call /datasets/{datasetId}/metadata on data.gov.sg v2."""
     response = http_get(
-        f"{BASE_URL}/datasets/{params.datasetId}/metadata", provider=PROVIDER_ID
+        f"{BASE_URL}/datasets/{params.datasetId}/metadata",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -219,8 +222,8 @@ TOOLS.append(
     types.Tool(
         name="sg-data-gov-get-dataset",
         description="Fetch metadata for a single data.gov.sg dataset by id.",
-        inputSchema=SGDataGovGetDatasetParams.model_json_schema(),
-    )
+        input_schema=SGDataGovGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["sg-data-gov-get-dataset"] = handle_sg_datagov_get_dataset
 
@@ -243,7 +246,9 @@ def fetch_sg_datagov_list_collections(params: SGDataGovListCollectionsParams) ->
     """Call /collections on data.gov.sg v2."""
     query_params: dict[str, Any] = {"page": params.page}
     response = http_get(
-        f"{BASE_URL}/collections", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/collections",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -265,8 +270,8 @@ TOOLS.append(
     types.Tool(
         name="sg-data-gov-list-collections",
         description="List collections in the Singapore data.gov.sg catalog (paged).",
-        inputSchema=SGDataGovListCollectionsParams.model_json_schema(),
-    )
+        input_schema=SGDataGovListCollectionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["sg-data-gov-list-collections"] = handle_sg_datagov_list_collections
 
@@ -288,7 +293,8 @@ class SGDataGovGetCollectionParams(BaseModel):
 def fetch_sg_datagov_get_collection(params: SGDataGovGetCollectionParams) -> dict:
     """Call /collections/{collectionId}/metadata on data.gov.sg v2."""
     response = http_get(
-        f"{BASE_URL}/collections/{params.collectionId}/metadata", provider=PROVIDER_ID
+        f"{BASE_URL}/collections/{params.collectionId}/metadata",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -312,8 +318,8 @@ TOOLS.append(
     types.Tool(
         name="sg-data-gov-get-collection",
         description="Fetch metadata for a single data.gov.sg collection by id.",
-        inputSchema=SGDataGovGetCollectionParams.model_json_schema(),
-    )
+        input_schema=SGDataGovGetCollectionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["sg-data-gov-get-collection"] = handle_sg_datagov_get_collection
 
@@ -340,7 +346,8 @@ class SGDataGovPollDownloadParams(BaseModel):
 def fetch_sg_datagov_poll_download(params: SGDataGovPollDownloadParams) -> dict:
     """Call /datasets/{datasetId}/poll-download on data.gov.sg v2."""
     response = http_get(
-        f"{BASE_URL}/datasets/{params.datasetId}/poll-download", provider=PROVIDER_ID
+        f"{BASE_URL}/datasets/{params.datasetId}/poll-download",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -367,8 +374,8 @@ TOOLS.append(
             "Poll the async download-preparation status for a data.gov.sg "
             "dataset (status only; does NOT download payload data)."
         ),
-        inputSchema=SGDataGovPollDownloadParams.model_json_schema(),
-    )
+        input_schema=SGDataGovPollDownloadParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["sg-data-gov-poll-download"] = handle_sg_datagov_poll_download
 
@@ -377,7 +384,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "sg-data-gov", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "sg-data-gov",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

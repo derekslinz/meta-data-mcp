@@ -1,5 +1,4 @@
-"""
-Global Weather Data Provider (Open-Meteo)
+"""Global Weather Data Provider (Open-Meteo)
 
 This module provides interfaces to access the Open-Meteo weather API.
 Open-Meteo is an open-source weather API that aggregates data from
@@ -16,9 +15,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -34,9 +34,9 @@ ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -48,10 +48,16 @@ class WeatherForecastParams(BaseModel):
     """Parameters for getting a weather forecast."""
 
     latitude: float = Field(
-        ..., ge=-90.0, le=90.0, description="Latitude of the location"
+        ...,
+        ge=-90.0,
+        le=90.0,
+        description="Latitude of the location",
     )
     longitude: float = Field(
-        ..., ge=-180.0, le=180.0, description="Longitude of the location"
+        ...,
+        ge=-180.0,
+        le=180.0,
+        description="Longitude of the location",
     )
     hourly: str = Field(
         default="temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m",
@@ -62,7 +68,10 @@ class WeatherForecastParams(BaseModel):
         description="Comma-separated daily variables to return",
     )
     forecast_days: int = Field(
-        default=7, ge=1, le=16, description="Number of forecast days (1-16)"
+        default=7,
+        ge=1,
+        le=16,
+        description="Number of forecast days (1-16)",
     )
 
 
@@ -77,7 +86,10 @@ def fetch_weather_forecast(params: WeatherForecastParams) -> dict:
         "timezone": "auto",
     }
     response = http_get(
-        FORECAST_URL, params=query_params, timeout=10.0, provider=PROVIDER_ID
+        FORECAST_URL,
+        params=query_params,
+        timeout=10.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -152,9 +164,9 @@ TOOLS.append(
     types.Tool(
         name="weather-get-forecast",
         description="Get current and upcoming weather forecast for a specific location.",
-        inputSchema=WeatherForecastParams.model_json_schema(),
+        input_schema=WeatherForecastParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["weather-get-forecast"] = handle_get_forecast
 
@@ -167,16 +179,26 @@ class HistoricalWeatherParams(BaseModel):
     """Parameters for getting historical weather data."""
 
     latitude: float = Field(
-        ..., ge=-90.0, le=90.0, description="Latitude of the location"
+        ...,
+        ge=-90.0,
+        le=90.0,
+        description="Latitude of the location",
     )
     longitude: float = Field(
-        ..., ge=-180.0, le=180.0, description="Longitude of the location"
+        ...,
+        ge=-180.0,
+        le=180.0,
+        description="Longitude of the location",
     )
     start_date: str = Field(
-        ..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Start date (YYYY-MM-DD)"
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Start date (YYYY-MM-DD)",
     )
     end_date: str = Field(
-        ..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="End date (YYYY-MM-DD)"
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="End date (YYYY-MM-DD)",
     )
     daily: str = Field(
         default="temperature_2m_max,temperature_2m_min,precipitation_sum",
@@ -195,7 +217,10 @@ def fetch_historical_weather(params: HistoricalWeatherParams) -> dict:
         "timezone": "auto",
     }
     response = http_get(
-        ARCHIVE_URL, params=query_params, timeout=10.0, provider=PROVIDER_ID
+        ARCHIVE_URL,
+        params=query_params,
+        timeout=10.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -217,8 +242,8 @@ TOOLS.append(
     types.Tool(
         name="weather-get-historical",
         description="Get historical weather records for a specific location and date range.",
-        inputSchema=HistoricalWeatherParams.model_json_schema(),
-    )
+        input_schema=HistoricalWeatherParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["weather-get-historical"] = handle_get_historical_weather
 
@@ -231,10 +256,16 @@ class AirQualityParams(BaseModel):
     """Parameters for getting air quality data."""
 
     latitude: float = Field(
-        ..., ge=-90.0, le=90.0, description="Latitude of the location"
+        ...,
+        ge=-90.0,
+        le=90.0,
+        description="Latitude of the location",
     )
     longitude: float = Field(
-        ..., ge=-180.0, le=180.0, description="Longitude of the location"
+        ...,
+        ge=-180.0,
+        le=180.0,
+        description="Longitude of the location",
     )
     hourly: str = Field(
         default="pm2_5,pm10,nitrogen_dioxide,ozone,dust",
@@ -251,7 +282,10 @@ def fetch_air_quality(params: AirQualityParams) -> dict:
         "timezone": "auto",
     }
     response = http_get(
-        AIR_QUALITY_URL, params=query_params, timeout=10.0, provider=PROVIDER_ID
+        AIR_QUALITY_URL,
+        params=query_params,
+        timeout=10.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -273,8 +307,8 @@ TOOLS.append(
     types.Tool(
         name="weather-get-air-quality",
         description="Get air quality data (PM2.5, ozone, dust, etc.) for a specific location.",
-        inputSchema=AirQualityParams.model_json_schema(),
-    )
+        input_schema=AirQualityParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["weather-get-air-quality"] = handle_get_air_quality
 
@@ -283,7 +317,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-open-meteo", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-open-meteo",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

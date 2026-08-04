@@ -12,7 +12,7 @@ both layers stay in lockstep.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from mcp import types
 
@@ -25,12 +25,13 @@ def utc_iso_ms() -> str:
     This exact format is part of the public contract of both the
     provenance ``timestamp`` and the citations ``fetched_at`` fields.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
 def merge_into_first_block(
-    blocks: list[Content], payload: dict[str, object]
+    blocks: list[Content],
+    payload: dict[str, object],
 ) -> list[Content]:
     """Return a fresh list with ``payload`` merged into the first block's
     ``_meta``.

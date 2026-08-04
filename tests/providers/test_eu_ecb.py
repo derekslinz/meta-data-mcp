@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.eu_ecb import (
     TOOLS,
     _ecb_get_data_to_shape_payload,
-    handle_ecb_list_dataflows,
-    handle_ecb_get_dataflow,
-    handle_ecb_get_data,
     handle_ecb_get_codelist,
     handle_ecb_get_conceptscheme,
+    handle_ecb_get_data,
+    handle_ecb_get_dataflow,
+    handle_ecb_list_dataflows,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -35,7 +35,7 @@ def _ecb_sdmx_response() -> dict:
                                 {"id": "2024-01-01"},
                                 {"id": "2024-01-02"},
                             ],
-                        }
+                        },
                     ],
                     "series": [
                         {"id": "FREQ", "values": [{"id": "D"}]},
@@ -45,7 +45,7 @@ def _ecb_sdmx_response() -> dict:
                 "attributes": {
                     "series": [
                         {"id": "UNIT", "values": [{"name": "Euro per unit"}]},
-                    ]
+                    ],
                 },
             },
             "dataSets": [
@@ -55,18 +55,18 @@ def _ecb_sdmx_response() -> dict:
                             "observations": {
                                 "0": [1.085],
                                 "1": [1.086],
-                            }
+                            },
                         },
                         "0:1": {
                             "observations": {
                                 "0": [0.85],
                                 "1": [0.86],
-                            }
+                            },
                         },
-                    }
-                }
+                    },
+                },
             ],
-        }
+        },
     }
 
 
@@ -78,8 +78,8 @@ async def test_ecb_list_dataflows_success():
                 "dataflows": [
                     {"id": "EXR", "name": "Exchange Rates"},
                     {"id": "BSI", "name": "Balance Sheet Items"},
-                ]
-            }
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -100,7 +100,7 @@ async def test_ecb_list_dataflows_http_error():
 async def test_ecb_get_dataflow_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": {"dataflows": [{"id": "EXR", "name": "Exchange Rates"}]}
+            "data": {"dataflows": [{"id": "EXR", "name": "Exchange Rates"}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -125,7 +125,7 @@ async def test_ecb_get_data_success():
                 "flow": "EXR",
                 "key": "D.USD.EUR.SP00.A",
                 "lastNObservations": 1,
-            }
+            },
         )
         assert "1.085" in result[0].text
 
@@ -176,12 +176,12 @@ def test_ecb_adapter_falls_back_to_raw_key_when_dims_missing():
             "structure": {
                 "dimensions": {
                     "observation": [
-                        {"id": "TIME_PERIOD", "values": [{"id": "2024-01-01"}]}
-                    ]
-                }
+                        {"id": "TIME_PERIOD", "values": [{"id": "2024-01-01"}]},
+                    ],
+                },
             },
             "dataSets": [{"series": {"0:0": {"observations": {"0": [1.0]}}}}],
-        }
+        },
     }
     payload = _ecb_get_data_to_shape_payload(raw)
     assert payload["points"][0]["series"] == "0:0"
@@ -216,9 +216,9 @@ async def test_ecb_get_codelist_success():
                     {
                         "id": "CL_CURRENCY",
                         "codes": [{"id": "USD", "name": "US Dollar"}],
-                    }
-                ]
-            }
+                    },
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -231,8 +231,10 @@ async def test_ecb_get_conceptscheme_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "data": {
-                "conceptSchemes": [{"id": "ECB_CONCEPTS", "concepts": [{"id": "FREQ"}]}]
-            }
+                "conceptSchemes": [
+                    {"id": "ECB_CONCEPTS", "concepts": [{"id": "FREQ"}]}
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 

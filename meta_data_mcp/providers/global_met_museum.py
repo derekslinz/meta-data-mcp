@@ -1,5 +1,4 @@
-"""
-Metropolitan Museum of Art Open Access Provider
+"""Metropolitan Museum of Art Open Access Provider
 
 This module exposes the Metropolitan Museum of Art Collection API, which
 provides programmatic access to more than 470,000 artworks released under
@@ -23,9 +22,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_museum_v1 import URI as MUSEUM_APP_URI
@@ -39,9 +39,9 @@ PROVIDER_ID = "global-met-museum"
 BASE_URL = "https://collectionapi.metmuseum.org/public/collection/v1"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -53,11 +53,11 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class MetListObjectsParams(BaseModel):
     """Parameters for listing object IDs in the Met collection."""
 
-    departmentIds: Optional[str] = Field(
+    departmentIds: str | None = Field(
         None,
         description="Pipe-separated list of department IDs to filter by (e.g. '1|3').",
     )
-    metadataDate: Optional[str] = Field(
+    metadataDate: str | None = Field(
         None,
         pattern=r"^\d{4}-\d{2}-\d{2}$",
         description="Return objects updated on or after this date (YYYY-MM-DD).",
@@ -72,7 +72,9 @@ def fetch_met_list_objects(params: MetListObjectsParams) -> dict:
     if params.metadataDate:
         query_params["metadataDate"] = params.metadataDate
     response = http_get(
-        f"{BASE_URL}/objects", params=query_params or None, provider=PROVIDER_ID
+        f"{BASE_URL}/objects",
+        params=query_params or None,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -86,8 +88,9 @@ async def handle_met_list_objects(
         data = fetch_met_list_objects(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error listing Met objects: {e}")
@@ -98,8 +101,8 @@ TOOLS.append(
     types.Tool(
         name="met-list-objects",
         description="List Met Museum object IDs, optionally filtered by department or metadata update date.",
-        inputSchema=MetListObjectsParams.model_json_schema(),
-    )
+        input_schema=MetListObjectsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["met-list-objects"] = handle_met_list_objects
 
@@ -132,8 +135,9 @@ async def handle_met_get_object(
         data = fetch_met_get_object(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching Met object: {e}")
@@ -144,10 +148,10 @@ TOOLS.append(
     types.Tool(
         name="met-get-object",
         description="Fetch the full metadata record for a Met Museum object by object ID.",
-        inputSchema=MetGetObjectParams.model_json_schema(),
+        input_schema=MetGetObjectParams.model_json_schema(),
         # MCP Apps binding: render via the museum app's detail modal.
         _meta={"ui": {"resourceUri": MUSEUM_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["met-get-object"] = handle_met_get_object
 
@@ -161,25 +165,29 @@ class MetSearchParams(BaseModel):
     """Parameters for the Met /search endpoint."""
 
     q: str = Field(..., description="Free-text search query.")
-    hasImages: Optional[bool] = Field(
-        None, description="If true, restrict to records with images."
+    hasImages: bool | None = Field(
+        None,
+        description="If true, restrict to records with images.",
     )
-    departmentId: Optional[int] = Field(
-        None, description="Restrict to a single department ID."
+    departmentId: int | None = Field(
+        None,
+        description="Restrict to a single department ID.",
     )
-    medium: Optional[str] = Field(
+    medium: str | None = Field(
         None,
         description="Pipe-separated list of medium values (e.g. 'Paintings|Sculpture').",
     )
-    geoLocation: Optional[str] = Field(
+    geoLocation: str | None = Field(
         None,
         description="Pipe-separated geographic location filter (e.g. 'France|Paris').",
     )
-    dateBegin: Optional[int] = Field(
-        None, description="Earliest year (use negative numbers for BCE)."
+    dateBegin: int | None = Field(
+        None,
+        description="Earliest year (use negative numbers for BCE).",
     )
-    dateEnd: Optional[int] = Field(
-        None, description="Latest year (use negative numbers for BCE)."
+    dateEnd: int | None = Field(
+        None,
+        description="Latest year (use negative numbers for BCE).",
     )
 
 
@@ -213,8 +221,9 @@ async def handle_met_search(
         data = fetch_met_search(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error searching Met collection: {e}")
@@ -225,10 +234,10 @@ TOOLS.append(
     types.Tool(
         name="met-search",
         description="Search the Met Museum collection by free text with optional faceted filters.",
-        inputSchema=MetSearchParams.model_json_schema(),
+        input_schema=MetSearchParams.model_json_schema(),
         # MCP Apps binding: render via the museum app's image grid.
         _meta={"ui": {"resourceUri": MUSEUM_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["met-search"] = handle_met_search
 
@@ -257,8 +266,9 @@ async def handle_met_list_departments(
         data = fetch_met_list_departments(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error listing Met departments: {e}")
@@ -269,8 +279,8 @@ TOOLS.append(
     types.Tool(
         name="met-list-departments",
         description="List the curatorial departments at the Met Museum.",
-        inputSchema=MetListDepartmentsParams.model_json_schema(),
-    )
+        input_schema=MetListDepartmentsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["met-list-departments"] = handle_met_list_departments
 
@@ -284,7 +294,8 @@ class MetSearchByArtistParams(BaseModel):
     """Parameters for searching by artist or culture."""
 
     q: str = Field(
-        ..., description="Artist name or culture to search for (e.g. 'Van Gogh')."
+        ...,
+        description="Artist name or culture to search for (e.g. 'Van Gogh').",
     )
 
 
@@ -309,8 +320,9 @@ async def handle_met_search_by_artist(
         data = fetch_met_search_by_artist(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error searching Met collection by artist: {e}")
@@ -321,11 +333,11 @@ TOOLS.append(
     types.Tool(
         name="met-search-by-artist",
         description="Search the Met Museum collection restricted to artist or culture fields.",
-        inputSchema=MetSearchByArtistParams.model_json_schema(),
+        input_schema=MetSearchByArtistParams.model_json_schema(),
         # MCP Apps binding: same response shape as met-search ({total, objectIDs}),
         # so it renders through the museum app's image grid the same way.
         _meta={"ui": {"resourceUri": MUSEUM_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["met-search-by-artist"] = handle_met_search_by_artist
 
@@ -334,7 +346,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-met-museum", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-met-museum",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

@@ -57,7 +57,8 @@ async def test_sse_with_wrong_token_returns_401():
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
-            "/sse", headers={"Authorization": "Bearer wrong-token"}
+            "/sse",
+            headers={"Authorization": "Bearer wrong-token"},
         )
     assert response.status_code == 401
 
@@ -79,7 +80,8 @@ async def test_messages_endpoint_is_protected():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         unauth = await client.post("/messages")
         authed = await client.post(
-            "/messages", headers={"Authorization": "Bearer secret"}
+            "/messages",
+            headers={"Authorization": "Bearer secret"},
         )
     assert unauth.status_code == 401
     assert authed.status_code == 200
@@ -96,7 +98,8 @@ async def test_non_bearer_scheme_is_rejected():
 
 def _build_app_with_cors(token: str) -> Starlette:
     """Build app matching the production middleware order: BearerAuth added first,
-    CORSMiddleware added last so it is outermost."""
+    CORSMiddleware added last so it is outermost.
+    """
 
     async def sse(request):
         return PlainTextResponse("sse-ok")

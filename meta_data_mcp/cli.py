@@ -24,9 +24,9 @@ import json
 import os
 import platform
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 # Add src to sys.path so this works when run from a source checkout.
 _src_path = str(Path(__file__).parent.parent)
@@ -388,7 +388,7 @@ def info(plugin: str | None) -> None:
         click.echo(f"{LIB_NAME} — single MCP server, version {__version__}.")
         click.echo(
             "Exposes discovery tools plus the tools of every bundled plugin "
-            "under one tool namespace."
+            "under one tool namespace.",
         )
         click.echo("\nUse `meta-data-mcp list` to enumerate the plugins.")
         return
@@ -408,11 +408,13 @@ def info(plugin: str | None) -> None:
 
 
 @cli.command(
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 @click.argument("_extra", nargs=-1)
 @click.option(
-    "--local", is_flag=True, help="Force local development mode using absolute paths."
+    "--local",
+    is_flag=True,
+    help="Force local development mode using absolute paths.",
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing configuration.")
 @click.option(
@@ -438,7 +440,11 @@ def info(plugin: str | None) -> None:
     ),
 )
 def setup(
-    _extra: tuple, local: bool, force: bool, print_json: bool, client: str | None
+    _extra: tuple,
+    local: bool,
+    force: bool,
+    print_json: bool,
+    client: str | None,
 ) -> None:
     """Register the one meta-data-mcp server in every installed MCP client.
 
@@ -466,7 +472,7 @@ def setup(
                     "type": "sse",
                     "url": "https://YOUR-HOST/sse",
                     "headers": {"Authorization": f"Bearer {auth_token}"},
-                }
+                },
             }
             click.echo(
                 "\n# SSE bearer auth is enabled (META_DATA_MCP_AUTH_TOKEN is set).\n"
@@ -522,7 +528,7 @@ def setup(
     if successes:
         click.echo(
             f"\nConfigured '{SERVER_KEY}' in {successes} client(s). "
-            "Restart the affected MCP client(s) to apply."
+            "Restart the affected MCP client(s) to apply.",
         )
     else:
         click.echo(
@@ -533,7 +539,11 @@ def setup(
 
 
 def _write_server_to_client(
-    spec: ClientSpec, config_path: Path, entry: dict, *, force: bool
+    spec: ClientSpec,
+    config_path: Path,
+    entry: dict,
+    *,
+    force: bool,
 ) -> bool:
     """Write the SERVER_KEY entry into a single client config. Returns True on write."""
     config_path = Path(config_path)
@@ -571,14 +581,17 @@ def _write_server_to_client(
     if removed:
         click.echo(f"  - {spec.label}: removed {len(removed)} legacy entry/entries.")
 
-    if SERVER_KEY in config["mcpServers"] and not force:
-        if not click.confirm(
+    if (
+        SERVER_KEY in config["mcpServers"]
+        and not force
+        and not click.confirm(
             f"  {spec.label}: '{SERVER_KEY}' already present at {config_path}. "
             "Overwrite?",
             default=False,
-        ):
-            click.echo(f"  - {spec.label}: skipped.")
-            return False
+        )
+    ):
+        click.echo(f"  - {spec.label}: skipped.")
+        return False
 
     config["mcpServers"][SERVER_KEY] = entry
     _backup_config(config_path)
@@ -588,7 +601,7 @@ def _write_server_to_client(
 
 
 @cli.command(
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 @click.argument("_extra", nargs=-1)
 @click.option(
@@ -658,7 +671,7 @@ def remove(_extra: tuple, client: str | None) -> None:
     else:
         click.echo(
             f"\nRemoved '{SERVER_KEY}' from {removed_count} client(s). "
-            "Restart the affected MCP client(s) to apply."
+            "Restart the affected MCP client(s) to apply.",
         )
 
 
@@ -692,7 +705,7 @@ def list_clients_command() -> None:
 
 
 @cli.command(
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 @click.argument("_extra", nargs=-1)
 @click.option(
@@ -751,11 +764,13 @@ def cleanup(_extra: tuple, apply: bool) -> None:
 
 
 @cli.command(
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
 @click.argument("_extra", nargs=-1)
 @click.option(
-    "--local", is_flag=True, help="Force local development mode using absolute paths."
+    "--local",
+    is_flag=True,
+    help="Force local development mode using absolute paths.",
 )
 def inspect(_extra: tuple, local: bool) -> None:
     """Launch MCP Inspector against the meta-data-mcp server.

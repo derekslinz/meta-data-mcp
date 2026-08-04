@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-generate_provider.py — scaffold a new opendata-mcp provider from a YAML spec.
+"""generate_provider.py — scaffold a new opendata-mcp provider from a YAML spec.
 
 Usage:
     uv run python tools/generate_provider.py <spec.yaml> [--dry-run] [--force]
@@ -29,11 +28,11 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import yaml
-
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -137,16 +136,16 @@ def load_spec(path: Path) -> dict[str, Any]:
     if not re.match(r"^[a-z][a-z0-9_]*$", raw["id"]):
         raise SpecError(
             f"id {raw['id']!r} must be lowercase snake_case (matches "
-            "/^[a-z][a-z0-9_]*$/)"
+            "/^[a-z][a-z0-9_]*$/)",
         )
 
     if not isinstance(raw["server_name"], str) or not _SERVER_NAME_RE.match(
-        raw["server_name"]
+        raw["server_name"],
     ):
         raise SpecError(
             f"server_name {raw['server_name']!r} must match "
             f"/{_SERVER_NAME_RE.pattern}/ (alphanumerics, space, underscore, "
-            "hyphen, dot)"
+            "hyphen, dot)",
         )
 
     for i, tool in enumerate(raw["tools"]):
@@ -156,12 +155,12 @@ def load_spec(path: Path) -> dict[str, Any]:
             if key not in tool:
                 raise SpecError(f"tools[{i}] missing required key: {key!r}")
         if not isinstance(tool["endpoint"], str) or not _ENDPOINT_RE.match(
-            tool["endpoint"]
+            tool["endpoint"],
         ):
             raise SpecError(
                 f"tools[{i}].endpoint {tool['endpoint']!r} must match "
                 f"/{_ENDPOINT_RE.pattern}/ — URL-path chars only, no quotes "
-                "or whitespace"
+                "or whitespace",
             )
         # response_format defaults to 'json'
         tool.setdefault("response_format", "json")
@@ -170,13 +169,13 @@ def load_spec(path: Path) -> dict[str, Any]:
         if tool["response_format"] not in ("json", "text"):
             raise SpecError(
                 f"tools[{i}].response_format must be 'json' or 'text', "
-                f"got {tool['response_format']!r}"
+                f"got {tool['response_format']!r}",
             )
         valid_shapes = {RESPONSE_SHAPE_NONE, *RESPONSE_SHAPE_BINDINGS}
         if tool["response_shape"] not in valid_shapes:
             raise SpecError(
                 f"tools[{i}].response_shape {tool['response_shape']!r} must be "
-                f"one of {sorted(valid_shapes)}"
+                f"one of {sorted(valid_shapes)}",
             )
         if (
             tool["response_shape"] != RESPONSE_SHAPE_NONE
@@ -184,7 +183,7 @@ def load_spec(path: Path) -> dict[str, Any]:
         ):
             raise SpecError(
                 f"tools[{i}].response_shape requires response_format='json'; "
-                f"text responses can't carry the shape envelope contract"
+                f"text responses can't carry the shape envelope contract",
             )
         for j, p in enumerate(tool["params"]):
             if not isinstance(p, dict):
@@ -192,17 +191,17 @@ def load_spec(path: Path) -> dict[str, Any]:
             for key in ("name", "type"):
                 if key not in p:
                     raise SpecError(
-                        f"tools[{i}].params[{j}] missing required key: {key!r}"
+                        f"tools[{i}].params[{j}] missing required key: {key!r}",
                     )
             if not isinstance(p["name"], str) or not _PARAM_NAME_RE.match(p["name"]):
                 raise SpecError(
                     f"tools[{i}].params[{j}].name {p['name']!r} must match "
-                    f"/{_PARAM_NAME_RE.pattern}/ (lowercase snake_case identifier)"
+                    f"/{_PARAM_NAME_RE.pattern}/ (lowercase snake_case identifier)",
                 )
             if p["type"] not in TYPE_MAP:
                 raise SpecError(
                     f"tools[{i}].params[{j}].type {p['type']!r} is not one of "
-                    f"{sorted(TYPE_MAP)}"
+                    f"{sorted(TYPE_MAP)}",
                 )
             p.setdefault("required", False)
             p.setdefault("description", "")
@@ -258,7 +257,7 @@ def _render_field(p: dict[str, Any]) -> str:
     """Render a single Pydantic ``Field(...)`` line."""
     py_type = TYPE_MAP[p["type"]]
     required = bool(p["required"])
-    default = p.get("default", None)
+    default = p.get("default")
     description = p.get("description", "") or ""
 
     if required:
@@ -302,7 +301,8 @@ def _render_fetch_fn(tool: dict[str, Any], requires_env: list[str]) -> str:
         url_template = endpoint
         for name in path_params:
             url_template = url_template.replace(
-                "{" + name + "}", "{params." + name + "}"
+                "{" + name + "}",
+                "{params." + name + "}",
             )
         url_line = f'    url = f"{{BASE_URL}}{url_template}"'
         # Strip the f-string prefix's outer braces — we want a real f-string
@@ -322,7 +322,7 @@ def _render_fetch_fn(tool: dict[str, Any], requires_env: list[str]) -> str:
         else:
             query_assignments.append(
                 f"    if params.{p['name']} is not None:\n"
-                f'        query["{p["name"]}"] = params.{p["name"]}'
+                f'        query["{p["name"]}"] = params.{p["name"]}',
             )
 
     # Env-var injection (e.g. an api_key query parameter).
@@ -335,7 +335,7 @@ def _render_fetch_fn(tool: dict[str, Any], requires_env: list[str]) -> str:
         if len(legacy_env_vars) > 1:
             raise ValueError(
                 "requires_env with multiple entries must be a mapping of "
-                "env var name to query parameter name"
+                "env var name to query parameter name",
             )
         env_requirements = [(env_var, "api_key") for env_var in legacy_env_vars]
 
@@ -343,18 +343,18 @@ def _render_fetch_fn(tool: dict[str, Any], requires_env: list[str]) -> str:
     for env_var, query_param in env_requirements:
         if query_param in seen_env_query_params:
             raise ValueError(
-                f"Duplicate env-backed query parameter generated: {query_param!r}"
+                f"Duplicate env-backed query parameter generated: {query_param!r}",
             )
         seen_env_query_params.add(query_param)
         env_lines.append(
-            f'    query["{query_param}"] = require_env_key({_py_literal(env_var)})'
+            f'    query["{query_param}"] = require_env_key({_py_literal(env_var)})',
         )
 
     body_parts = [url_line, "    query: dict = {}"]
     body_parts.extend(env_lines)
     body_parts.extend(query_assignments)
     body_parts.append(
-        "    response = http_get(url, params=query or None, provider=PROVIDER_ID)"
+        "    response = http_get(url, params=query or None, provider=PROVIDER_ID)",
     )
 
     if tool["response_format"] == "json":
@@ -386,7 +386,7 @@ def _render_handler(tool: dict[str, Any]) -> str:
             adapter_lines.append(
                 f"        # TODO: write a _{snake}_to_shape_payload(data) adapter\n"
                 f"        # that maps the raw API response onto the "
-                f"ui://meta-data-mcp/shape/{shape}/v1 contract."
+                f"ui://meta-data-mcp/shape/{shape}/v1 contract.",
             )
             binding = RESPONSE_SHAPE_BINDINGS[shape]
             serializer = binding["serializer_fn"]
@@ -444,7 +444,7 @@ def _render_registration(tool: dict[str, Any]) -> str:
         "    types.Tool(\n"
         f"        name={_py_literal(tool['name'])},\n"
         f"        description={_py_literal(tool['description'])},\n"
-        f"        inputSchema={pascal}.model_json_schema(),\n"
+        f"        input_schema={pascal}.model_json_schema(),\n"
         f"{meta_line}"
         "    )\n"
         ")\n"
@@ -461,7 +461,7 @@ def _render_tool_block(tool: dict[str, Any], requires_env: list[str]) -> str:
             _render_fetch_fn(tool, requires_env),
             _render_handler(tool),
             _render_registration(tool),
-        ]
+        ],
     )
 
 
@@ -529,7 +529,7 @@ def render_provider(spec: dict[str, Any]) -> str:
             "import mcp.types as types",
             "from pydantic import BaseModel, Field",
             "",
-        ]
+        ],
     )
 
     # Shape-URI imports. One ``from ... import URI as <ALIAS>`` per shape,
@@ -537,7 +537,7 @@ def render_provider(spec: dict[str, Any]) -> str:
     for shape in sorted(used_shapes):
         binding = RESPONSE_SHAPE_BINDINGS[shape]
         import_lines.append(
-            f"from {binding['uri_module']} import URI as {binding['uri_alias']}"
+            f"from {binding['uri_module']} import URI as {binding['uri_alias']}",
         )
     if used_shapes:
         import_lines.append("")
@@ -698,7 +698,7 @@ def render_tests(spec: dict[str, Any]) -> str:
 def _write_file(path: Path, contents: str, force: bool) -> None:
     if path.exists() and not force:
         raise SystemExit(
-            f"refusing to overwrite existing file: {path} (use --force to overwrite)"
+            f"refusing to overwrite existing file: {path} (use --force to overwrite)",
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents)

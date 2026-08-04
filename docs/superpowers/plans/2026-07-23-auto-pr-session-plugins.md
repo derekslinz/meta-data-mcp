@@ -222,7 +222,9 @@ import subprocess as _sp
 
 
 def _git(cwd, *args):
-    return _sp.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True)
+    return _sp.run(
+        ["git", *args], cwd=str(cwd), capture_output=True, text=True, check=True
+    )
 
 
 def _make_repo(tmp_path):
@@ -508,7 +510,9 @@ def fake_repo(monkeypatch, tmp_path):
 async def test_contribute_plugin_gh_missing_degrades(monkeypatch, tmp_path):
     monkeypatch.setattr(contribute.shutil, "which", lambda _: None)
     monkeypatch.setattr(
-        contribute, "build_contribution_branch", lambda *a, **k: "contribute/plugin-acme"
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
     )
     res = await contribute.contribute_plugin("acme", [], repo_root=tmp_path)
     assert res.status == "degraded"
@@ -536,7 +540,9 @@ async def test_contribute_plugin_skips_when_pr_exists(monkeypatch, fake_repo):
 @pytest.mark.asyncio
 async def test_contribute_plugin_happy_path_opens_pr(monkeypatch, fake_repo):
     monkeypatch.setattr(
-        contribute, "build_contribution_branch", lambda *a, **k: "contribute/plugin-acme"
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
     )
     monkeypatch.setattr(contribute, "_git_push", lambda *a, **k: None)
 
@@ -559,7 +565,9 @@ async def test_contribute_plugin_happy_path_opens_pr(monkeypatch, fake_repo):
 @pytest.mark.asyncio
 async def test_contribute_plugin_push_failure_degrades(monkeypatch, fake_repo):
     monkeypatch.setattr(
-        contribute, "build_contribution_branch", lambda *a, **k: "contribute/plugin-acme"
+        contribute,
+        "build_contribution_branch",
+        lambda *a, **k: "contribute/plugin-acme",
     )
 
     def boom(*a, **k):
@@ -651,8 +659,17 @@ def _contribute_sync(
     # Dedup on the head branch.
     try:
         existing = _gh(
-            "pr", "list", "--repo", target, "--head", branch,
-            "--state", "open", "--json", "url", repo_root=repo_root,
+            "pr",
+            "list",
+            "--repo",
+            target,
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "url",
+            repo_root=repo_root,
         )
         rows = json.loads(existing or "[]")
         if rows:
@@ -689,10 +706,18 @@ def _contribute_sync(
             body_path = fh.name
         try:
             out = _gh(
-                "pr", "create", "--repo", target, "--head", branch,
-                "--title", render_pr_title(plugin_id),
-                "--body-file", body_path,
-                "--label", "auto-contributed",
+                "pr",
+                "create",
+                "--repo",
+                target,
+                "--head",
+                branch,
+                "--title",
+                render_pr_title(plugin_id),
+                "--body-file",
+                body_path,
+                "--label",
+                "auto-contributed",
                 repo_root=repo_root,
             )
         finally:
@@ -969,6 +994,7 @@ The success path currently returns (meta_data_mcp.py:808-826) a dict with `statu
 We drive handle_create_plugin's *response assembly* with contribution paths
 mocked, rather than re-running the full generator, by patching the two seams.
 """
+
 import json
 
 import pytest
@@ -1121,9 +1147,10 @@ In `handle_create_plugin`, replace the success `return` block (meta_data_mcp.py:
 In the `TOOLS.append(types.Tool(...))` for `opendata_plugins_create` (meta_data_mcp.py:841-849), append one sentence to the `description` string:
 
 ```python
-            "tools become available immediately. On success this also opens a "
-            "public contribution PR of the generated plugin to the project so "
-            "others can use it; set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
+"tools become available immediately. On success this also opens a"
+
+"public contribution PR of the generated plugin to the project so "
+"others can use it; set META_DATA_MCP_AUTO_CONTRIBUTE=0 to disable."
 ```
 
 - [ ] **Step 7: Run the full create + contribution suites**

@@ -1,5 +1,4 @@
-"""
-US SEC EDGAR Provider
+"""US SEC EDGAR Provider
 
 This module exposes the SEC EDGAR public APIs at data.sec.gov for company
 filings and XBRL-tagged financial facts, plus the company ticker mapping
@@ -27,9 +26,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -44,9 +44,9 @@ BASE_URL = "https://data.sec.gov"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -74,7 +74,8 @@ def fetch_edgar_company_submissions(params: EdgarCompanySubmissionsParams) -> di
     """Call /submissions/CIK{padded}.json on EDGAR."""
     padded = _pad_cik(params.cik)
     response = http_get(
-        f"{BASE_URL}/submissions/CIK{padded}.json", provider=PROVIDER_ID
+        f"{BASE_URL}/submissions/CIK{padded}.json",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -98,8 +99,8 @@ TOOLS.append(
     types.Tool(
         name="edgar-get-company-submissions",
         description="Fetch a company's SEC EDGAR submissions feed (recent filings) by CIK.",
-        inputSchema=EdgarCompanySubmissionsParams.model_json_schema(),
-    )
+        input_schema=EdgarCompanySubmissionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["edgar-get-company-submissions"] = handle_edgar_get_company_submissions
 
@@ -196,9 +197,9 @@ TOOLS.append(
     types.Tool(
         name="edgar-get-company-concept",
         description="Fetch historical values for a single US-GAAP XBRL concept on one company.",
-        inputSchema=EdgarCompanyConceptParams.model_json_schema(),
+        input_schema=EdgarCompanyConceptParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["edgar-get-company-concept"] = handle_edgar_get_company_concept
 
@@ -218,7 +219,8 @@ def fetch_edgar_company_facts(params: EdgarCompanyFactsParams) -> dict:
     """Call /api/xbrl/companyfacts/CIK{padded}.json on EDGAR."""
     padded = _pad_cik(params.cik)
     response = http_get(
-        f"{BASE_URL}/api/xbrl/companyfacts/CIK{padded}.json", provider=PROVIDER_ID
+        f"{BASE_URL}/api/xbrl/companyfacts/CIK{padded}.json",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -242,8 +244,8 @@ TOOLS.append(
     types.Tool(
         name="edgar-get-company-facts",
         description="Fetch all XBRL-tagged facts for a single company (full company-facts payload).",
-        inputSchema=EdgarCompanyFactsParams.model_json_schema(),
-    )
+        input_schema=EdgarCompanyFactsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["edgar-get-company-facts"] = handle_edgar_get_company_facts
 
@@ -296,8 +298,8 @@ TOOLS.append(
     types.Tool(
         name="edgar-get-frames",
         description="Fetch one US-GAAP XBRL concept across all filers for a single calendar quarter (instant).",
-        inputSchema=EdgarFramesParams.model_json_schema(),
-    )
+        input_schema=EdgarFramesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["edgar-get-frames"] = handle_edgar_get_frames
 
@@ -334,8 +336,8 @@ TOOLS.append(
     types.Tool(
         name="edgar-list-tickers",
         description="Fetch the full SEC EDGAR company_tickers.json (ticker -> CIK + title mapping).",
-        inputSchema=EdgarListTickersParams.model_json_schema(),
-    )
+        input_schema=EdgarListTickersParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["edgar-list-tickers"] = handle_edgar_list_tickers
 
@@ -351,7 +353,7 @@ class EdgarSearchByTickerParams(BaseModel):
     ticker: str = Field(..., description="Exchange ticker symbol, e.g. 'AAPL'.")
 
 
-def fetch_edgar_search_by_ticker(params: EdgarSearchByTickerParams) -> Optional[dict]:
+def fetch_edgar_search_by_ticker(params: EdgarSearchByTickerParams) -> dict | None:
     """Fetch company_tickers.json and return the entry matching `ticker` (case-insensitive)."""
     response = http_get(TICKERS_URL, provider=PROVIDER_ID)
     data = response.json()
@@ -383,7 +385,7 @@ async def handle_edgar_search_by_ticker(
                 types.TextContent(
                     type="text",
                     text=f"No company found for ticker '{params.ticker}'.",
-                )
+                ),
             ]
         return [types.TextContent(type="text", text=str(match)[:20000])]
     except Exception as e:
@@ -395,8 +397,8 @@ TOOLS.append(
     types.Tool(
         name="edgar-search-company-by-ticker",
         description="Look up an SEC-registered company (CIK + title) by exchange ticker symbol.",
-        inputSchema=EdgarSearchByTickerParams.model_json_schema(),
-    )
+        input_schema=EdgarSearchByTickerParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["edgar-search-company-by-ticker"] = handle_edgar_search_by_ticker
 
@@ -428,7 +430,7 @@ def fetch_edgar_search_by_name(params: EdgarSearchByNameParams) -> list:
                     "cik_str": entry.get("cik_str"),
                     "ticker": entry.get("ticker"),
                     "title": title,
-                }
+                },
             )
             if len(matches) >= params.limit:
                 break
@@ -454,8 +456,8 @@ TOOLS.append(
     types.Tool(
         name="edgar-search-company-by-name",
         description="Fuzzy-search SEC-registered companies by a substring of their official name.",
-        inputSchema=EdgarSearchByNameParams.model_json_schema(),
-    )
+        input_schema=EdgarSearchByNameParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["edgar-search-company-by-name"] = handle_edgar_search_by_name
 
@@ -464,7 +466,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-sec-edgar", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-sec-edgar",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

@@ -1,5 +1,4 @@
-"""
-Copernicus Earth Observation Data API Client
+"""Copernicus Earth Observation Data API Client
 
 This module provides interfaces to access the Copernicus Data Space Ecosystem (CDSE).
 It allows discovery of satellite data (Sentinel, Landsat, etc.) through STAC and OData APIs.
@@ -15,9 +14,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -32,9 +32,9 @@ STAC_BASE_URL = "https://stac.dataspace.copernicus.eu/v1"
 ODATA_BASE_URL = "https://catalogue.dataspace.copernicus.eu/odata/v1"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -46,7 +46,8 @@ class ListCollectionsParams(BaseModel):
     """Parameters for listing Copernicus satellite collections."""
 
     limit: int = Field(
-        default=20, description="Maximum number of collections to return"
+        default=20,
+        description="Maximum number of collections to return",
     )
 
 
@@ -54,13 +55,14 @@ class CollectionInfo(BaseModel):
     """Basic information about a Copernicus collection."""
 
     id: str = Field(..., description="The unique ID of the collection")
-    title: Optional[str] = Field(None, description="The title of the collection")
-    description: Optional[str] = Field(
-        None, description="Description of the collection"
+    title: str | None = Field(None, description="The title of the collection")
+    description: str | None = Field(
+        None,
+        description="Description of the collection",
     )
 
 
-def list_copernicus_collections(params: ListCollectionsParams) -> List[CollectionInfo]:
+def list_copernicus_collections(params: ListCollectionsParams) -> list[CollectionInfo]:
     """Fetch available satellite data collections from STAC API."""
     endpoint = f"{STAC_BASE_URL}/collections"
     response = http_get(endpoint, timeout=10.0, provider=PROVIDER_ID)
@@ -72,7 +74,7 @@ def list_copernicus_collections(params: ListCollectionsParams) -> List[Collectio
                 id=col.get("id"),
                 title=col.get("title"),
                 description=col.get("description"),
-            )
+            ),
         )
         if len(collections) >= params.limit:
             break
@@ -90,9 +92,10 @@ async def handle_list_collections(
             types.TextContent(
                 type="text",
                 text=to_json_text(
-                    [c.model_dump() for c in collections], max_chars=10000
+                    [c.model_dump() for c in collections],
+                    max_chars=10000,
                 ),
-            )
+            ),
         ]
     except Exception as e:
         log.error(f"Error listing Copernicus collections: {e}")
@@ -103,8 +106,8 @@ TOOLS.append(
     types.Tool(
         name="copernicus-list-collections",
         description="List available Copernicus satellite data collections (e.g., sentinel-2a-l2a).",
-        inputSchema=ListCollectionsParams.model_json_schema(),
-    )
+        input_schema=ListCollectionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["copernicus-list-collections"] = handle_list_collections
 
@@ -117,12 +120,14 @@ class SearchProductsParams(BaseModel):
     """Parameters for searching products via STAC."""
 
     collection: str = Field(
-        ..., description="The collection ID to search (e.g., 'sentinel-2a-l2a')"
+        ...,
+        description="The collection ID to search (e.g., 'sentinel-2a-l2a')",
     )
-    bbox: Optional[List[float]] = Field(
-        None, description="Bounding box [min_lon, min_lat, max_lon, max_lat]"
+    bbox: list[float] | None = Field(
+        None,
+        description="Bounding box [min_lon, min_lat, max_lon, max_lat]",
     )
-    datetime: Optional[str] = Field(
+    datetime: str | None = Field(
         None,
         description="Time range (e.g., '2023-01-01T00:00:00Z/2023-01-02T23:59:59Z')",
     )
@@ -139,7 +144,10 @@ def search_copernicus_products(params: SearchProductsParams) -> dict:
         query_params["datetime"] = params.datetime
 
     response = http_post(
-        endpoint, json=query_params, timeout=15.0, provider=PROVIDER_ID
+        endpoint,
+        json=query_params,
+        timeout=15.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -207,7 +215,7 @@ async def handle_search_products(
         data = search_copernicus_products(params)
         payload = _copernicus_search_results_to_shape_payload(data)
         return [
-            types.TextContent(type="text", text=to_json_text(payload, max_chars=10000))
+            types.TextContent(type="text", text=to_json_text(payload, max_chars=10000)),
         ]
     except Exception as e:
         log.error(f"Error searching Copernicus products: {e}")
@@ -218,12 +226,12 @@ TOOLS.append(
     types.Tool(
         name="copernicus-search-products",
         description="Search for satellite imagery products based on spatial and temporal criteria.",
-        inputSchema=SearchProductsParams.model_json_schema(),
+        input_schema=SearchProductsParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["copernicus-search-products"] = handle_search_products
 
@@ -253,7 +261,7 @@ async def handle_get_product_metadata(
         params = ProductMetadataParams(**(arguments or {}))
         data = fetch_product_metadata(params)
         return [
-            types.TextContent(type="text", text=to_json_text(data, max_chars=15000))
+            types.TextContent(type="text", text=to_json_text(data, max_chars=15000)),
         ]
     except Exception as e:
         log.error(f"Error fetching Copernicus product metadata: {e}")
@@ -264,8 +272,8 @@ TOOLS.append(
     types.Tool(
         name="copernicus-get-product-metadata",
         description="Get detailed technical metadata for a specific Copernicus product ID via OData.",
-        inputSchema=ProductMetadataParams.model_json_schema(),
-    )
+        input_schema=ProductMetadataParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["copernicus-get-product-metadata"] = handle_get_product_metadata
 
@@ -274,7 +282,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "eu-copernicus", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "eu-copernicus",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)
