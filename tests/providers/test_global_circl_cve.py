@@ -18,10 +18,10 @@ from meta_data_mcp.providers.global_circl_cve import (
     fetch_circl_cve_get,
     fetch_circl_cve_last,
     fetch_circl_cve_search,
-    handle_circl_cve_last,
-    handle_circl_cve_get,
-    handle_circl_cve_browse_vendors,
     handle_circl_cve_browse_products,
+    handle_circl_cve_browse_vendors,
+    handle_circl_cve_get,
+    handle_circl_cve_last,
     handle_circl_cve_search,
 )
 
@@ -60,7 +60,7 @@ def test_fetch_circl_cve_browse_products_uses_vendor_in_path():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"product": ["windows"]})
         result = fetch_circl_cve_browse_products(
-            CirclCveBrowseProductsParams(vendor="microsoft")
+            CirclCveBrowseProductsParams(vendor="microsoft"),
         )
         assert result["product"] == ["windows"]
         assert mock_get.call_args[0][0].endswith("/browse/microsoft")
@@ -70,7 +70,7 @@ def test_fetch_circl_cve_search_threads_vendor_and_product():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok({"results": [{"id": "CVE-2024-0001"}]})
         result = fetch_circl_cve_search(
-            CirclCveSearchParams(vendor="oracle", product="mysql")
+            CirclCveSearchParams(vendor="oracle", product="mysql"),
         )
         assert result["results"][0]["id"] == "CVE-2024-0001"
         assert mock_get.call_args[1]["params"] == {

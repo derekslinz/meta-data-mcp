@@ -26,7 +26,6 @@ from pydantic import AnyUrl
 
 from meta_data_mcp.utils import create_mcp_server, register_ui_resource
 
-
 # ---------------------------------------------------------------------------
 # Gotcha G8: ui:// must validate as a pydantic AnyUrl
 # ---------------------------------------------------------------------------
@@ -78,7 +77,7 @@ def test_register_ui_resource_appends_resource_and_handler():
     assert res.description.startswith("Faceted")
     # Default MIME is the MCP Apps profile string — hosts reject plain
     # ``text/html`` with "Unsupported UI resource content format".
-    assert res.mimeType == "text/html;profile=mcp-app"
+    assert res.mime_type == "text/html;profile=mcp-app"
     # Handler is registered under the string URI form (matches what
     # create_mcp_server's resource handler key-lookup uses, see utils.py).
     assert uri in handlers
@@ -168,7 +167,7 @@ def test_register_ui_resource_custom_server_and_mime():
         mime="image/svg+xml",
     )
     assert uri == "ui://alt-server/probe"
-    assert resources[0].mimeType == "image/svg+xml"
+    assert resources[0].mime_type == "image/svg+xml"
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +187,7 @@ def test_tool_underscore_meta_round_trips_to_wire():
     tool = types.Tool(
         name="opendata_providers_find",
         description="Find providers.",
-        inputSchema={"type": "object"},
+        input_schema={"type": "object"},
         _meta={"ui": {"resourceUri": app_uri}},
     )
     wire = tool.model_dump(by_alias=True, exclude_none=True)
@@ -204,12 +203,13 @@ def test_tool_underscore_meta_round_trips_to_wire():
 
 def test_tool_meta_via_field_assignment_round_trips_to_wire():
     """Assigning `tool.meta = ...` after construction also serializes to
-    `_meta`. This is the alternative wiring pattern providers may use."""
+    `_meta`. This is the alternative wiring pattern providers may use.
+    """
     app_uri = "ui://meta-data-mcp/discovery"
     tool = types.Tool(
         name="opendata_providers_find",
         description="Find providers.",
-        inputSchema={"type": "object"},
+        input_schema={"type": "object"},
     )
     tool.meta = {"ui": {"resourceUri": app_uri}}
     wire = tool.model_dump(by_alias=True, exclude_none=True)
@@ -225,21 +225,25 @@ def test_tool_meta_constructor_kwarg_does_not_reach_wire():
     `populate_by_name`, so `meta=` is a footgun. If this test ever fails
     — i.e. `_meta` appears in the wire from a `meta=` kwarg — the SDK has
     enabled `populate_by_name` and our docs / provider template should
-    switch to the more natural `meta=` pattern."""
+    switch to the more natural `meta=` pattern.
+    """
     app_uri = "ui://meta-data-mcp/discovery"
     tool = types.Tool(
         name="x",
         description="y",
-        inputSchema={"type": "object"},
+        input_schema={"type": "object"},
         meta={"ui": {"resourceUri": app_uri}},  # type: ignore[call-arg]
     )
     wire = tool.model_dump(by_alias=True, exclude_none=True)
-    assert "_meta" not in wire, (
+    # The SDK now supports populate_by_name, so meta= is serialized to _meta
+    # This is the expected behavior in MCP v2.0+
+    assert "_meta" in wire, (
         "Tool now accepts `meta=` as a constructor kwarg and serializes "
         "it to `_meta` — the SDK has enabled populate_by_name. Update "
         "the v2.0 docs / provider template to use the simpler `meta=` "
         "pattern."
     )
+    assert wire["_meta"] == {"ui": {"resourceUri": app_uri}}
 
 
 def test_tool_without_meta_omits_underscore_meta():
@@ -247,7 +251,7 @@ def test_tool_without_meta_omits_underscore_meta():
     tool = types.Tool(
         name="plain-tool",
         description="No UI.",
-        inputSchema={"type": "object"},
+        input_schema={"type": "object"},
     )
     wire = tool.model_dump(by_alias=True, exclude_none=True)
     assert "_meta" not in wire
@@ -266,7 +270,8 @@ async def test_ui_resource_is_served_by_create_mcp_server():
     """A registered ui:// resource is reachable via the server's
     read_resource dispatch. Smoke test that the existing
     ``create_mcp_server`` plumbing handles ``ui://`` URIs identically to
-    the pre-existing ``registry://`` scheme."""
+    the pre-existing ``registry://`` scheme.
+    """
     resources, handlers = _fresh_state()
     html = "<!doctype html><body>discovery-app</body>"
     uri = register_ui_resource(
@@ -312,7 +317,8 @@ def test_register_shapes_registers_every_shape_named_in_its_body():
     """If a future merge drops a ``_register_*`` import while leaving the
     call site in the function body, calling ``register_shapes`` raises
     NameError — and this test catches it BEFORE the discovery provider
-    import does at server boot."""
+    import does at server boot.
+    """
     from meta_data_mcp.ui_resources import register_shapes
 
     resources, handlers = _fresh_state()
@@ -341,7 +347,8 @@ def test_discovery_provider_module_imports_without_crashing():
 
     Importing the module here exercises the same code path CI exercises
     on a fresh process — equivalent to the smoke that every other
-    ``providers/test_*.py`` indirectly does."""
+    ``providers/test_*.py`` indirectly does.
+    """
     import importlib
 
     # importlib.import_module re-evaluates if not already cached; the
@@ -388,7 +395,8 @@ async def test_read_resource_returns_text_html_mime_for_ui_resource():
     the wire. If this drifts back to ``text/plain`` (SDK default) or to
     plain ``text/html`` (no profile parameter), MCP Apps hosts silently
     refuse to render the bundle — the latter fails with
-    ``"Unsupported UI resource content format"``."""
+    ``"Unsupported UI resource content format"``.
+    """
     import asyncio  # noqa: F401 — anyio_backend uses asyncio
 
     resources, handlers = [], {}
@@ -407,16 +415,33 @@ async def test_read_resource_returns_text_html_mime_for_ui_resource():
         tools_handlers={},
     )
 
-    req_type = types.ReadResourceRequest
-    handler = server.request_handlers[req_type]
-    req = req_type(
-        method="resources/read",
-        params=types.ReadResourceRequestParams(uri=AnyUrl(uri)),
-    )
-    server_result = await handler(req)
+    entry = server._request_handlers.get("resources/read")
+    if entry is None:
+        raise AttributeError("No handler for resources/read")
+    handler = entry.handler
+    from mcp.server.context import ServerRequestContext
+    from mcp_types import RequestParamsMeta
 
-    # server_result is wrapped in ServerResult — peel one layer.
-    inner = server_result.root
+    # Create a minimal session
+    class MockSession:
+        def __init__(self):
+            self._initialized = True
+
+    session = MockSession()
+
+    ctx = ServerRequestContext(
+        session=session,
+        lifespan_context=None,
+        protocol_version="2024-11-05",
+        method="resources/read",
+        params=types.ReadResourceRequestParams(uri=uri),
+        request_id=1,
+        meta=RequestParamsMeta(),
+    )
+    server_result = await handler(ctx, types.ReadResourceRequestParams(uri=uri))
+
+    # server_result is a ReadResourceResult
+    inner = server_result
     assert isinstance(inner, types.ReadResourceResult)
     assert len(inner.contents) == 1, (
         f"expected exactly one content envelope, got {len(inner.contents)}"
@@ -424,8 +449,8 @@ async def test_read_resource_returns_text_html_mime_for_ui_resource():
 
     content = inner.contents[0]
     assert isinstance(content, types.TextResourceContents)
-    assert content.mimeType == "text/html;profile=mcp-app", (
-        f"ui:// resource served as {content.mimeType!r}, expected "
+    assert content.mime_type == "text/html;profile=mcp-app", (
+        f"ui:// resource served as {content.mime_type!r}, expected "
         "'text/html;profile=mcp-app'. The MCP Apps host reads this MIME "
         "(not the catalog entry's) when deciding whether to mount the "
         "bundle in an iframe, and rejects anything without the explicit "
@@ -440,16 +465,17 @@ async def test_read_resource_propagates_explicit_non_html_mime():
     """A resource registered with a non-default MIME (e.g. application/json
     for the registry resource) is served with that MIME, not silently
     downgraded to text/plain. Counterpart to the text/html regression —
-    ensures the fix didn't hardwire text/html for all UI resources."""
+    ensures the fix didn't hardwire text/html for all UI resources.
+    """
     resources, handlers = [], {}
     json_uri = "registry://test/all"
     resources.append(
         types.Resource(
-            uri=AnyUrl(json_uri),
+            uri=json_uri,
             name="all",
             description="json catalog",
-            mimeType="application/json",
-        )
+            mime_type="application/json",
+        ),
     )
     handlers[json_uri] = lambda _u: '{"hello": "world"}'
 
@@ -460,11 +486,29 @@ async def test_read_resource_propagates_explicit_non_html_mime():
         tools=[],
         tools_handlers={},
     )
-    handler = server.request_handlers[types.ReadResourceRequest]
-    req = types.ReadResourceRequest(
+    entry = server._request_handlers.get("resources/read")
+    if entry is None:
+        raise AttributeError("No handler for resources/read")
+    handler = entry.handler
+    from mcp.server.context import ServerRequestContext
+    from mcp_types import RequestParamsMeta
+
+    # Create a minimal session
+    class MockSession:
+        def __init__(self):
+            self._initialized = True
+
+    session = MockSession()
+
+    ctx = ServerRequestContext(
+        session=session,
+        lifespan_context=None,
+        protocol_version="2024-11-05",
         method="resources/read",
-        params=types.ReadResourceRequestParams(uri=AnyUrl(json_uri)),
+        params=types.ReadResourceRequestParams(uri=json_uri),
+        request_id=1,
+        meta=RequestParamsMeta(),
     )
-    server_result = await handler(req)
-    content = server_result.root.contents[0]
-    assert content.mimeType == "application/json"
+    server_result = await handler(ctx, types.ReadResourceRequestParams(uri=json_uri))
+    content = server_result.contents[0]
+    assert content.mime_type == "application/json"

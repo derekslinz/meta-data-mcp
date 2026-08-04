@@ -1,19 +1,19 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_wikidata import (
     TOOLS,
     TOOLS_HANDLERS,
     _wikidata_search_to_entity_graph_payload,
-    handle_wikidata_get_entities,
-    handle_wikidata_search_entities,
-    handle_wikidata_get_claims,
-    handle_wikidata_sparql,
-    handle_wikidata_list_properties,
     handle_wikidata_get_by_title,
+    handle_wikidata_get_claims,
+    handle_wikidata_get_entities,
+    handle_wikidata_list_properties,
+    handle_wikidata_search_entities,
+    handle_wikidata_sparql,
 )
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
 
@@ -34,8 +34,8 @@ async def test_wikidata_get_entities_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "entities": {
-                "Q42": {"id": "Q42", "labels": {"en": {"value": "Douglas Adams"}}}
-            }
+                "Q42": {"id": "Q42", "labels": {"en": {"value": "Douglas Adams"}}},
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -54,7 +54,7 @@ async def test_wikidata_get_entities_missing_ids():
 async def test_wikidata_search_entities_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "search": [{"id": "Q42", "label": "Douglas Adams"}]
+            "search": [{"id": "Q42", "label": "Douglas Adams"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -66,7 +66,7 @@ async def test_wikidata_search_entities_success():
 async def test_wikidata_get_claims_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q5"}}}}]}
+            "claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q5"}}}}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -79,13 +79,13 @@ async def test_wikidata_sparql_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "results": {
-                "bindings": [{"item": {"value": "http://www.wikidata.org/entity/Q42"}}]
-            }
+                "bindings": [{"item": {"value": "http://www.wikidata.org/entity/Q42"}}],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_wikidata_sparql(
-            {"query": "SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 1"}
+            {"query": "SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 1"},
         )
         assert "Q42" in result[0].text
 
@@ -94,7 +94,7 @@ async def test_wikidata_sparql_success():
 async def test_wikidata_list_properties_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "search": [{"id": "P31", "label": "instance of"}]
+            "search": [{"id": "P31", "label": "instance of"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -110,8 +110,8 @@ async def test_wikidata_get_by_title_success():
                 "Q937": {
                     "id": "Q937",
                     "sitelinks": {"enwiki": {"title": "Albert Einstein"}},
-                }
-            }
+                },
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -126,7 +126,7 @@ async def test_wikidata_sparql_http_error():
 
         with pytest.raises(httpx.HTTPError):
             await handle_wikidata_sparql(
-                {"query": "SELECT * WHERE { ?s ?p ?o } LIMIT 1"}
+                {"query": "SELECT * WHERE { ?s ?p ?o } LIMIT 1"},
             )
 
 
@@ -138,12 +138,13 @@ async def test_wikidata_sparql_http_error():
 def test_wikidata_entity_graph_adapter_builds_hub_and_spoke():
     """The adapter emits an ``anchor`` node for the query and a fan-out
     ``matches`` edge to every result. Without claims fetch, this is
-    the most we can surface from ``wbsearchentities`` alone."""
+    the most we can surface from ``wbsearchentities`` alone.
+    """
     raw = {
         "search": [
             {"id": "Q42", "label": "Douglas Adams", "description": "English author"},
             {"id": "Q1", "label": "Universe", "description": "everything"},
-        ]
+        ],
     }
     payload = _wikidata_search_to_entity_graph_payload(raw, query="douglas")
     types_ = {n["type"] for n in payload["nodes"]}
@@ -159,13 +160,14 @@ def test_wikidata_entity_graph_adapter_builds_hub_and_spoke():
 
 def test_wikidata_entity_graph_adapter_edge_weight_degrades_with_rank():
     """Top match should have the highest edge weight (pulls toward the
-    anchor in the force layout); later matches degrade linearly."""
+    anchor in the force layout); later matches degrade linearly.
+    """
     raw = {
         "search": [
             {"id": "Q1", "label": "first"},
             {"id": "Q2", "label": "second"},
             {"id": "Q3", "label": "third"},
-        ]
+        ],
     }
     payload = _wikidata_search_to_entity_graph_payload(raw, query="x")
     weights = {e["target"]: e["weight"] for e in payload["edges"]}
@@ -192,7 +194,7 @@ async def test_wikidata_search_entities_returns_entity_graph_payload():
         mock_get.return_value.json.return_value = {
             "search": [
                 {"id": "Q42", "label": "Douglas Adams"},
-            ]
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_wikidata_search_entities({"search": "douglas"})

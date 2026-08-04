@@ -99,7 +99,9 @@ _FIND_PROVIDERS_PAYLOAD = {
 @pytest.mark.anyio
 async def test_find_providers_parses_response(client):
     with patch.object(
-        client, "_call_tool", new=AsyncMock(return_value=_FIND_PROVIDERS_PAYLOAD)
+        client,
+        "_call_tool",
+        new=AsyncMock(return_value=_FIND_PROVIDERS_PAYLOAD),
     ):
         results = await client.find_providers("earthquake", limit=2)
 
@@ -124,7 +126,9 @@ async def test_find_providers_explain_populates_breakdown(client):
 @pytest.mark.anyio
 async def test_find_providers_empty_result(client):
     with patch.object(
-        client, "_call_tool", new=AsyncMock(return_value={"count": 0, "providers": []})
+        client,
+        "_call_tool",
+        new=AsyncMock(return_value={"count": 0, "providers": []}),
     ):
         results = await client.find_providers("zzzz_no_match")
 
@@ -136,7 +140,10 @@ async def test_find_providers_passes_correct_tool_name_and_args(client):
     mock = AsyncMock(return_value={"count": 0, "providers": []})
     with patch.object(client, "_call_tool", new=mock):
         await client.find_providers(
-            "floods", domain="earth-science", region="us", limit=5
+            "floods",
+            domain="earth-science",
+            region="us",
+            limit=5,
         )
 
     mock.assert_called_once_with(
@@ -283,6 +290,7 @@ async def test_find_providers_propagates_call_tool_exception(client):
 async def test_context_manager_uses_persistent_session():
     """Inside async with, find_providers should use the cached _session."""
     from unittest.mock import MagicMock
+
     from meta_data_mcp.sdk.remote import RemoteClient
 
     client = RemoteClient("https://mcp.example.com", token="tok")

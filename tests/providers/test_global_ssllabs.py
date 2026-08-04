@@ -45,7 +45,7 @@ def test_fetch_ssllabs_analyze_maps_camel_case_query_params():
                 from_cache="off",
                 all="on",
                 ignore_mismatch="off",
-            )
+            ),
         )
         assert result["status"] == "READY"
         assert mock_get.call_args[1]["params"] == {
@@ -63,8 +63,10 @@ def test_fetch_ssllabs_endpoint_data_maps_from_cache_param():
         mock_get.return_value = _ok({"statusMessage": "Ready"})
         result = fetch_ssllabs_endpoint_data(
             SsllabsEndpointDataParams(
-                host="example.com", ip="93.184.216.34", from_cache="on"
-            )
+                host="example.com",
+                ip="93.184.216.34",
+                from_cache="on",
+            ),
         )
         assert result["statusMessage"] == "Ready"
         assert mock_get.call_args[1]["params"] == {

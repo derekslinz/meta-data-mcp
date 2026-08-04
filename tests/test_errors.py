@@ -26,13 +26,13 @@ from meta_data_mcp.errors import (
     translate_http_error,
 )
 
-
 PROVIDER = "test-provider"
 SENSITIVE_URL = "https://example.com/sensitive?token=abc"
 
 
 def _status_error(
-    status: int, headers: dict[str, str] | None = None
+    status: int,
+    headers: dict[str, str] | None = None,
 ) -> httpx.HTTPStatusError:
     req = httpx.Request("GET", SENSITIVE_URL)
     resp = httpx.Response(status_code=status, request=req, headers=headers or {})
@@ -132,7 +132,8 @@ def test_translate_auth(status):
 
 def test_translate_rate_limit_with_header():
     err = translate_http_error(
-        PROVIDER, _status_error(429, headers={"Retry-After": "2"})
+        PROVIDER,
+        _status_error(429, headers={"Retry-After": "2"}),
     )
     assert isinstance(err, RateLimitError)
     assert err.status == 429
@@ -148,7 +149,8 @@ def test_translate_rate_limit_missing_header():
 
 def test_translate_rate_limit_malformed_header():
     err = translate_http_error(
-        PROVIDER, _status_error(429, headers={"Retry-After": "soon"})
+        PROVIDER,
+        _status_error(429, headers={"Retry-After": "soon"}),
     )
     assert isinstance(err, RateLimitError)
     assert err.retry_after is None

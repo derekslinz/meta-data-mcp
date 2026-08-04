@@ -24,7 +24,8 @@ all existing call sites keep working.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 # Maximum character length for tool/resource text responses. Kept here so
 # the serializers form a self-contained module; the rest of the codebase

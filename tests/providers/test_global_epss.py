@@ -67,7 +67,11 @@ def test_fetch_epss_scores_with_filter_combination(mock_epss_payload):
         mock_get.return_value.status_code = 200
 
         params = EpssScoresParams(
-            days=7, epss_gt=0.5, order="!epss", limit=50, offset=0
+            days=7,
+            epss_gt=0.5,
+            order="!epss",
+            limit=50,
+            offset=0,
         )
         fetch_epss_scores(params)
 

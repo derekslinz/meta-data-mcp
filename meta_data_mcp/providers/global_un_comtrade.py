@@ -15,9 +15,10 @@ Higher tiers require a subscription key via ``UN_COMTRADE_API_KEY`` env var
 
 import logging
 import os
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_trade_flows_v1 import URI as TRADE_FLOWS_APP_URI
@@ -36,9 +37,9 @@ PROVIDER_ID = "global-un-comtrade"
 # transparently; the only difference is the optional API key header.
 BASE_URL = "https://comtradeapi.un.org/data/v1"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -93,14 +94,14 @@ class ComtradeTradeDataParams(BaseModel):
             "'276' = Germany."
         ),
     )
-    partner_code: Optional[str] = Field(
+    partner_code: str | None = Field(
         None,
         description=(
             "Partner country M49 code(s). '0' = World aggregate. Omit to use "
             "the API default."
         ),
     )
-    cmd_code: Optional[str] = Field(
+    cmd_code: str | None = Field(
         None,
         description=(
             "Commodity code(s) under the selected classification. For HS use "
@@ -108,7 +109,7 @@ class ComtradeTradeDataParams(BaseModel):
             "Omit for top-level totals."
         ),
     )
-    flow_code: Optional[str] = Field(
+    flow_code: str | None = Field(
         None,
         description=(
             "Trade flow: 'M' = imports, 'X' = exports, 'RX' = re-exports, "
@@ -159,8 +160,9 @@ async def handle_comtrade_trade_data(
     data = fetch_comtrade_trade_data(params)
     return [
         types.TextContent(
-            type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-        )
+            type="text",
+            text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+        ),
     ]
 
 
@@ -174,10 +176,10 @@ TOOLS.append(
             "typeCode (C goods / S services), freqCode (A annual / M monthly), "
             "clCode (classification). Free tier returns up to 500 rows per call."
         ),
-        inputSchema=ComtradeTradeDataParams.model_json_schema(),
+        input_schema=ComtradeTradeDataParams.model_json_schema(),
         # MCP Apps binding: render via the trade-flows app (Sankey + treemap).
         _meta={"ui": {"resourceUri": TRADE_FLOWS_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["comtrade-trade-data"] = handle_comtrade_trade_data
 

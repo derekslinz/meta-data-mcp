@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_gbif import (
     TOOLS,
     _gbif_occurrences_to_shape_payload,
-    handle_gbif_search_occurrences,
+    handle_gbif_get_dataset,
     handle_gbif_get_occurrence,
-    handle_gbif_search_species,
+    handle_gbif_get_occurrence_counts,
     handle_gbif_get_species,
     handle_gbif_get_species_name_suggest,
     handle_gbif_list_datasets,
-    handle_gbif_get_dataset,
-    handle_gbif_get_occurrence_counts,
+    handle_gbif_search_occurrences,
+    handle_gbif_search_species,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -27,7 +27,8 @@ def anyio_backend():
 @pytest.mark.anyio
 async def test_gbif_search_occurrences_success():
     """Now returns the geofeatures shape payload — only records with
-    usable Darwin Core decimalLatitude/decimalLongitude make it through."""
+    usable Darwin Core decimalLatitude/decimalLongitude make it through.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "count": 1,
@@ -37,13 +38,13 @@ async def test_gbif_search_occurrences_success():
                     "scientificName": "Puma concolor",
                     "decimalLatitude": 37.7,
                     "decimalLongitude": -122.4,
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_gbif_search_occurrences(
-            {"scientificName": "Puma concolor", "country": "US", "limit": 5}
+            {"scientificName": "Puma concolor", "country": "US", "limit": 5},
         )
         assert "Puma concolor" in result[0].text
 
@@ -100,7 +101,7 @@ async def test_gbif_get_species_success():
 async def test_gbif_get_species_name_suggest_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"key": 2877951, "scientificName": "Quercus"}
+            {"key": 2877951, "scientificName": "Quercus"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -191,7 +192,8 @@ def test_adapter_handles_non_dict_response():
 
 def test_adapter_skips_occurrences_without_coords():
     """Many GBIF records (esp. herbarium specimens) lack decimal coords —
-    those are dropped silently."""
+    those are dropped silently.
+    """
     raw = {
         "results": [
             {"key": 1, "scientificName": "no coords"},
@@ -210,7 +212,7 @@ def test_adapter_skips_occurrences_without_coords():
                 "decimalLatitude": 40.0,
                 "decimalLongitude": -74.0,
             },
-        ]
+        ],
     }
     payload = _gbif_occurrences_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -235,13 +237,13 @@ async def test_gbif_search_occurrences_returns_shape_payload():
                     "scientificName": "Puma concolor",
                     "decimalLatitude": 37.7,
                     "decimalLongitude": -122.4,
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_gbif_search_occurrences(
-            {"scientificName": "Puma concolor"}
+            {"scientificName": "Puma concolor"},
         )
         body = json.loads(result[0].text)
         assert body["features"][0]["lat"] == 37.7

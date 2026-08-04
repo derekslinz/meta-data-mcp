@@ -14,9 +14,10 @@ Auth: None required.
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_news_tone_v1 import URI as NEWS_TONE_APP_URI
@@ -33,9 +34,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-gdelt"
 DOC_API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,7 +58,7 @@ class GdeltArticleSearchParams(BaseModel):
             "Example: '\"supply chain\" sourcelang:eng tone<-3'."
         ),
     )
-    timespan: Optional[str] = Field(
+    timespan: str | None = Field(
         None,
         description=(
             "Lookback window — '15m', '1h', '24h', '3d', '1w', '1m'. "
@@ -70,7 +71,7 @@ class GdeltArticleSearchParams(BaseModel):
         le=250,
         description="Max articles to return (1-250).",
     )
-    sort: Optional[str] = Field(
+    sort: str | None = Field(
         None,
         description=(
             "Sort order — 'DateDesc' (newest), 'DateAsc' (oldest), 'Tone' "
@@ -104,8 +105,9 @@ async def handle_gdelt_article_search(
     data = fetch_gdelt_article_search(params)
     return [
         types.TextContent(
-            type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-        )
+            type="text",
+            text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+        ),
     ]
 
 
@@ -118,12 +120,12 @@ TOOLS.append(
             "Use GDELT's field operators (sourcelang, sourcecountry, theme, "
             "domain, tone) for precise filtering."
         ),
-        inputSchema=GdeltArticleSearchParams.model_json_schema(),
+        input_schema=GdeltArticleSearchParams.model_json_schema(),
         # MCP Apps binding: render via the news-tone app. Use the alias
         # keyword (``_meta=``) — ``meta=`` silently drops into extras; see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": NEWS_TONE_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["gdelt-article-search"] = handle_gdelt_article_search
 
@@ -144,7 +146,7 @@ class GdeltVolumeTimelineParams(BaseModel):
             "operator syntax)."
         ),
     )
-    timespan: Optional[str] = Field(
+    timespan: str | None = Field(
         None,
         description="Lookback window — same syntax as gdelt-article-search.",
     )
@@ -179,8 +181,9 @@ async def handle_gdelt_volume_timeline(
     data = fetch_gdelt_volume_timeline(params)
     return [
         types.TextContent(
-            type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-        )
+            type="text",
+            text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+        ),
     ]
 
 
@@ -192,9 +195,9 @@ TOOLS.append(
             "counts), average tone, or volume-by-language. Useful for tracking how "
             "coverage of a topic evolves and for spotting tone shifts."
         ),
-        inputSchema=GdeltVolumeTimelineParams.model_json_schema(),
+        input_schema=GdeltVolumeTimelineParams.model_json_schema(),
         _meta={"ui": {"resourceUri": NEWS_TONE_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["gdelt-volume-timeline"] = handle_gdelt_volume_timeline
 

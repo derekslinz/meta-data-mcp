@@ -40,7 +40,7 @@ from meta_data_mcp.utils import register_ui_resource
 URI = "ui://meta-data-mcp/shape/records/v1"
 
 _HTML = (files("meta_data_mcp.ui_resources") / "shape_records_v1.html").read_text(
-    encoding="utf-8"
+    encoding="utf-8",
 )
 
 

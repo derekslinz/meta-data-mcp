@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_inaturalist import (
     TOOLS,
     _inaturalist_observations_to_shape_payload,
-    handle_inaturalist_search_observations,
     handle_inaturalist_get_observation,
-    handle_inaturalist_search_taxa,
-    handle_inaturalist_get_taxon,
-    handle_inaturalist_list_places,
     handle_inaturalist_get_place,
-    handle_inaturalist_list_projects,
+    handle_inaturalist_get_taxon,
     handle_inaturalist_get_user,
+    handle_inaturalist_list_places,
+    handle_inaturalist_list_projects,
+    handle_inaturalist_search_observations,
+    handle_inaturalist_search_taxa,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -34,7 +34,7 @@ async def test_inaturalist_search_observations_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_inaturalist_search_observations(
-            {"taxon_name": "Sialia mexicana", "per_page": 5}
+            {"taxon_name": "Sialia mexicana", "per_page": 5},
         )
         assert "Western Bluebird" in result[0].text
 
@@ -71,7 +71,7 @@ async def test_inaturalist_search_taxa_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_inaturalist_search_taxa(
-            {"q": "Quercus", "rank": "species"}
+            {"q": "Quercus", "rank": "species"},
         )
         assert "Quercus alba" in result[0].text
 
@@ -166,7 +166,7 @@ def test_inaturalist_adapter_flattens_observations_to_rows():
                 "quality_grade": "research",
                 "license_code": "cc-by-nc",
                 "uri": "https://inat.example/observations/42",
-            }
+            },
         ],
     }
     payload = _inaturalist_observations_to_shape_payload(raw)
@@ -195,7 +195,7 @@ async def test_inaturalist_search_observations_returns_shape_payload():
         mock_get.return_value.json.return_value = {
             "total_results": 1,
             "results": [
-                {"id": 1, "taxon": {"name": "Quercus alba"}, "place_guess": "NC"}
+                {"id": 1, "taxon": {"name": "Quercus alba"}, "place_guess": "NC"},
             ],
         }
         mock_get.return_value.raise_for_status = Mock()

@@ -150,7 +150,7 @@ _LINE_DETAILS = {
                     "Latitude": 52.38,
                     "Longitude": 4.88,
                 },
-            }
+            },
         },
         "Actuals": {
             "NL_20260719_13_14043_0": {
@@ -159,9 +159,9 @@ _LINE_DETAILS = {
                 "Latitude": 52.377,
                 "Longitude": 4.803,
                 "OperatorCode": "GVB",
-            }
+            },
         },
-    }
+    },
 }
 
 
@@ -213,7 +213,7 @@ _DEPARTURES = {
                 "TripStopStatus": "DRIVING",
             },
         },
-    }
+    },
 }
 
 

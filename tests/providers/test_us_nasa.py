@@ -1,15 +1,16 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
+
 from meta_data_mcp.providers.us_nasa import (
     TOOLS,
     _mars_photos_to_shape_payload,
+    handle_get_ace_data,
     handle_get_apod,
     handle_get_asteroids,
     handle_get_mars_photos,
-    handle_get_ace_data,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -50,7 +51,7 @@ async def test_nasa_get_asteroids_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_asteroids(
-            {"start_date": "2024-01-01", "end_date": "2024-01-07"}
+            {"start_date": "2024-01-01", "end_date": "2024-01-07"},
         )
         assert "element_count" in result[0].text
         assert "42" in result[0].text
@@ -60,12 +61,12 @@ async def test_nasa_get_asteroids_success():
 async def test_nasa_get_mars_photos_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "photos": [{"img_src": "mars_pic.jpg"}]
+            "photos": [{"img_src": "mars_pic.jpg"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_mars_photos(
-            {"rover": "curiosity", "earth_date": "2024-01-01"}
+            {"rover": "curiosity", "earth_date": "2024-01-01"},
         )
         assert "mars_pic.jpg" in result[0].text
 
@@ -81,7 +82,7 @@ async def test_nasa_get_ace_data_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_ace_data(
-            {"start_date": "2024-04-01", "end_date": "2024-04-01"}
+            {"start_date": "2024-04-01", "end_date": "2024-04-01"},
         )
         assert "density" in result[0].text
         assert "5.0" in result[0].text
@@ -94,7 +95,7 @@ async def test_nasa_get_ace_data_no_results():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_ace_data(
-            {"start_date": "2099-01-01", "end_date": "2099-01-01"}
+            {"start_date": "2099-01-01", "end_date": "2099-01-01"},
         )
         assert "No data found" in result[0].text
 
@@ -114,8 +115,8 @@ def test_mars_photos_adapter_flattens_photos_to_rows():
                 "camera": {"name": "FHAZ", "full_name": "Front Hazard Avoidance"},
                 "rover": {"name": "Curiosity", "status": "active"},
                 "img_src": "https://mars.example/photo.jpg",
-            }
-        ]
+            },
+        ],
     }
     payload = _mars_photos_to_shape_payload(raw)
     row = payload["rows"][0]
@@ -140,11 +141,11 @@ def test_mars_photos_tool_binds_to_records_shape_primitive():
 async def test_nasa_get_mars_photos_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "photos": [{"id": 1, "img_src": "mars_pic.jpg"}]
+            "photos": [{"id": 1, "img_src": "mars_pic.jpg"}],
         }
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_get_mars_photos(
-            {"rover": "curiosity", "earth_date": "2024-01-01"}
+            {"rover": "curiosity", "earth_date": "2024-01-01"},
         )
         body = json.loads(result[0].text)
         assert body["rows"][0]["img_src"] == "mars_pic.jpg"

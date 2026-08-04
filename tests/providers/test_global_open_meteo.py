@@ -1,19 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.global_open_meteo import (
     TOOLS,
-    _open_meteo_to_shape_payload,
-    fetch_weather_forecast,
-    WeatherForecastParams,
-    handle_get_forecast,
-    fetch_historical_weather,
-    HistoricalWeatherParams,
-    handle_get_historical_weather,
-    fetch_air_quality,
     AirQualityParams,
+    HistoricalWeatherParams,
+    WeatherForecastParams,
+    _open_meteo_to_shape_payload,
+    fetch_air_quality,
+    fetch_historical_weather,
+    fetch_weather_forecast,
     handle_get_air_quality,
+    handle_get_forecast,
+    handle_get_historical_weather,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -131,7 +132,7 @@ def test_open_meteo_adapter_skips_null_values():
         "daily": {
             "time": ["2023-01-01", "2023-01-02"],
             "temperature_2m_max": [None, 10.0],
-        }
+        },
     }
     payload = _open_meteo_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -183,7 +184,7 @@ async def test_handle_get_historical_weather(mock_historical_response):
                 "longitude": 13.41,
                 "start_date": "2020-01-01",
                 "end_date": "2020-01-01",
-            }
+            },
         )
         assert len(result) == 1
         assert "5.0" in result[0].text

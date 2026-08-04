@@ -1,5 +1,4 @@
-"""
-NASA Open Data Provider
+"""NASA Open Data Provider
 
 This module provides interfaces to access NASA's public APIs.
 It uses the public DEMO_KEY by default (30 req/hr limit). Set the
@@ -18,9 +17,10 @@ Usage:
 
 import logging
 import os
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -38,9 +38,9 @@ DEMO_KEY = "DEMO_KEY"
 _API_KEY = os.getenv("NASA_API_KEY", DEMO_KEY)
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -51,8 +51,9 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class APODParams(BaseModel):
     """Parameters for getting the Astronomy Picture of the Day."""
 
-    date: Optional[str] = Field(
-        None, description="The date of the APOD image (YYYY-MM-DD)"
+    date: str | None = Field(
+        None,
+        description="The date of the APOD image (YYYY-MM-DD)",
     )
 
 
@@ -88,8 +89,8 @@ TOOLS.append(
     types.Tool(
         name="nasa-get-apod",
         description="Get NASA's Astronomy Picture of the Day with its explanation. Uses DEMO_KEY (30 req/hr limit) unless NASA_API_KEY env var is set.",
-        inputSchema=APODParams.model_json_schema(),
-    )
+        input_schema=APODParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nasa-get-apod"] = handle_get_apod
 
@@ -148,8 +149,8 @@ TOOLS.append(
     types.Tool(
         name="nasa-get-asteroids",
         description="Search for Near Earth Objects (asteroids) within a date range.",
-        inputSchema=NeoWsParams.model_json_schema(),
-    )
+        input_schema=NeoWsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nasa-get-asteroids"] = handle_get_asteroids
 
@@ -162,15 +163,17 @@ class MarsRoverParams(BaseModel):
     """Parameters for fetching Mars rover photos."""
 
     rover: str = Field(
-        ..., description="The rover name (curiosity, opportunity, spirit)"
+        ...,
+        description="The rover name (curiosity, opportunity, spirit)",
     )
     earth_date: str = Field(
         ...,
         pattern=r"^\d{4}-\d{2}-\d{2}$",
         description="The Earth date the photo was taken (YYYY-MM-DD)",
     )
-    camera: Optional[str] = Field(
-        None, description="The camera abbreviation (e.g., FHAZ, RHAZ, MAST)"
+    camera: str | None = Field(
+        None,
+        description="The camera abbreviation (e.g., FHAZ, RHAZ, MAST)",
     )
 
 
@@ -223,7 +226,7 @@ def _mars_photos_to_shape_payload(data: dict) -> dict:
                 if isinstance(rover, dict)
                 else None,
                 "img_src": photo.get("img_src"),
-            }
+            },
         )
     return {
         "rows": rows,
@@ -253,7 +256,7 @@ def _mars_photos_to_shape_payload(data: dict) -> dict:
                     "description": "Rover status",
                 },
                 {"name": "img_src", "type": "string", "description": "Image URL"},
-            ]
+            ],
         },
         "default_facets": ["rover_name", "camera_name", "rover_status"],
     }
@@ -282,9 +285,9 @@ TOOLS.append(
     types.Tool(
         name="nasa-get-mars-photos",
         description="Get photos taken by NASA's Mars rovers (Curiosity, Opportunity, Spirit).",
-        inputSchema=MarsRoverParams.model_json_schema(),
+        input_schema=MarsRoverParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["nasa-get-mars-photos"] = handle_get_mars_photos
 
@@ -297,10 +300,14 @@ class ACESolarWindParams(BaseModel):
     """Parameters for fetching ACE Solar Wind data."""
 
     start_date: str = Field(
-        ..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Start date (YYYY-MM-DD)"
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="Start date (YYYY-MM-DD)",
     )
     end_date: str = Field(
-        ..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="End date (YYYY-MM-DD)"
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        description="End date (YYYY-MM-DD)",
     )
 
 
@@ -354,7 +361,7 @@ async def handle_get_ace_data(
                 types.TextContent(
                     type="text",
                     text="No data found for the requested date range. Note: Only the last 7 days of data are available from the real-time NOAA Space Weather API.",
-                )
+                ),
             ]
 
         return [types.TextContent(type="text", text=to_json_text(data))]
@@ -367,8 +374,8 @@ TOOLS.append(
     types.Tool(
         name="nasa-get-ace-data",
         description="Get Solar Wind plasma data from NOAA Space Weather (last 7 days only). Dates outside that window return no results.",
-        inputSchema=ACESolarWindParams.model_json_schema(),
-    )
+        input_schema=ACESolarWindParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["nasa-get-ace-data"] = handle_get_ace_data
 
@@ -377,7 +384,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-nasa", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-nasa",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

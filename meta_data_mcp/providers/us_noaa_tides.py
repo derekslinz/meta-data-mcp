@@ -1,5 +1,4 @@
-"""
-NOAA CO-OPS Tides and Currents Provider
+"""NOAA CO-OPS Tides and Currents Provider
 
 This module exposes the NOAA Center for Operational Oceanographic Products
 and Services (CO-OPS) public datagetter API along with the station metadata
@@ -25,9 +24,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -42,9 +42,9 @@ BASE_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 STATIONS_URL = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -64,12 +64,17 @@ class NOAATidesWaterLevelParams(BaseModel):
     datum: str = Field(default="MLLW", description="Vertical datum (default MLLW).")
     units: str = Field(default="metric", description="'metric' or 'english'.")
     time_zone: str = Field(
-        default="lst_ldt", description="Time zone code (default lst_ldt)."
+        default="lst_ldt",
+        description="Time zone code (default lst_ldt).",
     )
 
 
 def _build_common_params(
-    station: str, datum: str, units: str, time_zone: str, product: str
+    station: str,
+    datum: str,
+    units: str,
+    time_zone: str,
+    product: str,
 ) -> dict[str, Any]:
     return {
         "station": station,
@@ -84,7 +89,11 @@ def _build_common_params(
 def fetch_noaa_tides_water_level(params: NOAATidesWaterLevelParams) -> Any:
     """Call the datagetter for observed water levels."""
     query_params = _build_common_params(
-        params.station, params.datum, params.units, params.time_zone, "water_level"
+        params.station,
+        params.datum,
+        params.units,
+        params.time_zone,
+        "water_level",
     )
     query_params["date"] = params.date
     response = http_get(BASE_URL, params=query_params, provider=PROVIDER_ID)
@@ -156,9 +165,9 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-water-level",
         description="Get observed water levels from a NOAA CO-OPS station.",
-        inputSchema=NOAATidesWaterLevelParams.model_json_schema(),
+        input_schema=NOAATidesWaterLevelParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-water-level"] = handle_noaa_tides_water_level
 
@@ -175,8 +184,9 @@ class NOAATidesPredictionsParams(BaseModel):
     begin_date: str = Field(..., description="Begin date (YYYYMMDD or YYYYMMDD HH:MM).")
     end_date: str = Field(..., description="End date (YYYYMMDD or YYYYMMDD HH:MM).")
     datum: str = Field(default="MLLW", description="Vertical datum.")
-    interval: Optional[str] = Field(
-        None, description="'hilo' for high/low only or 'h' / minute interval."
+    interval: str | None = Field(
+        None,
+        description="'hilo' for high/low only or 'h' / minute interval.",
     )
     units: str = Field(default="metric", description="'metric' or 'english'.")
     time_zone: str = Field(default="lst_ldt", description="Time zone code.")
@@ -185,7 +195,11 @@ class NOAATidesPredictionsParams(BaseModel):
 def fetch_noaa_tides_predictions(params: NOAATidesPredictionsParams) -> Any:
     """Call the datagetter for tide predictions."""
     query_params = _build_common_params(
-        params.station, params.datum, params.units, params.time_zone, "predictions"
+        params.station,
+        params.datum,
+        params.units,
+        params.time_zone,
+        "predictions",
     )
     query_params["begin_date"] = params.begin_date
     query_params["end_date"] = params.end_date
@@ -214,8 +228,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-predictions",
         description="Get tide predictions for a NOAA CO-OPS station between two dates.",
-        inputSchema=NOAATidesPredictionsParams.model_json_schema(),
-    )
+        input_schema=NOAATidesPredictionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-predictions"] = handle_noaa_tides_predictions
 
@@ -241,7 +255,11 @@ class NOAATidesMetParams(BaseModel):
 def _fetch_met_product(params: NOAATidesMetParams, product: str) -> Any:
     """Generic helper for met/water-temp/wind products."""
     query_params = _build_common_params(
-        params.station, params.datum, params.units, params.time_zone, product
+        params.station,
+        params.datum,
+        params.units,
+        params.time_zone,
+        product,
     )
     query_params["date"] = params.date
     response = http_get(BASE_URL, params=query_params, provider=PROVIDER_ID)
@@ -347,8 +365,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-air-temperature",
         description="Get air temperature observations from a NOAA CO-OPS station.",
-        inputSchema=NOAATidesMetParams.model_json_schema(),
-    )
+        input_schema=NOAATidesMetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-air-temperature"] = handle_noaa_tides_air_temperature
 
@@ -356,8 +374,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-water-temperature",
         description="Get water temperature observations from a NOAA CO-OPS station.",
-        inputSchema=NOAATidesMetParams.model_json_schema(),
-    )
+        input_schema=NOAATidesMetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-water-temperature"] = handle_noaa_tides_water_temperature
 
@@ -365,8 +383,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-wind",
         description="Get wind observations from a NOAA CO-OPS station.",
-        inputSchema=NOAATidesMetParams.model_json_schema(),
-    )
+        input_schema=NOAATidesMetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-wind"] = handle_noaa_tides_wind
 
@@ -374,8 +392,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-currents",
         description="Get current speed/direction observations from a NOAA CO-OPS station.",
-        inputSchema=NOAATidesMetParams.model_json_schema(),
-    )
+        input_schema=NOAATidesMetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-currents"] = handle_noaa_tides_currents
 
@@ -383,8 +401,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-hourly-height",
         description="Get hourly water height records from a NOAA CO-OPS station.",
-        inputSchema=NOAATidesMetParams.model_json_schema(),
-    )
+        input_schema=NOAATidesMetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-hourly-height"] = handle_noaa_tides_hourly_height
 
@@ -429,8 +447,8 @@ TOOLS.append(
     types.Tool(
         name="noaa-tides-station-metadata",
         description="List NOAA CO-OPS stations by type (default: tide-prediction stations).",
-        inputSchema=NOAATidesStationMetadataParams.model_json_schema(),
-    )
+        input_schema=NOAATidesStationMetadataParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["noaa-tides-station-metadata"] = handle_noaa_tides_station_metadata
 
@@ -439,7 +457,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-noaa-tides", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-noaa-tides",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

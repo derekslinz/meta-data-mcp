@@ -1,5 +1,4 @@
-"""
-In-memory provider health registry.
+"""In-memory provider health registry.
 
 Tracks per-provider failure / success events and exposes a health score in
 ``[0.0, 1.0]`` for use by routing scorers. Recent failures lower the score;
@@ -17,9 +16,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from math import exp
-from typing import Callable
 
 # Module-level injectable clock. Defaults to ``time.monotonic`` so callers get
 # a steady, never-decreasing reference. Tests may replace this with a callable
@@ -61,6 +60,7 @@ def record_failure(provider_id: str, status: int | None = None) -> None:
         provider_id: The provider's stable id.
         status: Optional HTTP status (currently unused; kept for caller
             compatibility with future translate_http_error wiring).
+
     """
     del status  # Reserved for future use; not stored.
     now = _clock()
@@ -113,6 +113,7 @@ def health_score(provider_id: str, *, now: float | None = None) -> float:
         provider_id: The provider's stable id.
         now: Optional clock value (seconds, monotonic). When ``None``, reads
             from the module-level ``_clock``. Used by tests to drive decay.
+
     """
     with _lock:
         entry = _state.get(provider_id)
@@ -142,6 +143,7 @@ def reset(provider_id: str | None = None) -> None:
     Args:
         provider_id: When given, clear only that provider's entry. When
             ``None``, clear all state. Intended for tests.
+
     """
     with _lock:
         if provider_id is None:
@@ -173,6 +175,7 @@ def snapshot(
     Returns:
         ``{provider_id: {"score": float, "failure_mass": float,
         "last_update_ts": float | None}}``.
+
     """
     current = now if now is not None else _clock()
     with _lock:

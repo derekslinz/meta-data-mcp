@@ -55,7 +55,8 @@ async def _issue_token(provider, *, email):
 async def test_token_and_email_survive_restart(db_path):
     p1 = SqliteOAuthPersistence(db_path)
     provider1 = InMemoryOAuthProvider(
-        issuer_url="http://localhost:8000", persistence=p1
+        issuer_url="http://localhost:8000",
+        persistence=p1,
     )
     token = await _issue_token(provider1, email="user@example.com")
     p1.close()
@@ -63,7 +64,8 @@ async def test_token_and_email_survive_restart(db_path):
     # "Restart": brand-new provider from the same DB.
     p2 = SqliteOAuthPersistence(db_path)
     provider2 = InMemoryOAuthProvider(
-        issuer_url="http://localhost:8000", persistence=p2
+        issuer_url="http://localhost:8000",
+        persistence=p2,
     )
 
     at = await provider2.verify_access_token(token.access_token)
@@ -78,14 +80,16 @@ async def test_token_and_email_survive_restart(db_path):
 async def test_refresh_token_survives_restart(db_path):
     p1 = SqliteOAuthPersistence(db_path)
     provider1 = InMemoryOAuthProvider(
-        issuer_url="http://localhost:8000", persistence=p1
+        issuer_url="http://localhost:8000",
+        persistence=p1,
     )
     token = await _issue_token(provider1, email="user@example.com")
     p1.close()
 
     p2 = SqliteOAuthPersistence(db_path)
     provider2 = InMemoryOAuthProvider(
-        issuer_url="http://localhost:8000", persistence=p2
+        issuer_url="http://localhost:8000",
+        persistence=p2,
     )
     rt = await provider2.load_refresh_token(_client(), token.refresh_token)
     assert rt is not None
@@ -98,7 +102,8 @@ async def test_refresh_token_survives_restart(db_path):
 async def test_revoke_removes_from_db(db_path):
     p1 = SqliteOAuthPersistence(db_path)
     provider1 = InMemoryOAuthProvider(
-        issuer_url="http://localhost:8000", persistence=p1
+        issuer_url="http://localhost:8000",
+        persistence=p1,
     )
     token = await _issue_token(provider1, email="user@example.com")
     at = await provider1.verify_access_token(token.access_token)
@@ -108,7 +113,8 @@ async def test_revoke_removes_from_db(db_path):
 
     p2 = SqliteOAuthPersistence(db_path)
     provider2 = InMemoryOAuthProvider(
-        issuer_url="http://localhost:8000", persistence=p2
+        issuer_url="http://localhost:8000",
+        persistence=p2,
     )
     assert await provider2.verify_access_token(token.access_token) is None
     p2.close()
@@ -189,7 +195,10 @@ def test_persistence_access_token_roundtrip(db_path):
 
     p = SqliteOAuthPersistence(db_path)
     at = AccessToken(
-        token="tok1", client_id="c1", scopes=["opendata"], expires_at=9999999999
+        token="tok1",
+        client_id="c1",
+        scopes=["opendata"],
+        expires_at=9999999999,
     )
     p.save_access_token("tok1", at, "e@example.com")
     tokens, emails = p.load_access_tokens()

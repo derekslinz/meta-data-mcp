@@ -1,5 +1,4 @@
-"""
-NDOV Loket Data Provider
+"""NDOV Loket Data Provider
 
 This module provides an interface to browse and discover Dutch public transport
 open data from data.ndovloket.nl. Since the source is a file-based directory
@@ -15,10 +14,11 @@ Usage:
 
 import logging
 import re
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 from urllib.parse import urljoin
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.utils import http_get, to_json_text
@@ -32,9 +32,9 @@ PROVIDER_ID = "nl-ndov"
 BASE_URL = "https://data.ndovloket.nl/"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -46,11 +46,12 @@ class NdovListPathParams(BaseModel):
     """Parameters for listing contents of an NDOV Loket directory."""
 
     path: str = Field(
-        default="/", description="Path to list (e.g., '/', '/haltes/', '/ns/')"
+        default="/",
+        description="Path to list (e.g., '/', '/haltes/', '/ns/')",
     )
 
 
-def list_ndov_path(path: str) -> List[dict]:
+def list_ndov_path(path: str) -> list[dict]:
     """Fetch and parse the HTML directory listing from NDOV Loket."""
     from urllib.parse import urlparse
 
@@ -68,7 +69,7 @@ def list_ndov_path(path: str) -> List[dict]:
     expected = urlparse(BASE_URL)
     if parsed.netloc != expected.netloc or parsed.scheme != expected.scheme:
         raise ValueError(
-            f"Resolved URL '{url}' is outside the allowed host '{BASE_URL}'"
+            f"Resolved URL '{url}' is outside the allowed host '{BASE_URL}'",
         )
     # Apache directory index is HTML — override the kernel's JSON default.
     response = http_get(
@@ -95,7 +96,7 @@ def list_ndov_path(path: str) -> List[dict]:
                 "path": urljoin(path, href),
                 "type": "directory" if is_dir else "file",
                 "url": urljoin(BASE_URL, urljoin(path.lstrip("/"), href)),
-            }
+            },
         )
 
     return entries
@@ -111,7 +112,7 @@ async def handle_ndov_list_path(
         return [types.TextContent(type="text", text=to_json_text(entries))]
     except Exception as e:
         log.error(
-            f"Error listing NDOV path {arguments.get('path') if arguments else ''}: {e}"
+            f"Error listing NDOV path {arguments.get('path') if arguments else ''}: {e}",
         )
         raise
 
@@ -120,8 +121,8 @@ TOOLS.append(
     types.Tool(
         name="ndov-list-path",
         description="List files and subdirectories on data.ndovloket.nl for Dutch transit data.",
-        inputSchema=NdovListPathParams.model_json_schema(),
-    )
+        input_schema=NdovListPathParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ndov-list-path"] = handle_ndov_list_path
 
@@ -130,7 +131,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "nl-ndov", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "nl-ndov",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

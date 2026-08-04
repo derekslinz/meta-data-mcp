@@ -28,13 +28,13 @@ def test_uris_matches_register_shapes_plus_apps() -> None:
     handlers: dict[str, object] = {}
     registered: dict[str, str] = {}
     registered.update(
-        {f"shape/{k}": v for k, v in register_shapes(resources, handlers).items()}  # type: ignore[arg-type]
+        {f"shape/{k}": v for k, v in register_shapes(resources, handlers).items()},  # type: ignore[arg-type]
     )
     registered.update(
-        {f"app/{k}": v for k, v in register_apps(resources, handlers).items()}  # type: ignore[arg-type]
+        {f"app/{k}": v for k, v in register_apps(resources, handlers).items()},  # type: ignore[arg-type]
     )
 
-    assert URIS == registered, (
+    assert registered == URIS, (
         "ui_resources.URIS is out of sync with register_shapes + register_apps. "
         "Either the catalog or one of the register_* functions was updated "
         "without the other. Diff: "

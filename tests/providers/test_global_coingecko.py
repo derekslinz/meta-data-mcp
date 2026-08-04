@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_coingecko import (
     TOOLS,
     _coingecko_market_chart_to_shape_payload,
-    handle_coingecko_simple_price,
-    handle_coingecko_list_coins,
-    handle_coingecko_coins_markets,
-    handle_coingecko_get_coin,
     handle_coingecko_coin_history,
     handle_coingecko_coin_market_chart,
-    handle_coingecko_search_trending,
+    handle_coingecko_coins_markets,
+    handle_coingecko_get_coin,
     handle_coingecko_global,
+    handle_coingecko_list_coins,
+    handle_coingecko_search_trending,
+    handle_coingecko_simple_price,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -33,7 +33,7 @@ async def test_coingecko_simple_price_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_coingecko_simple_price(
-            {"ids": "bitcoin", "vs_currencies": "usd"}
+            {"ids": "bitcoin", "vs_currencies": "usd"},
         )
         assert "bitcoin" in result[0].text
         assert "60000" in result[0].text
@@ -77,7 +77,7 @@ async def test_coingecko_coins_markets_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_coingecko_coins_markets(
-            {"vs_currency": "usd", "per_page": 1}
+            {"vs_currency": "usd", "per_page": 1},
         )
         assert "bitcoin" in result[0].text
 
@@ -106,7 +106,7 @@ async def test_coingecko_coin_history_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_coingecko_coin_history(
-            {"id": "bitcoin", "date": "01-01-2023"}
+            {"id": "bitcoin", "date": "01-01-2023"},
         )
         assert "40000" in result[0].text
 
@@ -120,7 +120,7 @@ async def test_coingecko_coin_market_chart_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_coingecko_coin_market_chart(
-            {"id": "bitcoin", "days": "7"}
+            {"id": "bitcoin", "days": "7"},
         )
         assert "50000" in result[0].text
         assert "points" in result[0].text
@@ -159,7 +159,7 @@ def test_coingecko_market_chart_adapter_skips_malformed():
             "not-a-pair",
             [1700000000000, "bad"],
             [None, 1.0],
-        ]
+        ],
     }
     payload = _coingecko_market_chart_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -181,7 +181,7 @@ async def test_coingecko_market_chart_returns_shape_payload():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_coingecko_coin_market_chart(
-            {"id": "bitcoin", "vs_currency": "usd", "days": "1"}
+            {"id": "bitcoin", "vs_currency": "usd", "days": "1"},
         )
         body = json.loads(result[0].text)
         assert body["axes"]["y"] == "Value (USD)"
@@ -208,7 +208,7 @@ async def test_coingecko_global_success():
             "data": {
                 "active_cryptocurrencies": 10000,
                 "total_market_cap": {"usd": 2.5e12},
-            }
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 

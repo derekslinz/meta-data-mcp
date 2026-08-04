@@ -35,7 +35,8 @@ def provider():
 
 async def _issue_token(provider, *, email: str | None):
     """Drive the provider's authorize→code→exchange flow, optionally binding a
-    verified email the way the magic-link handler does."""
+    verified email the way the magic-link handler does.
+    """
     from mcp.server.auth.provider import AuthorizationParams
     from mcp.shared.auth import OAuthClientInformationFull
 
@@ -87,7 +88,8 @@ async def test_revoke_clears_email_binding(provider):
 @pytest.mark.anyio
 async def test_refresh_preserves_email_binding(provider):
     """A refresh exchange must re-bind the email to the new access token, else
-    a user could shed their rate-limit identity by refreshing."""
+    a user could shed their rate-limit identity by refreshing.
+    """
     from mcp.shared.auth import OAuthClientInformationFull
 
     token = await _issue_token(provider, email="user@example.com")
@@ -139,7 +141,8 @@ async def test_per_user_rate_limit_returns_429(provider):
     headers = {"Authorization": f"Bearer {token.access_token}"}
 
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         codes = [
             (await client.get("/sse", headers=headers)).status_code for _ in range(3)
@@ -159,13 +162,16 @@ async def test_rate_limit_is_per_email_not_per_token(provider):
     app = _build_app(provider, rate_limiter=RateLimiter(rpm=1, window_seconds=60))
 
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         r1 = await client.get(
-            "/sse", headers={"Authorization": f"Bearer {t1.access_token}"}
+            "/sse",
+            headers={"Authorization": f"Bearer {t1.access_token}"},
         )
         r2 = await client.get(
-            "/sse", headers={"Authorization": f"Bearer {t2.access_token}"}
+            "/sse",
+            headers={"Authorization": f"Bearer {t2.access_token}"},
         )
 
     assert r1.status_code == 200
@@ -183,7 +189,8 @@ async def test_static_token_not_rate_limited(provider):
     headers = {"Authorization": "Bearer operator-token"}
 
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         codes = [
             (await client.get("/sse", headers=headers)).status_code for _ in range(5)
@@ -199,7 +206,8 @@ async def test_no_rate_limiter_means_no_throttle(provider):
     headers = {"Authorization": f"Bearer {token.access_token}"}
 
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         codes = [
             (await client.get("/sse", headers=headers)).status_code for _ in range(5)

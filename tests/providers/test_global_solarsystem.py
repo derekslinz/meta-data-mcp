@@ -10,9 +10,9 @@ import httpx
 import pytest
 
 from meta_data_mcp.providers.global_solarsystem import (
-    handle_solarsystem_list_bodies,
     handle_solarsystem_get_body,
     handle_solarsystem_known_count,
+    handle_solarsystem_list_bodies,
 )
 
 

@@ -1,5 +1,4 @@
-"""
-World Bank Open Data Provider
+"""World Bank Open Data Provider
 
 This module provides interfaces to the World Bank Open Data API, which exposes
 development indicators (economic, demographic, environmental, social) for
@@ -19,9 +18,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -35,9 +35,9 @@ PROVIDER_ID = "global-world-bank"
 BASE_URL = "https://api.worldbank.org/v2"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -61,7 +61,10 @@ def fetch_list_countries(params: WorldBankListCountriesParams) -> list:
         "page": params.page,
     }
     response = http_get(
-        f"{BASE_URL}/country", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/country",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -83,8 +86,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-list-countries",
         description="List all countries and regions tracked by the World Bank. Returns a 2-element array [metadata, results].",
-        inputSchema=WorldBankListCountriesParams.model_json_schema(),
-    )
+        input_schema=WorldBankListCountriesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-list-countries"] = handle_list_countries
 
@@ -98,7 +101,8 @@ class WorldBankGetCountryParams(BaseModel):
     """Parameters for fetching a single country."""
 
     country: str = Field(
-        ..., description="ISO2 or ISO3 country code (e.g. 'BR' or 'BRA')"
+        ...,
+        description="ISO2 or ISO3 country code (e.g. 'BR' or 'BRA')",
     )
 
 
@@ -133,8 +137,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-get-country",
         description="Get details for a single country by ISO2 or ISO3 code.",
-        inputSchema=WorldBankGetCountryParams.model_json_schema(),
-    )
+        input_schema=WorldBankGetCountryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-get-country"] = handle_get_country
 
@@ -159,7 +163,10 @@ def fetch_list_indicators(params: WorldBankListIndicatorsParams) -> list:
         "page": params.page,
     }
     response = http_get(
-        f"{BASE_URL}/indicator", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/indicator",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -181,8 +188,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-list-indicators",
         description="List World Bank indicators. Returns a 2-element array [metadata, results].",
-        inputSchema=WorldBankListIndicatorsParams.model_json_schema(),
-    )
+        input_schema=WorldBankListIndicatorsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-list-indicators"] = handle_list_indicators
 
@@ -195,11 +202,13 @@ TOOLS_HANDLERS["world-bank-list-indicators"] = handle_list_indicators
 class WorldBankSearchIndicatorsParams(BaseModel):
     """Parameters for searching World Bank indicators by source or topic."""
 
-    source: Optional[int] = Field(
-        None, description="Filter by source ID (see world-bank-list-sources)"
+    source: int | None = Field(
+        None,
+        description="Filter by source ID (see world-bank-list-sources)",
     )
-    topic: Optional[int] = Field(
-        None, description="Filter by topic ID (see world-bank-list-topics)"
+    topic: int | None = Field(
+        None,
+        description="Filter by topic ID (see world-bank-list-topics)",
     )
     per_page: int = Field(default=200, description="Number of indicators per page")
     page: int = Field(default=1, description="Page number (1-indexed)")
@@ -218,7 +227,10 @@ def fetch_search_indicators(params: WorldBankSearchIndicatorsParams) -> list:
         query_params["topic"] = params.topic
 
     response = http_get(
-        f"{BASE_URL}/indicator", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/indicator",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -240,8 +252,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-search-indicators",
         description="Search World Bank indicators by source ID and/or topic ID.",
-        inputSchema=WorldBankSearchIndicatorsParams.model_json_schema(),
-    )
+        input_schema=WorldBankSearchIndicatorsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-search-indicators"] = handle_search_indicators
 
@@ -259,11 +271,13 @@ class WorldBankIndicatorDataParams(BaseModel):
         description="ISO2 or ISO3 country code (e.g. 'US' or 'USA'); 'all' is allowed",
     )
     indicator: str = Field(..., description="Indicator code (e.g. 'NY.GDP.MKTP.CD')")
-    start: Optional[int] = Field(
-        None, description="Start year for the time-series (e.g. 2000)"
+    start: int | None = Field(
+        None,
+        description="Start year for the time-series (e.g. 2000)",
     )
-    end: Optional[int] = Field(
-        None, description="End year for the time-series (e.g. 2020)"
+    end: int | None = Field(
+        None,
+        description="End year for the time-series (e.g. 2020)",
     )
     per_page: int = Field(default=100, description="Number of results per page")
     page: int = Field(default=1, description="Page number (1-indexed)")
@@ -356,9 +370,9 @@ TOOLS.append(
     types.Tool(
         name="world-bank-get-indicator-data",
         description="Fetch indicator time-series values for a country and indicator code.",
-        inputSchema=WorldBankIndicatorDataParams.model_json_schema(),
+        input_schema=WorldBankIndicatorDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["world-bank-get-indicator-data"] = handle_get_indicator_data
 
@@ -370,8 +384,6 @@ TOOLS_HANDLERS["world-bank-get-indicator-data"] = handle_get_indicator_data
 
 class WorldBankListTopicsParams(BaseModel):
     """Parameters for listing World Bank topics."""
-
-    pass
 
 
 def fetch_list_topics(_params: WorldBankListTopicsParams) -> list:
@@ -402,8 +414,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-list-topics",
         description="List the topic taxonomy used by the World Bank to classify indicators.",
-        inputSchema=WorldBankListTopicsParams.model_json_schema(),
-    )
+        input_schema=WorldBankListTopicsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-list-topics"] = handle_list_topics
 
@@ -415,8 +427,6 @@ TOOLS_HANDLERS["world-bank-list-topics"] = handle_list_topics
 
 class WorldBankListSourcesParams(BaseModel):
     """Parameters for listing World Bank data sources."""
-
-    pass
 
 
 def fetch_list_sources(_params: WorldBankListSourcesParams) -> list:
@@ -447,8 +457,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-list-sources",
         description="List the data sources powering World Bank indicators.",
-        inputSchema=WorldBankListSourcesParams.model_json_schema(),
-    )
+        input_schema=WorldBankListSourcesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-list-sources"] = handle_list_sources
 
@@ -460,8 +470,6 @@ TOOLS_HANDLERS["world-bank-list-sources"] = handle_list_sources
 
 class WorldBankListIncomeLevelsParams(BaseModel):
     """Parameters for listing World Bank income-level classifications."""
-
-    pass
 
 
 def fetch_list_income_levels(_params: WorldBankListIncomeLevelsParams) -> list:
@@ -492,8 +500,8 @@ TOOLS.append(
     types.Tool(
         name="world-bank-list-income-levels",
         description="List World Bank income-level classifications (e.g. low, lower-middle, upper-middle, high).",
-        inputSchema=WorldBankListIncomeLevelsParams.model_json_schema(),
-    )
+        input_schema=WorldBankListIncomeLevelsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["world-bank-list-income-levels"] = handle_list_income_levels
 
@@ -502,7 +510,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-world-bank", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-world-bank",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

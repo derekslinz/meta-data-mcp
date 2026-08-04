@@ -1,5 +1,4 @@
-"""
-US Data.gov Catalog API Client
+"""US Data.gov Catalog API Client
 
 This module provides interfaces to access the US Federal Government's open data catalog
 via the current catalog.data.gov API.
@@ -13,9 +12,10 @@ Usage:
     or its components can be imported and used individually.
 """
 
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field, ValidationError
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -31,9 +31,9 @@ BASE_URL = "https://catalog.data.gov"
 SEARCH_URL = f"{BASE_URL}/search"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -44,16 +44,16 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class DataGovListDatasetsParams(BaseModel):
     """Parameters for searching or listing US Data.gov datasets."""
 
-    search: Optional[str] = Field(
+    search: str | None = Field(
         None,
         description="Search term for dataset titles or descriptions",
     )
     rows: int = Field(default=20, description="Number of results to return")
-    after: Optional[str] = Field(
+    after: str | None = Field(
         None,
         description="Pagination cursor returned by a previous Data.gov search",
     )
-    org_slug: Optional[str] = Field(
+    org_slug: str | None = Field(
         None,
         description="Optional organization slug filter, e.g. 'nasa'",
     )
@@ -71,7 +71,10 @@ def list_datagov_datasets(params: DataGovListDatasetsParams) -> dict:
         query_params["org_slug"] = params.org_slug
 
     response = http_get(
-        SEARCH_URL, params=query_params, timeout=10.0, provider=PROVIDER_ID
+        SEARCH_URL,
+        params=query_params,
+        timeout=10.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -106,7 +109,7 @@ def _datagov_search_to_shape_payload(result: dict) -> dict:
                 "organization": org_name,
                 "description": desc,
                 "harvest_record": pkg.get("harvest_record"),
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -139,7 +142,7 @@ def _datagov_search_to_shape_payload(result: dict) -> dict:
                     "type": "string",
                     "description": "Harvest record id",
                 },
-            ]
+            ],
         },
         "default_facets": ["organization", "publisher"],
     }
@@ -173,9 +176,9 @@ TOOLS.append(
     types.Tool(
         name="us-datagov-list-datasets",
         description="Search for datasets in the US Data.gov catalog.",
-        inputSchema=DataGovListDatasetsParams.model_json_schema(),
+        input_schema=DataGovListDatasetsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["us-datagov-list-datasets"] = handle_datagov_list_datasets
 
@@ -203,7 +206,10 @@ def fetch_datagov_dataset(params: DataGovGetDatasetParams) -> dict:
     query_params = {"q": dataset_id, "per_page": 25}
 
     response = http_get(
-        SEARCH_URL, params=query_params, timeout=10.0, provider=PROVIDER_ID
+        SEARCH_URL,
+        params=query_params,
+        timeout=10.0,
+        provider=PROVIDER_ID,
     )
     data = response.json()
 
@@ -247,8 +253,8 @@ TOOLS.append(
     types.Tool(
         name="us-datagov-get-dataset",
         description="Fetch detailed metadata for a specific US Data.gov dataset.",
-        inputSchema=DataGovGetDatasetParams.model_json_schema(),
-    )
+        input_schema=DataGovGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["us-datagov-get-dataset"] = handle_datagov_get_dataset
 
@@ -257,7 +263,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-data-gov", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-data-gov",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

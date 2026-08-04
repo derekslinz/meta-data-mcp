@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_imf import (
     TOOLS,
     _imf_get_data_to_shape_payload,
-    handle_list_dataflows,
-    handle_get_dataflow,
     handle_get_data,
+    handle_get_dataflow,
     handle_get_datastructure,
     handle_list_codelist,
+    handle_list_dataflows,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -30,7 +30,7 @@ def _imf_sdmx_response() -> dict:
                         {
                             "id": "TIME_PERIOD",
                             "values": [{"id": "2020"}, {"id": "2021"}],
-                        }
+                        },
                     ],
                     "series": [
                         {"id": "FREQ", "values": [{"id": "A"}]},
@@ -38,13 +38,13 @@ def _imf_sdmx_response() -> dict:
                     ],
                 },
                 "attributes": {
-                    "series": [{"id": "UNIT_MEASURE", "values": [{"name": "Percent"}]}]
+                    "series": [{"id": "UNIT_MEASURE", "values": [{"name": "Percent"}]}],
                 },
             },
             "dataSets": [
-                {"series": {"0:0": {"observations": {"0": [2.5], "1": [3.0]}}}}
+                {"series": {"0:0": {"observations": {"0": [2.5], "1": [3.0]}}}},
             ],
-        }
+        },
     }
 
 
@@ -54,9 +54,9 @@ async def test_imf_list_dataflows_success():
         mock_get.return_value.json.return_value = {
             "data": {
                 "dataflows": [
-                    {"id": "IFS", "name": "International Financial Statistics"}
-                ]
-            }
+                    {"id": "IFS", "name": "International Financial Statistics"},
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -77,7 +77,7 @@ async def test_imf_list_dataflows_error():
 async def test_imf_list_dataflows_custom_agency():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": {"dataflows": [{"id": "BOP"}]}
+            "data": {"dataflows": [{"id": "BOP"}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -89,7 +89,7 @@ async def test_imf_list_dataflows_custom_agency():
 async def test_imf_get_dataflow_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": {"dataflows": [{"id": "IFS", "version": "1.0"}]}
+            "data": {"dataflows": [{"id": "IFS", "version": "1.0"}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -115,7 +115,7 @@ async def test_imf_get_data_success():
                 "key": "USA",
                 "startPeriod": "2020",
                 "endPeriod": "2021",
-            }
+            },
         )
         assert "points" in result[0].text
 
@@ -173,7 +173,7 @@ async def test_imf_get_data_returns_shape_payload():
 async def test_imf_get_datastructure_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "data": {"dataStructures": [{"id": "DSD_IFS"}]}
+            "data": {"dataStructures": [{"id": "DSD_IFS"}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -190,9 +190,9 @@ async def test_imf_list_codelist_success():
                     {
                         "id": "CL_AREA",
                         "codes": [{"id": "USA", "name": "United States"}],
-                    }
-                ]
-            }
+                    },
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 

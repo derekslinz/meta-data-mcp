@@ -1,5 +1,4 @@
-"""
-Swiss Federal Railways (SBB) Data API Client
+"""Swiss Federal Railways (SBB) Data API Client
 
 This module provides interfaces to access various endpoints of the SBB Data API (data.sbb.ch).
 It includes tools and handlers for retrieving rail traffic information and other railway-related
@@ -16,10 +15,11 @@ Usage:
 """
 
 import logging
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, List, Optional, Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -31,13 +31,15 @@ PROVIDER_ID = "ch-sbb"
 BASE_URL = "https://data.sbb.ch/api/explore/v2.1"
 
 # Registration Variables
-RESOURCES: List[Any] = []  # resources that will be registered by each endpoints
+RESOURCES: list[Any] = []  # resources that will be registered by each endpoints
 RESOURCES_HANDLERS: dict[
-    str, Any
+    str,
+    Any,
 ] = {}  # resources handlers that will be registered by each endpoints
-TOOLS: List[types.Tool] = []  # tools that will be registered by each endpoints
+TOOLS: list[types.Tool] = []  # tools that will be registered by each endpoints
 TOOLS_HANDLERS: dict[
-    str, Any
+    str,
+    Any,
 ] = {}  # tools handlers that will be registered by each endpoints
 
 
@@ -48,19 +50,19 @@ TOOLS_HANDLERS: dict[
 
 # 1. define models for the input / output
 class TrafficInfoParams(BaseModel):
-    select: Optional[str] = Field(
+    select: str | None = Field(
         None,
         description="Fields to select in the response. Examples: 'title,description' for basic info, 'title,validitybegin,validityend' for timing info",
     )
-    where: Optional[str] = Field(
+    where: str | None = Field(
         None,
         description="Filter conditions for traffic info. Examples: 'validitybegin >= NOW()', 'description LIKE \"*Zürich*\"'",
     )
-    group_by: Optional[str] = Field(
+    group_by: str | None = Field(
         None,
         description="Group traffic info by specific fields. Example: 'author' to group by the author of the traffic info",
     )
-    order_by: Optional[str] = Field(
+    order_by: str | None = Field(
         None,
         description="Sort traffic info. Example: 'validitybegin ASC' for chronological order, 'published DESC' for newest first",
     )
@@ -75,15 +77,15 @@ class TrafficInfoParams(BaseModel):
         ge=0,
         description="Number of traffic info entries to skip for pagination",
     )
-    refine: Optional[str] = Field(
+    refine: str | None = Field(
         None,
         description="Refine by specific facets. Example: 'author:SBB' to show only SBB notifications",
     )
-    exclude: Optional[str] = Field(
+    exclude: str | None = Field(
         None,
         description="Exclude specific fields from response. Example: 'description_html' to exclude HTML formatting",
     )
-    lang: Optional[str] = Field(
+    lang: str | None = Field(
         None,
         description="Language code for responses (de, fr, it, en). Affects message content language",
     )
@@ -92,51 +94,59 @@ class TrafficInfoParams(BaseModel):
         description="Timezone for validity and publication times. Example: 'Europe/Zurich' for local Swiss time",
     )
     include_links: bool = Field(
-        default=False, description="Include related links in response"
+        default=False,
+        description="Include related links in response",
     )
     include_app_metas: bool = Field(
-        default=False, description="Include application metadata"
+        default=False,
+        description="Include application metadata",
     )
 
 
 class TrafficInfoResult(BaseModel):
-    title: Optional[str] = Field(default=None, description="Title of the traffic info")
-    link: Optional[str] = Field(default=None, description="URL to more details")
-    description: Optional[str] = Field(
-        default=None, description="Plain text description"
+    title: str | None = Field(default=None, description="Title of the traffic info")
+    link: str | None = Field(default=None, description="URL to more details")
+    description: str | None = Field(
+        default=None,
+        description="Plain text description",
     )
-    published: Optional[datetime] = Field(
-        default=None, description="Publication timestamp"
+    published: datetime | None = Field(
+        default=None,
+        description="Publication timestamp",
     )
-    author: Optional[str] = Field(
-        default=None, description="Author of the traffic info"
+    author: str | None = Field(
+        default=None,
+        description="Author of the traffic info",
     )
-    validitybegin: Optional[datetime] = Field(
-        default=None, description="Start time of the disruption"
+    validitybegin: datetime | None = Field(
+        default=None,
+        description="Start time of the disruption",
     )
-    validityend: Optional[datetime] = Field(
-        default=None, description="End time of the disruption"
+    validityend: datetime | None = Field(
+        default=None,
+        description="End time of the disruption",
     )
-    description_html: Optional[str] = Field(
-        default=None, description="HTML formatted description"
+    description_html: str | None = Field(
+        default=None,
+        description="HTML formatted description",
     )
 
 
 class TrafficInfoResponse(BaseModel):
     total_count: int = Field(description="Total number of results available")
-    results: List[TrafficInfoResult] = Field(description="List of traffic info items")
+    results: list[TrafficInfoResult] = Field(description="List of traffic info items")
 
 
 # 2. define the function to fetch the data
 def fetch_rail_traffic_info(params: TrafficInfoParams) -> TrafficInfoResponse:
-    """
-    Fetch rail traffic information based on the provided parameters.
+    """Fetch rail traffic information based on the provided parameters.
 
     Args:
         params: TrafficInfoParams object containing all query parameters
 
     Returns:
         TrafficInfoResponse object containing the results
+
     """
     endpoint = f"{BASE_URL}/catalog/datasets/rail-traffic-information/records"
     response = http_get(
@@ -154,12 +164,13 @@ async def handle_rail_traffic_info(
 ) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     try:
         traffic_info_response = fetch_rail_traffic_info(
-            TrafficInfoParams(**(arguments or {}))
+            TrafficInfoParams(**(arguments or {})),
         )
         return [
             types.TextContent(
-                type="text", text=to_json_text(traffic_info_response.model_dump())
-            )
+                type="text",
+                text=to_json_text(traffic_info_response.model_dump()),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching rail traffic info: {e}")
@@ -171,8 +182,8 @@ TOOLS.append(
     types.Tool(
         name="rail-traffic-info",
         description="Fetch rail traffic information",
-        inputSchema=TrafficInfoParams.model_json_schema(),
-    )
+        input_schema=TrafficInfoParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["rail-traffic-info"] = handle_rail_traffic_info
 
@@ -183,19 +194,19 @@ TOOLS_HANDLERS["rail-traffic-info"] = handle_rail_traffic_info
 
 # 1. define models for the input / output
 class RailwayLineParams(BaseModel):
-    select: Optional[str] = Field(
+    select: str | None = Field(
         None,
         description="Fields to select in the response. Examples: 'linie,linienname' for basic info, 'bpk_anfang,bpk_ende' for station info",
     )
-    where: Optional[str] = Field(
+    where: str | None = Field(
         None,
         description="Filter conditions. Examples: 'linie = 100', 'bpk_anfang LIKE \"*Zürich*\"'",
     )
-    group_by: Optional[str] = Field(
+    group_by: str | None = Field(
         None,
         description="Group railway lines by specific fields. Example: 'bpk_anfang' to group by starting station",
     )
-    order_by: Optional[str] = Field(
+    order_by: str | None = Field(
         None,
         description="Sort railway lines. Example: 'linie ASC' for line number order, 'km_ende DESC' for longest routes first",
     )
@@ -218,8 +229,8 @@ class GeoPoint2D(BaseModel):
 
 
 class LineGeometry(BaseModel):
-    coordinates: List[List[float]] = Field(
-        description="List of coordinate pairs [lon, lat]"
+    coordinates: list[list[float]] = Field(
+        description="List of coordinate pairs [lon, lat]",
     )
     type: str = Field(description="Geometry type (usually 'LineString')")
 
@@ -231,41 +242,45 @@ class LineFeature(BaseModel):
 
 
 class RailwayLineResult(BaseModel):
-    linie: Optional[int] = Field(default=None, description="Line number")
-    linienname: Optional[str] = Field(default=None, description="Line name/description")
-    bpk_anfang: Optional[str] = Field(default=None, description="Starting station")
-    bpk_ende: Optional[str] = Field(default=None, description="End station")
-    km_anfang: Optional[float] = Field(default=None, description="Starting kilometer")
-    km_ende: Optional[float] = Field(default=None, description="End kilometer")
-    stationierung_anfang: Optional[int] = Field(
-        default=None, description="Starting stationing"
+    linie: int | None = Field(default=None, description="Line number")
+    linienname: str | None = Field(default=None, description="Line name/description")
+    bpk_anfang: str | None = Field(default=None, description="Starting station")
+    bpk_ende: str | None = Field(default=None, description="End station")
+    km_anfang: float | None = Field(default=None, description="Starting kilometer")
+    km_ende: float | None = Field(default=None, description="End kilometer")
+    stationierung_anfang: int | None = Field(
+        default=None,
+        description="Starting stationing",
     )
-    stationierung_ende: Optional[int] = Field(
-        default=None, description="End stationing"
+    stationierung_ende: int | None = Field(
+        default=None,
+        description="End stationing",
     )
-    tst: Optional[LineFeature] = Field(
-        default=None, description="Geographic line feature"
+    tst: LineFeature | None = Field(
+        default=None,
+        description="Geographic line feature",
     )
-    geo_point_2d: Optional[GeoPoint2D] = Field(
-        default=None, description="Center point of the line"
+    geo_point_2d: GeoPoint2D | None = Field(
+        default=None,
+        description="Center point of the line",
     )
 
 
 class RailwayLineResponse(BaseModel):
     total_count: int = Field(description="Total number of results available")
-    results: List[RailwayLineResult] = Field(description="List of railway line items")
+    results: list[RailwayLineResult] = Field(description="List of railway line items")
 
 
 # 2. define the function to fetch the data
 def fetch_railway_lines(params: RailwayLineParams) -> RailwayLineResponse:
-    """
-    Fetch railway line information based on the provided parameters.
+    """Fetch railway line information based on the provided parameters.
 
     Args:
         params: RailwayLineParams object containing all query parameters
 
     Returns:
         RailwayLineResponse object containing the results
+
     """
     endpoint = f"{BASE_URL}/catalog/datasets/linie/records"
     response = http_get(
@@ -324,7 +339,7 @@ async def handle_railway_lines(
     """
     try:
         railway_lines_response = fetch_railway_lines(
-            RailwayLineParams(**(arguments or {}))
+            RailwayLineParams(**(arguments or {})),
         )
         payload = _railway_lines_to_shape_payload(railway_lines_response.model_dump())
         return [types.TextContent(type="text", text=to_json_text(payload))]
@@ -338,12 +353,12 @@ TOOLS.append(
     types.Tool(
         name="railway-lines",
         description="Fetch railway line information",
-        inputSchema=RailwayLineParams.model_json_schema(),
+        input_schema=RailwayLineParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["railway-lines"] = handle_railway_lines
 
@@ -354,19 +369,19 @@ TOOLS_HANDLERS["railway-lines"] = handle_railway_lines
 
 # 1. define models for the input / output
 class RollingStockParams(BaseModel):
-    select: Optional[str] = Field(
+    select: str | None = Field(
         None,
         description="Fields to select in the response. Examples: 'fahrzeug_typ,objekt' for basic info, 'vmax_betrieblich_zugelassen,lange_uber_puffer_lup' for technical details",
     )
-    where: Optional[str] = Field(
+    where: str | None = Field(
         None,
         description="Filter conditions. Examples: 'fahrzeug_typ = \"X\"', 'vmax_betrieblich_zugelassen > 100'",
     )
-    group_by: Optional[str] = Field(
+    group_by: str | None = Field(
         None,
         description="Group rolling stock by specific fields. Example: 'fahrzeug_typ' to group by vehicle type",
     )
-    order_by: Optional[str] = Field(
+    order_by: str | None = Field(
         None,
         description="Sort rolling stock. Example: 'baudatum_fahrzeug ASC' for oldest first, 'vmax_betrieblich_zugelassen DESC' for fastest first",
     )
@@ -384,37 +399,40 @@ class RollingStockParams(BaseModel):
 
 
 class RollingStockResult(BaseModel):
-    fahrzeug_art_struktur: Optional[str] = Field(
-        default=None, description="Vehicle structure type"
+    fahrzeug_art_struktur: str | None = Field(
+        default=None,
+        description="Vehicle structure type",
     )
-    fahrzeug_typ: Optional[str] = Field(default=None, description="Vehicle type")
-    objekt: Optional[str] = Field(default=None, description="Vehicle identifier")
-    baudatum_fahrzeug: Optional[str] = Field(default=None, description="Build date")
-    eigengewicht_tara: Optional[float] = Field(default=None, description="Tare weight")
-    lange_uber_puffer_lup: Optional[int] = Field(
-        default=None, description="Length over buffers (mm)"
+    fahrzeug_typ: str | None = Field(default=None, description="Vehicle type")
+    objekt: str | None = Field(default=None, description="Vehicle identifier")
+    baudatum_fahrzeug: str | None = Field(default=None, description="Build date")
+    eigengewicht_tara: float | None = Field(default=None, description="Tare weight")
+    lange_uber_puffer_lup: int | None = Field(
+        default=None,
+        description="Length over buffers (mm)",
     )
-    vmax_betrieblich_zugelassen: Optional[int] = Field(
-        default=None, description="Maximum operational speed"
+    vmax_betrieblich_zugelassen: int | None = Field(
+        default=None,
+        description="Maximum operational speed",
     )
     # Add other fields as needed, all as Optional since many can be null
 
 
 class RollingStockResponse(BaseModel):
     total_count: int = Field(description="Total number of results available")
-    results: List[RollingStockResult] = Field(description="List of rolling stock items")
+    results: list[RollingStockResult] = Field(description="List of rolling stock items")
 
 
 # 2. define the function to fetch the data
 def fetch_rolling_stock(params: RollingStockParams) -> RollingStockResponse:
-    """
-    Fetch rolling stock information based on the provided parameters.
+    """Fetch rolling stock information based on the provided parameters.
 
     Args:
         params: RollingStockParams object containing all query parameters
 
     Returns:
         RollingStockResponse object containing the results
+
     """
     endpoint = f"{BASE_URL}/catalog/datasets/rollmaterial/records"
     response = http_get(
@@ -432,12 +450,13 @@ async def handle_rolling_stock(
 ) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     try:
         rolling_stock_response = fetch_rolling_stock(
-            RollingStockParams(**(arguments or {}))
+            RollingStockParams(**(arguments or {})),
         )
         return [
             types.TextContent(
-                type="text", text=to_json_text(rolling_stock_response.model_dump())
-            )
+                type="text",
+                text=to_json_text(rolling_stock_response.model_dump()),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching rolling stock info: {e}")
@@ -449,8 +468,8 @@ TOOLS.append(
     types.Tool(
         name="rolling-stock",
         description="Fetch rolling stock (vehicle) information",
-        inputSchema=RollingStockParams.model_json_schema(),
-    )
+        input_schema=RollingStockParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["rolling-stock"] = handle_rolling_stock
 
@@ -459,7 +478,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "data.sbb.ch", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "data.sbb.ch",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

@@ -137,7 +137,10 @@ class SqliteOAuthPersistence:
     # ------------------------------------------------------------------
 
     def save_access_token(
-        self, token: str, access_token: AccessToken, email: str | None
+        self,
+        token: str,
+        access_token: AccessToken,
+        email: str | None,
     ) -> None:
         with self._lock, self._conn:
             self._conn.execute(
@@ -159,7 +162,7 @@ class SqliteOAuthPersistence:
         """Return (token → AccessToken, token → email) maps."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT token, data, email FROM access_tokens"
+                "SELECT token, data, email FROM access_tokens",
             ).fetchall()
         tokens: dict[str, AccessToken] = {}
         emails: dict[str, str] = {}
@@ -174,7 +177,10 @@ class SqliteOAuthPersistence:
     # ------------------------------------------------------------------
 
     def save_refresh_token(
-        self, token: str, refresh_token: RefreshToken, email: str | None
+        self,
+        token: str,
+        refresh_token: RefreshToken,
+        email: str | None,
     ) -> None:
         with self._lock, self._conn:
             self._conn.execute(
@@ -191,7 +197,7 @@ class SqliteOAuthPersistence:
         """Return (token → RefreshToken, token → email) maps."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT token, data, email FROM refresh_tokens"
+                "SELECT token, data, email FROM refresh_tokens",
             ).fetchall()
         tokens: dict[str, RefreshToken] = {}
         emails: dict[str, str] = {}

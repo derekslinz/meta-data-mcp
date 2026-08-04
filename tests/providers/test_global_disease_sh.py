@@ -1,14 +1,15 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
+
 from meta_data_mcp.providers.global_disease_sh import (
     TOOLS,
     _disease_sh_historical_to_shape_payload,
-    handle_global,
     handle_countries,
     handle_country,
+    handle_global,
     handle_historical_all,
     handle_historical_country,
     handle_vaccine_coverage,
@@ -118,7 +119,7 @@ def test_disease_sh_adapter_skips_bad_dates_and_values():
             "5/1/24": 1.0,
             "bad-date": 2.0,
             "5/2/24": "string-value",
-        }
+        },
     }
     payload = _disease_sh_historical_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -143,7 +144,7 @@ async def test_disease_sh_historical_all_returns_shape_payload():
         result = await handle_historical_all({"lastdays": 1})
         body = json.loads(result[0].text)
         assert body["points"] == [
-            {"date": "2024-05-01", "value": 100, "series": "cases"}
+            {"date": "2024-05-01", "value": 100, "series": "cases"},
         ]
 
 

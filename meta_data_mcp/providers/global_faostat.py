@@ -14,9 +14,10 @@ Auth: None required.
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -32,9 +33,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-faostat"
 BASE_URL = "https://faostatservices.fao.org/api/v1/en"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -71,8 +72,8 @@ TOOLS.append(
             "of crops and livestock, 'FBS' for Food balance) is the first "
             "argument to faostat-list-items and faostat-data."
         ),
-        inputSchema=FaostatListDomainsParams.model_json_schema(),
-    )
+        input_schema=FaostatListDomainsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["faostat-list-domains"] = handle_faostat_list_domains
 
@@ -121,8 +122,8 @@ TOOLS.append(
             "in a specific FAOSTAT domain. Each item has a numeric code used "
             "by faostat-data."
         ),
-        inputSchema=FaostatListItemsParams.model_json_schema(),
-    )
+        input_schema=FaostatListItemsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["faostat-list-items"] = handle_faostat_list_items
 
@@ -140,7 +141,7 @@ class FaostatDataParams(BaseModel):
         min_length=1,
         description=("FAOSTAT domain code (e.g. 'QCL', 'TM', 'FBS'). Required."),
     )
-    area_codes: Optional[str] = Field(
+    area_codes: str | None = Field(
         None,
         description=(
             "Comma-separated FAO area (country) codes — e.g. '231' for USA, "
@@ -148,28 +149,31 @@ class FaostatDataParams(BaseModel):
             "FAOSTAT M49 dimension."
         ),
     )
-    item_codes: Optional[str] = Field(
+    item_codes: str | None = Field(
         None,
         description=(
             "Comma-separated FAOSTAT item codes from faostat-list-items "
             "(e.g. '56' for Maize)."
         ),
     )
-    element_codes: Optional[str] = Field(
+    element_codes: str | None = Field(
         None,
         description=(
             "Comma-separated element codes — e.g. '5510' (Production) or "
             "'5910' (Export quantity)."
         ),
     )
-    year: Optional[str] = Field(
+    year: str | None = Field(
         None,
         description=(
             "Comma-separated years or a range (e.g. '2020,2021,2022' or '2015-2022')."
         ),
     )
     limit: int = Field(
-        default=1000, ge=1, le=10000, description="Maximum rows to return."
+        default=1000,
+        ge=1,
+        le=10000,
+        description="Maximum rows to return.",
     )
 
 
@@ -280,9 +284,9 @@ TOOLS.append(
             "value, and flag. Use faostat-list-domains and faostat-list-items "
             "first to discover codes."
         ),
-        inputSchema=FaostatDataParams.model_json_schema(),
+        input_schema=FaostatDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["faostat-data"] = handle_faostat_data
 

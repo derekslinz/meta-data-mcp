@@ -14,9 +14,10 @@ Auth: None required.
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_vulnerability_v1 import URI as VULN_APP_URI
@@ -39,9 +40,9 @@ CATALOG_URL = (
 # by default to keep subsequent tool calls fast without serving stale data.
 _DEFAULT_CACHE_TTL_SECONDS = 3600
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -63,19 +64,19 @@ def _fetch_catalog() -> dict:
 class CisaKevListParams(BaseModel):
     """Parameters for cisa-kev-list."""
 
-    vendor: Optional[str] = Field(
+    vendor: str | None = Field(
         None,
         description="Case-insensitive substring filter on vendorProject (e.g. 'cisco').",
     )
-    product: Optional[str] = Field(
+    product: str | None = Field(
         None,
         description="Case-insensitive substring filter on product (e.g. 'ios xe').",
     )
-    known_ransomware: Optional[bool] = Field(
+    known_ransomware: bool | None = Field(
         None,
         description="If true, only return entries with knownRansomwareCampaignUse == 'Known'.",
     )
-    date_added_after: Optional[str] = Field(
+    date_added_after: str | None = Field(
         None,
         pattern=r"^\d{4}-\d{2}-\d{2}$",
         description="ISO date (YYYY-MM-DD); return entries added on/after this date.",
@@ -117,11 +118,10 @@ def fetch_cisa_kev_list(params: CisaKevListParams) -> dict:
         # NOTE: this lexicographic compare is safe only because CISA emits
         # dates in ISO YYYY-MM-DD format; if that ever changes the filter
         # will return wrong results silently.
-        if params.date_added_after and (
-            entry.get("dateAdded", "") < params.date_added_after
-        ):
-            return False
-        return True
+        return not (
+            params.date_added_after
+            and entry.get("dateAdded", "") < params.date_added_after
+        )
 
     filtered = [e for e in entries if _matches(e)]
     sliced = filtered[params.offset : params.offset + params.limit]
@@ -154,11 +154,11 @@ TOOLS.append(
             "date_added range. The catalog is the authoritative US-government "
             "list of actively exploited vulnerabilities (~1000 entries)."
         ),
-        inputSchema=CisaKevListParams.model_json_schema(),
+        input_schema=CisaKevListParams.model_json_schema(),
         # MCP Apps binding: render via the vulnerability app. Use the alias
         # keyword (``_meta=``) — see tests/test_ui_resource.py for the footgun.
         _meta={"ui": {"resourceUri": VULN_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["cisa-kev-list"] = handle_cisa_kev_list
 
@@ -206,9 +206,9 @@ TOOLS.append(
             "dueDate, knownRansomwareCampaignUse, requiredAction) or "
             "{cveID, in_kev: false} if the CVE is not on the list."
         ),
-        inputSchema=CisaKevGetParams.model_json_schema(),
+        input_schema=CisaKevGetParams.model_json_schema(),
         _meta={"ui": {"resourceUri": VULN_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["cisa-kev-get"] = handle_cisa_kev_get
 

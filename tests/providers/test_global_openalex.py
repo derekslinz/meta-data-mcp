@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_openalex import (
     TOOLS,
     _openalex_works_to_entity_graph_payload,
-    handle_openalex_search_works,
+    handle_openalex_get_author,
     handle_openalex_get_work,
     handle_openalex_search_authors,
-    handle_openalex_get_author,
-    handle_openalex_search_institutions,
-    handle_openalex_search_sources,
     handle_openalex_search_concepts,
+    handle_openalex_search_institutions,
     handle_openalex_search_publishers,
+    handle_openalex_search_sources,
+    handle_openalex_search_works,
 )
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
 
@@ -33,7 +33,7 @@ async def test_openalex_search_works_success():
                 {
                     "id": "https://openalex.org/W123",
                     "title": "Attention Is All You Need",
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
@@ -103,7 +103,7 @@ async def test_openalex_search_authors_success():
         mock_get.return_value.json.return_value = {
             "meta": {"count": 1},
             "results": [
-                {"id": "https://openalex.org/A1", "display_name": "Geoffrey Hinton"}
+                {"id": "https://openalex.org/A1", "display_name": "Geoffrey Hinton"},
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
@@ -185,7 +185,8 @@ async def test_openalex_search_publishers_success():
 def test_openalex_entity_graph_adapter_flattens_works_authors_concepts():
     """The adapter turns OpenAlex's nested ``authorships`` + ``concepts``
     arrays into flat node/edge lists; works→authors are ``authored``,
-    works→concepts are ``about``."""
+    works→concepts are ``about``.
+    """
     raw = {
         "results": [
             {
@@ -216,8 +217,8 @@ def test_openalex_entity_graph_adapter_flattens_works_authors_concepts():
                         "score": 0.9,
                     },
                 ],
-            }
-        ]
+            },
+        ],
     }
     payload = _openalex_works_to_entity_graph_payload(raw)
     node_ids = {n["id"] for n in payload["nodes"]}
@@ -241,7 +242,8 @@ def test_openalex_entity_graph_adapter_flattens_works_authors_concepts():
 def test_openalex_entity_graph_adapter_dedupes_authors_across_works():
     """Two works sharing an author surface a SINGLE author node with
     two ``authored`` edges — that's what makes co-author clusters
-    visible in the force layout."""
+    visible in the force layout.
+    """
     raw = {
         "results": [
             {
@@ -258,7 +260,7 @@ def test_openalex_entity_graph_adapter_dedupes_authors_across_works():
                     {"author": {"id": "https://openalex.org/A1", "display_name": "X"}},
                 ],
             },
-        ]
+        ],
     }
     payload = _openalex_works_to_entity_graph_payload(raw)
     author_nodes = [n for n in payload["nodes"] if n["type"] == "author"]
@@ -278,7 +280,8 @@ def test_openalex_entity_graph_adapter_handles_empty_results():
 def test_openalex_search_works_tool_binds_to_entity_graph():
     """Pin both the Python-side ``.meta`` attribute AND the wire-level
     alias (``model_dump(by_alias=True)`` emits ``_meta``) so a future
-    SDK regression on the populate_by_name footgun is caught here."""
+    SDK regression on the populate_by_name footgun is caught here.
+    """
     tool = next(t for t in TOOLS if t.name == "openalex-search-works")
     assert tool.meta == {"ui": {"resourceUri": ENTITY_GRAPH_URI}}
     wire = tool.model_dump(by_alias=True, exclude_none=True)
@@ -289,7 +292,8 @@ def test_openalex_search_works_tool_binds_to_entity_graph():
 async def test_openalex_search_works_returns_entity_graph_payload():
     """The handler must now return the entity-graph shape, not the
     raw OpenAlex response — that's what makes the bound bundle's
-    payload contract honest end-to-end."""
+    payload contract honest end-to-end.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "results": [
@@ -301,11 +305,11 @@ async def test_openalex_search_works_returns_entity_graph_payload():
                             "author": {
                                 "id": "https://openalex.org/A1",
                                 "display_name": "Author",
-                            }
-                        }
+                            },
+                        },
                     ],
-                }
-            ]
+                },
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_openalex_search_works({"search": "x"})

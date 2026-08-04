@@ -1,15 +1,15 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_treasury_fiscal import (
     TOOLS,
     TOOLS_HANDLERS,
     _treasury_debt_to_penny_to_shape_payload,
-    handle_treasury_get_debt_to_penny,
     handle_treasury_get_avg_interest_rates,
+    handle_treasury_get_debt_to_penny,
     handle_treasury_get_dts_operating_cash,
     handle_treasury_get_dts_public_debt,
     handle_treasury_get_exchange_rates,
@@ -38,7 +38,7 @@ def mock_debt_to_penny_response():
             {
                 "record_date": "2024-01-02",
                 "tot_pub_debt_out_amt": "34001493655565.48",
-            }
+            },
         ],
         "meta": {"count": 1, "total-count": 1, "total-pages": 1},
     }
@@ -52,7 +52,7 @@ def mock_avg_interest_rates_response():
                 "record_date": "2024-01-31",
                 "security_type_desc": "Marketable",
                 "avg_interest_rate_amt": "3.142",
-            }
+            },
         ],
         "meta": {"count": 1},
     }
@@ -70,7 +70,10 @@ def mock_dts_operating_cash_response():
 def mock_dts_public_debt_response():
     return {
         "data": [
-            {"record_date": "2024-01-02", "transaction_type": "Public Debt Cash Issues"}
+            {
+                "record_date": "2024-01-02",
+                "transaction_type": "Public Debt Cash Issues",
+            },
         ],
         "meta": {"count": 1},
     }
@@ -84,7 +87,7 @@ def mock_exchange_rates_response():
                 "record_date": "2023-12-31",
                 "country_currency_desc": "Canada-Dollar",
                 "exchange_rate": "1.330",
-            }
+            },
         ],
         "meta": {"count": 1},
     }
@@ -97,7 +100,7 @@ async def test_treasury_get_debt_to_penny_success(mock_debt_to_penny_response):
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_treasury_get_debt_to_penny(
-            {"page_size": 5, "filter": "record_date:gte:2024-01-01"}
+            {"page_size": 5, "filter": "record_date:gte:2024-01-01"},
         )
         assert "points" in result[0].text
         # Verify page[size] query key is forwarded properly through httpx params dict.
@@ -116,7 +119,7 @@ def test_treasury_debt_adapter_flattens_to_points():
         "data": [
             {"record_date": "2024-01-02", "tot_pub_debt_out_amt": "34001493655565.48"},
             {"record_date": "2024-01-03", "tot_pub_debt_out_amt": "34010000000000.00"},
-        ]
+        ],
     }
     payload = _treasury_debt_to_penny_to_shape_payload(raw)
     assert payload["axes"]["x"] == "Date"
@@ -136,7 +139,7 @@ def test_treasury_debt_adapter_skips_non_numeric():
             {"record_date": "2024-01-02", "tot_pub_debt_out_amt": "bad"},
             {"record_date": "2024-01-03", "tot_pub_debt_out_amt": "1.0"},
             {"record_date": "2024-01-04"},  # missing field
-        ]
+        ],
     }
     payload = _treasury_debt_to_penny_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -215,7 +218,7 @@ async def test_treasury_get_exchange_rates_success(mock_exchange_rates_response)
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_treasury_get_exchange_rates(
-            {"page_size": 1, "filter": "country_currency_desc:eq:Canada-Dollar"}
+            {"page_size": 1, "filter": "country_currency_desc:eq:Canada-Dollar"},
         )
         assert "Canada-Dollar" in result[0].text
 
@@ -241,7 +244,7 @@ async def test_treasury_search_records_success(mock_debt_to_penny_response):
                 "page_size": 10,
                 "filter": "record_date:gte:2024-01-01",
                 "sort": "-record_date",
-            }
+            },
         )
         assert "tot_pub_debt_out_amt" in result[0].text
         sent_params = mock_get.call_args.kwargs["params"]

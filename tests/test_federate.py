@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-
 # ---------------------------------------------------------------------------
 # federate.harmonize_result
 # ---------------------------------------------------------------------------
@@ -27,7 +26,7 @@ class TestHarmonizeResult:
                 "date": "2015-Q1",
                 "area": "EL",  # Eurostat Greece
                 "indicator": 42.0,
-            }
+            },
         }
         out = harmonize_result(raw, source="eu-eurostat")
         assert isinstance(out, dict)
@@ -44,7 +43,7 @@ class TestHarmonizeResult:
                 "date": "2015-06-15",
                 "area": "USA",
                 "value": 1.0,
-            }
+            },
         }
         out = harmonize_result(raw, source="test_provider")
         assert out["harmonized_period"]["freq"] == "D"
@@ -56,7 +55,7 @@ class TestHarmonizeResult:
             "_items": [
                 {"date": "2015", "area": "DE", "value": 3800.0},
                 {"date": "2016", "area": "DE", "value": 4100.0},
-            ]
+            ],
         }
         out_list = harmonize_result(raw, source="de_provider")
         assert isinstance(out_list, list)
@@ -71,8 +70,8 @@ class TestHarmonizeResult:
             "feed": {
                 "entry": [
                     {"period": "2015", "country": "fr", "value": 100.0},
-                ]
-            }
+                ],
+            },
         }
         # path=["feed", "entry"] tells the harmonizer where to find items.
         out_list = harmonize_result(raw, source="test_provider")
@@ -173,7 +172,7 @@ def test_federate_query_handler_succeeds() -> None:
     loop = asyncio.new_event_loop()
     try:
         result = loop.run_until_complete(
-            mod.TOOLS_HANDLERS["opendata_federate_query"]({})
+            mod.TOOLS_HANDLERS["opendata_federate_query"]({}),
         )
         assert result is not None
     finally:
@@ -188,7 +187,7 @@ def test_federate_compare_handler_succeeds() -> None:
     loop = asyncio.new_event_loop()
     try:
         result = loop.run_until_complete(
-            mod.TOOLS_HANDLERS["opendata_federate_compare"]({})
+            mod.TOOLS_HANDLERS["opendata_federate_compare"]({}),
         )
         assert result is not None
     finally:

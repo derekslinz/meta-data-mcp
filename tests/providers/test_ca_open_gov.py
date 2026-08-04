@@ -1,19 +1,19 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.ca_open_gov import (
     TOOLS,
     _ckan_package_search_to_shape_payload,
-    handle_ca_opengov_search_datasets,
     handle_ca_opengov_get_dataset,
-    handle_ca_opengov_list_organizations,
     handle_ca_opengov_get_organization,
     handle_ca_opengov_list_groups,
-    handle_ca_opengov_list_tags,
     handle_ca_opengov_list_licenses,
+    handle_ca_opengov_list_organizations,
+    handle_ca_opengov_list_tags,
+    handle_ca_opengov_search_datasets,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -31,7 +31,7 @@ async def test_ca_opengov_search_datasets_success():
             "result": {
                 "count": 1,
                 "results": [
-                    {"name": "canada-census-2021", "title": "Canada Census 2021"}
+                    {"name": "canada-census-2021", "title": "Canada Census 2021"},
                 ],
             },
         }
@@ -125,7 +125,7 @@ async def test_ca_opengov_list_licenses_success():
         mock_get.return_value.json.return_value = {
             "success": True,
             "result": [
-                {"id": "ca-ogl-lgo", "title": "Open Government Licence - Canada"}
+                {"id": "ca-ogl-lgo", "title": "Open Government Licence - Canada"},
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
@@ -151,9 +151,9 @@ def test_adapter_flattens_ckan_package_search_to_rows():
                     "license_title": "OGL-Canada",
                     "tags": [{"display_name": "Census"}],
                     "resources": [{"format": "csv"}],
-                }
+                },
             ],
-        }
+        },
     }
     payload = _ckan_package_search_to_shape_payload(raw)
     assert payload["rows"][0]["organization"] == "Statistics Canada"
@@ -163,7 +163,7 @@ def test_adapter_flattens_ckan_package_search_to_rows():
 
 def test_adapter_handles_empty_results():
     payload = _ckan_package_search_to_shape_payload(
-        {"result": {"count": 0, "results": []}}
+        {"result": {"count": 0, "results": []}},
     )
     assert payload["rows"] == []
 

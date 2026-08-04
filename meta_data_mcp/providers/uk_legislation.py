@@ -1,5 +1,4 @@
-"""
-UK legislation.gov.uk Provider
+"""UK legislation.gov.uk Provider
 
 This module exposes the UK National Archives' legislation.gov.uk
 service, which publishes Acts of the UK Parliament, statutory
@@ -33,9 +32,10 @@ Usage:
 
 import logging
 import xml.etree.ElementTree as ET
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -61,9 +61,9 @@ _MAX_SUMMARY_CHARS = 500
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -75,11 +75,12 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class UkLegislationSearchParams(BaseModel):
     """Parameters for the legislation.gov.uk search feed."""
 
-    title: Optional[str] = Field(None, description="Title query (substring match).")
-    text: Optional[str] = Field(
-        None, description="Free-text search across legislation content."
+    title: str | None = Field(None, description="Title query (substring match).")
+    text: str | None = Field(
+        None,
+        description="Free-text search across legislation content.",
     )
-    type: Optional[str] = Field(
+    type: str | None = Field(
         None,
         description=(
             "Legislation type code (e.g. 'ukpga' for UK Public General Acts, "
@@ -87,7 +88,7 @@ class UkLegislationSearchParams(BaseModel):
             "Parliament)."
         ),
     )
-    year: Optional[int] = Field(None, description="Filter by year (e.g. 2024).")
+    year: int | None = Field(None, description="Filter by year (e.g. 2024).")
     page: int = Field(default=1, description="Results page (1-indexed).")
 
 
@@ -129,7 +130,7 @@ def _uk_legislation_atom_to_shape_payload(xml_text: str) -> dict:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
         log.warning(
-            "uk_legislation adapter: failed to parse Atom XML; returning empty rows"
+            "uk_legislation adapter: failed to parse Atom XML; returning empty rows",
         )
         return {
             "rows": rows,
@@ -172,7 +173,7 @@ def _uk_legislation_atom_to_shape_payload(xml_text: str) -> dict:
                 "year": year,
                 "updated": updated_el.text if updated_el is not None else None,
                 "summary": summary,
-            }
+            },
         )
     return {
         "rows": rows,
@@ -199,7 +200,7 @@ def _uk_legislation_schema() -> dict[str, Any]:
                 "type": "string",
                 "description": "Summary (truncated)",
             },
-        ]
+        ],
     }
 
 
@@ -218,8 +219,9 @@ async def handle_uk_legislation_search(
         payload = _uk_legislation_atom_to_shape_payload(text)
         return [
             types.TextContent(
-                type="text", text=to_records_text(payload)[:MAX_RESPONSE_CHARS]
-            )
+                type="text",
+                text=to_records_text(payload)[:MAX_RESPONSE_CHARS],
+            ),
         ]
     except Exception as e:
         log.error(f"Error searching UK legislation: {e}")
@@ -233,9 +235,9 @@ TOOLS.append(
             "Search legislation.gov.uk across all legislation by title, free "
             "text, type, and/or year."
         ),
-        inputSchema=UkLegislationSearchParams.model_json_schema(),
+        input_schema=UkLegislationSearchParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["uk-legislation-search"] = handle_uk_legislation_search
 
@@ -292,8 +294,8 @@ TOOLS.append(
             "List all UK legislation of a given type for a specified year. "
             "Returns Atom XML."
         ),
-        inputSchema=UkLegislationListByYearParams.model_json_schema(),
-    )
+        input_schema=UkLegislationListByYearParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-legislation-list-by-year"] = handle_uk_legislation_list_by_year
 
@@ -350,8 +352,8 @@ TOOLS.append(
             "Fetch the full text of a specific UK piece of legislation as "
             "Akoma Ntoso XML."
         ),
-        inputSchema=UkLegislationGetDocumentXmlParams.model_json_schema(),
-    )
+        input_schema=UkLegislationGetDocumentXmlParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-legislation-get-document-xml"] = (
     handle_uk_legislation_get_document_xml
@@ -407,8 +409,8 @@ TOOLS.append(
     types.Tool(
         name="uk-legislation-get-document-html",
         description="Fetch the HTML rendering of a specific UK piece of legislation.",
-        inputSchema=UkLegislationGetDocumentHtmlParams.model_json_schema(),
-    )
+        input_schema=UkLegislationGetDocumentHtmlParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-legislation-get-document-html"] = (
     handle_uk_legislation_get_document_html
@@ -427,7 +429,9 @@ class UkLegislationListTypesParams(BaseModel):
 def fetch_uk_legislation_list_types(params: UkLegislationListTypesParams) -> str:
     """Call /browse and return the HTML text describing legislation types."""
     response = http_get(
-        f"{BASE_URL}/browse", headers=_HTML_HEADERS, provider=PROVIDER_ID
+        f"{BASE_URL}/browse",
+        headers=_HTML_HEADERS,
+        provider=PROVIDER_ID,
     )
     return response.text
 
@@ -452,8 +456,8 @@ TOOLS.append(
             "Fetch the legislation.gov.uk browse hub (HTML) which lists every "
             "legislation type the service publishes."
         ),
-        inputSchema=UkLegislationListTypesParams.model_json_schema(),
-    )
+        input_schema=UkLegislationListTypesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-legislation-list-types"] = handle_uk_legislation_list_types
 
@@ -508,8 +512,8 @@ TOOLS.append(
             "Fetch the Atom feed of changes affecting a specific piece of UK "
             "legislation."
         ),
-        inputSchema=UkLegislationChangesFeedParams.model_json_schema(),
-    )
+        input_schema=UkLegislationChangesFeedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-legislation-changes-feed"] = handle_uk_legislation_changes_feed
 
@@ -518,7 +522,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "uk-legislation", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "uk-legislation",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

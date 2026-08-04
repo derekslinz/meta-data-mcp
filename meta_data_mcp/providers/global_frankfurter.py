@@ -1,5 +1,4 @@
-"""
-Frankfurter (ECB FX rates) Provider
+"""Frankfurter (ECB FX rates) Provider
 
 This module exposes the Frankfurter API, a free, key-less wrapper around the
 European Central Bank's published reference exchange rates.
@@ -23,9 +22,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -39,9 +39,9 @@ PROVIDER_ID = "global-frankfurter"
 BASE_URL = "https://api.frankfurter.app"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,7 +57,7 @@ class FrankfurterLatestParams(BaseModel):
         default="USD",
         description="Base currency (ISO 4217 code, e.g. USD, EUR, GBP).",
     )
-    targets: Optional[str] = Field(
+    targets: str | None = Field(
         default=None,
         description="Comma-separated target currency codes (e.g. 'EUR,CHF,GBP'). Leave blank for all.",
     )
@@ -89,8 +89,8 @@ TOOLS.append(
     types.Tool(
         name="frankfurter-latest",
         description="Get the latest ECB reference FX rates for a base currency and optional target list.",
-        inputSchema=FrankfurterLatestParams.model_json_schema(),
-    )
+        input_schema=FrankfurterLatestParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["frankfurter-latest"] = handle_frankfurter_latest
 
@@ -112,7 +112,7 @@ class FrankfurterHistoricalParams(BaseModel):
         default="USD",
         description="Base currency (ISO 4217 code).",
     )
-    targets: Optional[str] = Field(
+    targets: str | None = Field(
         default=None,
         description="Comma-separated target currency codes. Leave blank for all.",
     )
@@ -124,7 +124,9 @@ def fetch_frankfurter_historical(params: FrankfurterHistoricalParams) -> dict:
     if params.targets:
         query_params["to"] = params.targets
     response = http_get(
-        f"{BASE_URL}/{params.date}", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/{params.date}",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -148,8 +150,8 @@ TOOLS.append(
     types.Tool(
         name="frankfurter-historical",
         description="Get ECB reference FX rates for a specific historical date.",
-        inputSchema=FrankfurterHistoricalParams.model_json_schema(),
-    )
+        input_schema=FrankfurterHistoricalParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["frankfurter-historical"] = handle_frankfurter_historical
 
@@ -176,7 +178,7 @@ class FrankfurterTimeSeriesParams(BaseModel):
         default="USD",
         description="Base currency (ISO 4217 code).",
     )
-    targets: Optional[str] = Field(
+    targets: str | None = Field(
         default=None,
         description="Comma-separated target currency codes. Leave blank for all.",
     )
@@ -254,14 +256,14 @@ TOOLS.append(
     types.Tool(
         name="frankfurter-time-series",
         description="Get a time series of ECB reference FX rates between two dates.",
-        inputSchema=FrankfurterTimeSeriesParams.model_json_schema(),
+        input_schema=FrankfurterTimeSeriesParams.model_json_schema(),
         # MCP Apps binding: render via the shared timeseries shape primitive.
         # Pass via the alias keyword (`_meta`), not `meta=` — the SDK's Tool
         # model doesn't enable populate_by_name, so `meta=` silently drops
         # into extras and never reaches the wire. See
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["frankfurter-time-series"] = handle_frankfurter_time_series
 
@@ -298,8 +300,8 @@ TOOLS.append(
     types.Tool(
         name="frankfurter-currencies",
         description="List the currencies supported by Frankfurter (ECB reference rates).",
-        inputSchema=FrankfurterCurrenciesParams.model_json_schema(),
-    )
+        input_schema=FrankfurterCurrenciesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["frankfurter-currencies"] = handle_frankfurter_currencies
 
@@ -361,8 +363,8 @@ TOOLS.append(
     types.Tool(
         name="frankfurter-convert",
         description="Convert an amount from one currency to another using the latest ECB reference rate.",
-        inputSchema=FrankfurterConvertParams.model_json_schema(),
-    )
+        input_schema=FrankfurterConvertParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["frankfurter-convert"] = handle_frankfurter_convert
 
@@ -371,7 +373,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-frankfurter", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-frankfurter",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

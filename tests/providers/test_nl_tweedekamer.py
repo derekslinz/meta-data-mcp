@@ -1,14 +1,15 @@
 import json
+from unittest.mock import Mock, patch
 
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.nl_tweedekamer import (
     TOOLS,
+    TkQueryEntityParams,
     _tk_odata_to_shape_payload,
+    handle_tk_query,
     list_tk_entities,
     query_tk_entity,
-    TkQueryEntityParams,
-    handle_tk_query,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -26,8 +27,8 @@ def mock_odata_response():
                 "Id": "fab499e2-93b6-4bba-8266-00014175f6a6",
                 "Voornamen": "Jan",
                 "Achternaam": "de Vries",
-            }
-        ]
+            },
+        ],
     }
 
 

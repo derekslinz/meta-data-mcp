@@ -1,5 +1,4 @@
-"""
-WHO Global Health Observatory (GHO) OData Provider
+"""WHO Global Health Observatory (GHO) OData Provider
 
 This module provides interfaces to the World Health Organization's Global
 Health Observatory (GHO) OData v4 API, which exposes thousands of health
@@ -28,9 +27,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -44,9 +44,9 @@ PROVIDER_ID = "global-who-gho"
 BASE_URL = "https://ghoapi.azureedge.net/api"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -58,11 +58,11 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class WhoGhoListIndicatorsParams(BaseModel):
     """Parameters for listing GHO indicators."""
 
-    top: Optional[int] = Field(
+    top: int | None = Field(
         default=200,
         description="Maximum number of indicators to return ($top)",
     )
-    skip: Optional[int] = Field(
+    skip: int | None = Field(
         default=None,
         description="Number of indicators to skip for pagination ($skip)",
     )
@@ -105,8 +105,8 @@ TOOLS.append(
             "List WHO Global Health Observatory indicators with OData $top "
             "and $skip pagination."
         ),
-        inputSchema=WhoGhoListIndicatorsParams.model_json_schema(),
-    )
+        input_schema=WhoGhoListIndicatorsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["who-gho-list-indicators"] = handle_list_indicators
 
@@ -123,11 +123,11 @@ class WhoGhoGetIndicatorDataParams(BaseModel):
         ...,
         description="Indicator code (e.g. 'WHOSIS_000001' for life expectancy)",
     )
-    top: Optional[int] = Field(
+    top: int | None = Field(
         default=500,
         description="Maximum number of rows to return ($top)",
     )
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Optional OData $filter (e.g. \"SpatialDim eq 'USA'\")",
     )
@@ -218,9 +218,9 @@ TOOLS.append(
             "Fetch time-series data for a WHO GHO indicator code (e.g. "
             "WHOSIS_000001). Supports OData $top and $filter."
         ),
-        inputSchema=WhoGhoGetIndicatorDataParams.model_json_schema(),
+        input_schema=WhoGhoGetIndicatorDataParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["who-gho-get-indicator-data"] = handle_get_indicator_data
 
@@ -232,8 +232,6 @@ TOOLS_HANDLERS["who-gho-get-indicator-data"] = handle_get_indicator_data
 
 class WhoGhoListDimensionsParams(BaseModel):
     """Parameters for listing GHO dimensions."""
-
-    pass
 
 
 def fetch_list_dimensions(_params: WhoGhoListDimensionsParams) -> dict:
@@ -259,8 +257,8 @@ TOOLS.append(
     types.Tool(
         name="who-gho-list-dimensions",
         description="List the dimensions exposed by the WHO GHO OData API (e.g. SEX, COUNTRY, GHO).",
-        inputSchema=WhoGhoListDimensionsParams.model_json_schema(),
-    )
+        input_schema=WhoGhoListDimensionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["who-gho-list-dimensions"] = handle_list_dimensions
 
@@ -310,8 +308,8 @@ TOOLS.append(
         description=(
             "List the values of a specific WHO GHO dimension (e.g. COUNTRY, SEX, GHO)."
         ),
-        inputSchema=WhoGhoListDimensionValuesParams.model_json_schema(),
-    )
+        input_schema=WhoGhoListDimensionValuesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["who-gho-list-dimension-values"] = handle_list_dimension_values
 
@@ -323,8 +321,6 @@ TOOLS_HANDLERS["who-gho-list-dimension-values"] = handle_list_dimension_values
 
 class WhoGhoListCountriesParams(BaseModel):
     """Parameters for listing GHO countries (COUNTRY dimension values)."""
-
-    pass
 
 
 def fetch_list_countries(_params: WhoGhoListCountriesParams) -> dict:
@@ -354,8 +350,8 @@ TOOLS.append(
     types.Tool(
         name="who-gho-list-countries",
         description="List the countries (COUNTRY dimension values) tracked by WHO GHO.",
-        inputSchema=WhoGhoListCountriesParams.model_json_schema(),
-    )
+        input_schema=WhoGhoListCountriesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["who-gho-list-countries"] = handle_list_countries
 
@@ -364,7 +360,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-who-gho", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-who-gho",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

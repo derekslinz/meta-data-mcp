@@ -37,7 +37,7 @@ from __future__ import annotations
 import json
 import os
 from contextlib import AsyncExitStack
-from typing import Any
+from typing import Any, Self
 
 __all__ = ["RemoteClient"]
 
@@ -66,6 +66,7 @@ class RemoteClient:
                   disable auth explicitly on unauthenticated servers.
         timeout:  Connection timeout in seconds for the initial SSE handshake
                   (default 30 s).
+
     """
 
     def __init__(
@@ -75,22 +76,22 @@ class RemoteClient:
         timeout: float = 30.0,
         auth: Any = None,
     ) -> None:
-        """
-        Args:
-            base_url: Root URL of the server (e.g. ``"https://mcp.example.com"``).
-                The ``/sse`` path is appended automatically.
-            token: Bearer token for the server's auth middleware.
-                Falls back to ``META_DATA_MCP_AUTH_TOKEN`` env var.
-                Mutually exclusive with ``auth``.
-            timeout: Connection timeout in seconds (default 30 s).
-            auth: MCP-compatible OAuth client provider for Authorization Code
-                + PKCE flows.  Accepts any object implementing the
-                ``mcp.client.sse`` ``auth=`` interface (e.g. a custom
-                ``OAuthClientProvider``).  Mutually exclusive with ``token``.
+        """Args:
+        base_url: Root URL of the server (e.g. ``"https://mcp.example.com"``).
+            The ``/sse`` path is appended automatically.
+        token: Bearer token for the server's auth middleware.
+            Falls back to ``META_DATA_MCP_AUTH_TOKEN`` env var.
+            Mutually exclusive with ``auth``.
+        timeout: Connection timeout in seconds (default 30 s).
+        auth: MCP-compatible OAuth client provider for Authorization Code
+            + PKCE flows.  Accepts any object implementing the
+            ``mcp.client.sse`` ``auth=`` interface (e.g. a custom
+            ``OAuthClientProvider``).  Mutually exclusive with ``token``.
+
         """
         if token is not None and auth is not None:
             raise ValueError(
-                "token and auth are mutually exclusive — use one or the other"
+                "token and auth are mutually exclusive — use one or the other",
             )
         self._base_url = base_url.rstrip("/")
         self._token = (
@@ -105,7 +106,7 @@ class RemoteClient:
     # Context-manager support (persistent session)
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "RemoteClient":
+    async def __aenter__(self) -> Self:
         from mcp.client.session import ClientSession
         from mcp.client.sse import sse_client
 
@@ -120,7 +121,7 @@ class RemoteClient:
             sse_kwargs["headers"] = self._headers()
         streams = await self._exit_stack.enter_async_context(sse_client(**sse_kwargs))
         self._session = await self._exit_stack.enter_async_context(
-            ClientSession(*streams)
+            ClientSession(*streams),
         )
         await self._session.initialize()
         return self
@@ -231,7 +232,8 @@ class RemoteClient:
     async def describe_provider(self, provider_id: str) -> dict[str, Any] | None:
         """Return the registry entry for *provider_id*, or ``None`` if unknown."""
         payload = await self._call_tool(
-            "opendata_providers_describe", {"provider_id": provider_id}
+            "opendata_providers_describe",
+            {"provider_id": provider_id},
         )
         return payload.get("provider") or None
 
@@ -242,7 +244,8 @@ class RemoteClient:
         ``tools_added``, ``new_tool_names``).
         """
         return await self._call_tool(
-            "opendata_providers_activate", {"provider_id": provider_id}
+            "opendata_providers_activate",
+            {"provider_id": provider_id},
         )
 
     async def health_snapshot(self) -> dict[str, float]:

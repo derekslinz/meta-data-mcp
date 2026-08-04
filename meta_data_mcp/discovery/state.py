@@ -33,9 +33,9 @@ either name.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 
 
 @dataclass
@@ -74,7 +74,8 @@ class ActivationState:
 
     def restore(self, snap: tuple[Any, ...]) -> None:
         """Restore from a snapshot(). Mutates lists/dicts in place so any
-        references held by ``create_mcp_server`` closures stay valid."""
+        references held by ``create_mcp_server`` closures stay valid.
+        """
         saved_tools, saved_handlers, saved_active, saved_owner, saved_server = snap
         self.tools[:] = saved_tools
         self.tools_handlers.clear()
@@ -97,9 +98,9 @@ _state = ActivationState()
 # don't live on ActivationState). TOOLS and TOOLS_HANDLERS point at the
 # SAME list/dict objects owned by ``_state``, so mutations via either
 # name are visible everywhere. Do not reassign these names.
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = _state.tools
+TOOLS: list[types.Tool] = _state.tools
 TOOLS_HANDLERS: dict[str, Any] = _state.tools_handlers
 
 # Convenience aliases for the activation-tracking sub-state. Same
@@ -109,11 +110,11 @@ _owner_by_tool = _state.owner_by_tool
 
 
 __all__ = [
-    "ActivationState",
     "RESOURCES",
     "RESOURCES_HANDLERS",
     "TOOLS",
     "TOOLS_HANDLERS",
+    "ActivationState",
     "_active_providers",
     "_owner_by_tool",
     "_state",

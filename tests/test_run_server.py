@@ -8,7 +8,7 @@ import pytest
 from meta_data_mcp.utils import create_mcp_server, run_server
 
 
-@pytest.fixture()
+@pytest.fixture
 def server():
     """Minimal MCP server for transport tests."""
     return create_mcp_server("test-run-server")
@@ -29,7 +29,9 @@ async def test_run_server_stdio(server):
             await run_server(server, transport="stdio")
 
     mock_run.assert_awaited_once_with(
-        mock_streams[0], mock_streams[1], server.create_initialization_options()
+        mock_streams[0],
+        mock_streams[1],
+        server.create_initialization_options(),
     )
 
 

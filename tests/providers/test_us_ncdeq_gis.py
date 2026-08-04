@@ -32,8 +32,8 @@ async def test_us_ncdeq_search_catalog_success():
                     "id": "abcd1234",
                     "type": "Feature Service",
                     "attributes": {"name": "Watersheds", "owner": "ncdeq"},
-                }
-            ]
+                },
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
@@ -72,7 +72,7 @@ def test_arcgis_adapter_flattens_jsonapi_to_rows():
                     "modified": 1700000000,
                     "url": "https://ncdeq.example/watersheds",
                 },
-            }
+            },
         ],
         "meta": {"queryParameters": {}, "stats": {"totalCount": 1}},
     }

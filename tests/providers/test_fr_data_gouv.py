@@ -1,19 +1,19 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.fr_data_gouv import (
     TOOLS,
     _udata_search_to_shape_payload,
-    handle_fr_datagouv_search_datasets,
     handle_fr_datagouv_get_dataset,
-    handle_fr_datagouv_list_organizations,
     handle_fr_datagouv_get_organization,
-    handle_fr_datagouv_search_reuses,
-    handle_fr_datagouv_list_topics,
+    handle_fr_datagouv_list_organizations,
     handle_fr_datagouv_list_tags,
+    handle_fr_datagouv_list_topics,
+    handle_fr_datagouv_search_datasets,
+    handle_fr_datagouv_search_reuses,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -142,7 +142,7 @@ def test_udata_adapter_flattens_data_array_to_rows():
                 "resources": [{"format": "csv"}],
                 "created_at": "2020-01-01",
                 "last_modified": "2024-01-01",
-            }
+            },
         ],
         "total": 1,
     }

@@ -27,6 +27,7 @@ class ProviderConfig:
         rate_limit_per_minute: Advisory rate-limit ceiling (calls/min).
             Not enforced by the kernel yet; used as documentation and
             future per-provider throttling input.
+
     """
 
     base_url: str
@@ -65,11 +66,12 @@ def require_env_key(var_name: str) -> str:
 
     Raises:
         RuntimeError: If the variable is not set or is empty.
+
     """
     value = os.getenv(var_name)
     if not value:
         raise RuntimeError(
             f"Required environment variable '{var_name}' is not set. "
-            "Configure it before starting the server."
+            "Configure it before starting the server.",
         )
     return value

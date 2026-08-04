@@ -1,5 +1,4 @@
-"""
-BGPView.io Provider — DEPRECATED
+"""BGPView.io Provider — DEPRECATED
 
 BGPView (api.bgpview.io) shut down and is no longer available.
 All tools return an error directing users to the ripestat-* alternatives.
@@ -20,9 +19,9 @@ moment the upstream comes back the wiring is ready.
 """
 
 import logging
-from typing import Any, List
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_network_topology_v1 import (
@@ -34,9 +33,9 @@ log = logging.getLogger(__name__)
 
 PROVIDER_ID = "global-bgpview"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 _UNAVAILABLE_MSG = (
@@ -50,8 +49,9 @@ _UNAVAILABLE_MSG = (
 def _unavailable() -> list[types.TextContent]:
     return [
         types.TextContent(
-            type="text", text=serialize_for_llm({"error": _UNAVAILABLE_MSG})
-        )
+            type="text",
+            text=serialize_for_llm({"error": _UNAVAILABLE_MSG}),
+        ),
     ]
 
 
@@ -86,7 +86,8 @@ class BGPViewPrefixParams(BaseModel):
 
 class BGPViewSearchParams(BaseModel):
     query_term: str = Field(
-        ..., description="ASN number, network name, IP, or description."
+        ...,
+        description="ASN number, network name, IP, or description.",
     )
 
 
@@ -152,7 +153,7 @@ for _name, _desc, _schema in [
     _tool_kwargs: dict[str, Any] = {
         "name": _name,
         "description": _desc,
-        "inputSchema": _schema.model_json_schema(),
+        "input_schema": _schema.model_json_schema(),
     }
     if _name in _NETWORK_TOPOLOGY_TOOLS:
         # MCP Apps binding: render via the Phase 5 network-topology app.
@@ -190,8 +191,7 @@ def _coerce_asn(value: Any) -> int | None:
         return value
     if isinstance(value, str):
         s = value.strip().upper()
-        if s.startswith("AS"):
-            s = s[2:]
+        s = s.removeprefix("AS")
         if s.isdigit():
             return int(s)
     return None
@@ -289,7 +289,7 @@ def _bgpview_asn_relationships_to_topology_payload(
                 "source_asn": focus_asn,
                 "target_asn": neighbour_asn,
                 "relationship": relationship,
-            }
+            },
         )
 
     return {"asns": asns, "edges": edges, "focus_asn": focus_asn}
@@ -299,7 +299,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-bgpview", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-bgpview",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
     await run_server(server, transport, port, host)
 

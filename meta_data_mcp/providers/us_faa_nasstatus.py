@@ -1,5 +1,4 @@
-"""
-FAA National Airspace System (NAS) Status Provider
+"""FAA National Airspace System (NAS) Status Provider
 
 This module exposes the FAA's NAS Status feed, which reports current
 ground stops, ground delays, arrival delays, and other airspace
@@ -34,12 +33,13 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel
 
-from meta_data_mcp.utils import http_get, MAX_RESPONSE_CHARS
+from meta_data_mcp.utils import MAX_RESPONSE_CHARS, http_get
 
 # Initialize logging
 log = logging.getLogger(__name__)
@@ -50,9 +50,9 @@ BASE_URL = "https://nasstatus.faa.gov/api"
 XML_HEADERS = {"Accept": "application/xml"}
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -98,8 +98,8 @@ TOOLS.append(
             "Get the FAA NAS Status airport status feed (XML). Returned as "
             "raw text capped at 20,000 characters; consumers must parse XML."
         ),
-        inputSchema=FAAAirportStatusParams.model_json_schema(),
-    )
+        input_schema=FAAAirportStatusParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["faa-airport-status"] = handle_faa_airport_status
 
@@ -149,8 +149,8 @@ TOOLS.append(
             "Get active FAA ground stops (eventType=GS). Returns raw XML text; "
             "some deployments fall back to the full status payload."
         ),
-        inputSchema=FAAGroundStopsParams.model_json_schema(),
-    )
+        input_schema=FAAGroundStopsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["faa-ground-stops"] = handle_faa_ground_stops
 
@@ -195,8 +195,8 @@ TOOLS.append(
             "Get active FAA ground departure delays (eventType=GD). Returns raw "
             "XML text; some deployments fall back to the full status payload."
         ),
-        inputSchema=FAADepartureDelaysParams.model_json_schema(),
-    )
+        input_schema=FAADepartureDelaysParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["faa-departure-delays"] = handle_faa_departure_delays
 
@@ -241,8 +241,8 @@ TOOLS.append(
             "Get active FAA arrival delays (eventType=ARRDLY). Returns raw XML "
             "text; some deployments fall back to the full status payload."
         ),
-        inputSchema=FAAArrivalDelaysParams.model_json_schema(),
-    )
+        input_schema=FAAArrivalDelaysParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["faa-arrival-delays"] = handle_faa_arrival_delays
 
@@ -251,7 +251,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-faa-nasstatus", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-faa-nasstatus",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

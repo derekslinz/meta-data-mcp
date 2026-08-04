@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -13,7 +13,7 @@ from meta_data_mcp.utils import (
 
 
 def test_to_json_text_serializes_datetime():
-    payload = {"updated_at": datetime(2024, 1, 1, tzinfo=timezone.utc)}
+    payload = {"updated_at": datetime(2024, 1, 1, tzinfo=UTC)}
     text = to_json_text(payload)
     assert '"updated_at":"2024-01-01 00:00:00+00:00"' in text
 
@@ -61,7 +61,7 @@ def test_to_geofeatures_text_trims_feature_list_to_valid_json():
                 "attrs": {"name": f"feature-{i}", "blob": "x" * 150},
             }
             for i in range(200)
-        ]
+        ],
     }
 
     text = to_geofeatures_text(payload, max_chars=MAX_RESPONSE_CHARS)
@@ -85,7 +85,7 @@ def test_to_geofeatures_text_trims_geojson_feature_collection_to_valid_json():
                 }
                 for i in range(200)
             ],
-        }
+        },
     }
 
     text = to_geofeatures_text(payload, max_chars=MAX_RESPONSE_CHARS)
@@ -116,7 +116,8 @@ def test_to_records_text_trims_rows_list_to_valid_json():
     JSON string (which would produce invalid JSON) or replacing the
     payload with a ``{truncated: true, preview: "..."}`` wrapper that
     drops the ``rows`` key entirely (which would leave the records bundle
-    rendering empty)."""
+    rendering empty).
+    """
     payload = {
         "rows": [
             {"id": i, "name": f"record-{i}", "blob": "x" * 200} for i in range(500)
@@ -136,7 +137,8 @@ def test_to_records_text_trims_rows_list_to_valid_json():
 
 def test_to_records_text_empty_rows_remains_valid_shape():
     """Even when the envelope itself is too big to fit (no rows can be
-    included), the fallback must still be valid JSON."""
+    included), the fallback must still be valid JSON.
+    """
     payload = {"rows": [], "schema": {"columns": [{"name": "id"}] * 100}}
     text = to_records_text(payload, max_chars=200)
     parsed = json.loads(text)
@@ -148,7 +150,8 @@ def test_to_records_text_empty_rows_remains_valid_shape():
 
 def test_to_records_text_falls_back_to_json_text_for_non_dict_payload():
     """Defense: if a non-dict accidentally reaches this helper, defer to
-    the generic truncator rather than crashing."""
+    the generic truncator rather than crashing.
+    """
     text = to_records_text([1, 2, 3] * 1000, max_chars=50)
     assert len(text) <= 50
     parsed = json.loads(text)
@@ -171,7 +174,8 @@ def test_to_entity_graph_text_passes_through_small_payloads_unchanged():
 def test_to_entity_graph_text_trims_nodes_and_filters_orphan_edges():
     """Large entity-graph payloads must trim ``nodes`` to a prefix and
     drop any ``edges`` referencing dropped nodes — otherwise the bundle
-    would draw edges into thin air."""
+    would draw edges into thin air.
+    """
     payload = {
         "nodes": [
             {
@@ -200,7 +204,8 @@ def test_to_entity_graph_text_trims_nodes_and_filters_orphan_edges():
 
 def test_to_entity_graph_text_falls_back_to_json_text_when_no_nodes_list():
     """If ``nodes`` is missing or not a list, defer to the generic
-    truncator rather than crashing."""
+    truncator rather than crashing.
+    """
     text = to_entity_graph_text({"something": "x" * 50000}, max_chars=200)
     assert len(text) <= 200
     parsed = json.loads(text)

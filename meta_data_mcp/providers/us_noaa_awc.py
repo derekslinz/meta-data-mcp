@@ -1,5 +1,4 @@
-"""
-NOAA Aviation Weather Center (AWC) Provider
+"""NOAA Aviation Weather Center (AWC) Provider
 
 This module provides interfaces to the NOAA AWC API for METAR, TAF, and station data.
 
@@ -10,9 +9,10 @@ API Documentation: https://aviationweather.gov/data/api/
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.fields import NonEmptyStr
@@ -26,9 +26,9 @@ PROVIDER_ID = "us-noaa-awc"
 BASE_URL = "https://aviationweather.gov/api/data"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -66,8 +66,8 @@ TOOLS.append(
     types.Tool(
         name="awc-metar",
         description="Fetch real-time METAR (Meteorological Aerodrome Report) data from NOAA AWC.",
-        inputSchema=AWCMetarParams.model_json_schema(),
-    )
+        input_schema=AWCMetarParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["awc-metar"] = handle_awc_metar
 
@@ -106,8 +106,8 @@ TOOLS.append(
     types.Tool(
         name="awc-taf",
         description="Fetch real-time TAF (Terminal Aerodrome Forecast) data from NOAA AWC.",
-        inputSchema=AWCTafParams.model_json_schema(),
-    )
+        input_schema=AWCTafParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["awc-taf"] = handle_awc_taf
 
@@ -126,7 +126,9 @@ def fetch_awc_station(params: AWCStationParams) -> Any:
     """Fetch station metadata from NOAA AWC."""
     query_params = {"ids": params.ids, "format": "json"}
     response = http_get(
-        f"{BASE_URL}/station", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/station",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -148,8 +150,8 @@ TOOLS.append(
     types.Tool(
         name="awc-station",
         description="Fetch aviation weather station metadata from NOAA AWC.",
-        inputSchema=AWCStationParams.model_json_schema(),
-    )
+        input_schema=AWCStationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["awc-station"] = handle_awc_station
 
@@ -158,7 +160,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-noaa-awc", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-noaa-awc",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

@@ -1,5 +1,4 @@
-"""
-UK Office for National Statistics (ONS) Provider
+"""UK Office for National Statistics (ONS) Provider
 
 This module provides interfaces to the UK Office for National Statistics
 beta open API, exposing the catalogue of published datasets, their editions,
@@ -19,9 +18,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -35,9 +35,9 @@ PROVIDER_ID = "uk-ons"
 BASE_URL = "https://api.beta.ons.gov.uk/v1"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -57,7 +57,10 @@ def fetch_list_datasets(params: ONSListDatasetsParams) -> dict:
     """Fetch the list of ONS datasets."""
     query_params = {"limit": params.limit, "offset": params.offset}
     response = http_get(
-        f"{BASE_URL}/datasets", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/datasets",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -79,8 +82,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-list-datasets",
         description="List datasets published on the ONS open data API.",
-        inputSchema=ONSListDatasetsParams.model_json_schema(),
-    )
+        input_schema=ONSListDatasetsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-list-datasets"] = handle_list_datasets
 
@@ -99,7 +102,9 @@ class ONSGetDatasetParams(BaseModel):
 def fetch_get_dataset(params: ONSGetDatasetParams) -> dict:
     """Fetch a single ONS dataset by ID."""
     response = http_get(
-        f"{BASE_URL}/datasets/{params.id}", timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/datasets/{params.id}",
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -123,8 +128,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-get-dataset",
         description="Get metadata for a single ONS dataset by ID.",
-        inputSchema=ONSGetDatasetParams.model_json_schema(),
-    )
+        input_schema=ONSGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-get-dataset"] = handle_get_dataset
 
@@ -143,7 +148,9 @@ class ONSListEditionsParams(BaseModel):
 def fetch_list_editions(params: ONSListEditionsParams) -> dict:
     """Fetch the list of editions for an ONS dataset."""
     response = http_get(
-        f"{BASE_URL}/datasets/{params.id}/editions", timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/datasets/{params.id}/editions",
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -167,8 +174,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-list-editions",
         description="List the editions of a given ONS dataset.",
-        inputSchema=ONSListEditionsParams.model_json_schema(),
-    )
+        input_schema=ONSListEditionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-list-editions"] = handle_list_editions
 
@@ -214,8 +221,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-get-edition",
         description="Get metadata for a single edition of an ONS dataset.",
-        inputSchema=ONSGetEditionParams.model_json_schema(),
-    )
+        input_schema=ONSGetEditionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-get-edition"] = handle_get_edition
 
@@ -261,8 +268,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-list-versions",
         description="List all versions of a given ONS edition.",
-        inputSchema=ONSListVersionsParams.model_json_schema(),
-    )
+        input_schema=ONSListVersionsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-list-versions"] = handle_list_versions
 
@@ -278,11 +285,13 @@ class ONSGetObservationsParams(BaseModel):
     id: str = Field(..., description="ONS dataset identifier")
     edition: str = Field(..., description="Edition identifier")
     version: str = Field(..., description="Version identifier (e.g. '1')")
-    time: Optional[str] = Field(
-        None, description="Time dimension filter (e.g. '2023', 'Jan-23', or '*')"
+    time: str | None = Field(
+        None,
+        description="Time dimension filter (e.g. '2023', 'Jan-23', or '*')",
     )
-    geography: Optional[str] = Field(
-        None, description="Geography dimension filter (e.g. 'K02000001' or '*')"
+    geography: str | None = Field(
+        None,
+        description="Geography dimension filter (e.g. 'K02000001' or '*')",
     )
 
 
@@ -388,9 +397,9 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-get-observations",
         description="Fetch observations from a specific ONS dataset version, filterable by time and geography.",
-        inputSchema=ONSGetObservationsParams.model_json_schema(),
+        input_schema=ONSGetObservationsParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["uk-ons-get-observations"] = handle_get_observations
 
@@ -436,8 +445,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-list-codelists",
         description="List code-lists published on the ONS open data API.",
-        inputSchema=ONSListCodeListsParams.model_json_schema(),
-    )
+        input_schema=ONSListCodeListsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-list-codelists"] = handle_list_codelists
 
@@ -456,7 +465,9 @@ class ONSGetCodeListParams(BaseModel):
 def fetch_get_codelist(params: ONSGetCodeListParams) -> dict:
     """Fetch a single ONS code-list by ID."""
     response = http_get(
-        f"{BASE_URL}/code-lists/{params.id}", timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/code-lists/{params.id}",
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -480,8 +491,8 @@ TOOLS.append(
     types.Tool(
         name="uk-ons-get-codelist",
         description="Get metadata for a single ONS code-list by ID.",
-        inputSchema=ONSGetCodeListParams.model_json_schema(),
-    )
+        input_schema=ONSGetCodeListParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-ons-get-codelist"] = handle_get_codelist
 
@@ -490,7 +501,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "uk-ons", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "uk-ons",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

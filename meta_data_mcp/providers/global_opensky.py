@@ -1,5 +1,4 @@
-"""
-OpenSky Network Flight Tracking Provider
+"""OpenSky Network Flight Tracking Provider
 
 This module provides interfaces to the OpenSky Network REST API, which
 exposes live and historical ADS-B flight tracking data for aircraft
@@ -25,12 +24,14 @@ Notes:
 
 Usage:
     The module can be run directly to start a server handling API requests.
+
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -44,9 +45,9 @@ PROVIDER_ID = "global-opensky"
 BASE_URL = "https://opensky-network.org/api"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -58,19 +59,23 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class OpenSkyStatesAllParams(BaseModel):
     """Parameters for fetching all live aircraft state vectors."""
 
-    lamin: Optional[float] = Field(
-        None, description="Lower-bound latitude of bounding box (WGS84)"
+    lamin: float | None = Field(
+        None,
+        description="Lower-bound latitude of bounding box (WGS84)",
     )
-    lomin: Optional[float] = Field(
-        None, description="Lower-bound longitude of bounding box (WGS84)"
+    lomin: float | None = Field(
+        None,
+        description="Lower-bound longitude of bounding box (WGS84)",
     )
-    lamax: Optional[float] = Field(
-        None, description="Upper-bound latitude of bounding box (WGS84)"
+    lamax: float | None = Field(
+        None,
+        description="Upper-bound latitude of bounding box (WGS84)",
     )
-    lomax: Optional[float] = Field(
-        None, description="Upper-bound longitude of bounding box (WGS84)"
+    lomax: float | None = Field(
+        None,
+        description="Upper-bound longitude of bounding box (WGS84)",
     )
-    time: Optional[int] = Field(
+    time: int | None = Field(
         None,
         description="Unix epoch seconds; omit for the latest snapshot",
     )
@@ -180,12 +185,12 @@ TOOLS.append(
     types.Tool(
         name="opensky-get-states-all",
         description="Fetch live ADS-B state vectors for all aircraft (optionally within a bounding box).",
-        inputSchema=OpenSkyStatesAllParams.model_json_schema(),
+        input_schema=OpenSkyStatesAllParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opensky-get-states-all"] = handle_get_states_all
 
@@ -199,7 +204,7 @@ class OpenSkyStatesByAircraftParams(BaseModel):
     """Parameters for fetching state vectors for a specific aircraft."""
 
     icao24: str = Field(..., description="Lowercase ICAO24 transponder address")
-    time: Optional[int] = Field(
+    time: int | None = Field(
         None,
         description="Unix epoch seconds; omit for the latest snapshot",
     )
@@ -239,8 +244,8 @@ TOOLS.append(
     types.Tool(
         name="opensky-get-states-by-aircraft",
         description="Fetch state vectors for a specific ICAO24 aircraft.",
-        inputSchema=OpenSkyStatesByAircraftParams.model_json_schema(),
-    )
+        input_schema=OpenSkyStatesByAircraftParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["opensky-get-states-by-aircraft"] = handle_get_states_by_aircraft
 
@@ -298,8 +303,8 @@ TOOLS.append(
     types.Tool(
         name="opensky-get-flights-aircraft",
         description="Fetch historical flights for a specific ICAO24 aircraft within a time interval.",
-        inputSchema=OpenSkyFlightsAircraftParams.model_json_schema(),
-    )
+        input_schema=OpenSkyFlightsAircraftParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["opensky-get-flights-aircraft"] = handle_get_flights_aircraft
 
@@ -357,8 +362,8 @@ TOOLS.append(
     types.Tool(
         name="opensky-get-flights-arrival",
         description="Fetch arrivals at an ICAO airport within a time interval.",
-        inputSchema=OpenSkyFlightsArrivalParams.model_json_schema(),
-    )
+        input_schema=OpenSkyFlightsArrivalParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["opensky-get-flights-arrival"] = handle_get_flights_arrival
 
@@ -416,8 +421,8 @@ TOOLS.append(
     types.Tool(
         name="opensky-get-flights-departure",
         description="Fetch departures from an ICAO airport within a time interval.",
-        inputSchema=OpenSkyFlightsDepartureParams.model_json_schema(),
-    )
+        input_schema=OpenSkyFlightsDepartureParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["opensky-get-flights-departure"] = handle_get_flights_departure
 
@@ -426,7 +431,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-opensky", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-opensky",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

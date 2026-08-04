@@ -91,6 +91,7 @@ class DiscoveryClient:
                   },
                   ...
                 ]
+
         """
         results = await self._engine.route(
             query=query,
@@ -141,7 +142,7 @@ class DiscoveryClient:
                 region=region,
                 limit=limit,
                 explain=explain,
-            )
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -238,8 +239,12 @@ def find_providers_sync(
     """Find providers (sync — wraps asyncio.run; not for use inside event loops)."""
     return asyncio.run(
         find_providers(
-            query=query, domain=domain, region=region, limit=limit, explain=explain
-        )
+            query=query,
+            domain=domain,
+            region=region,
+            limit=limit,
+            explain=explain,
+        ),
     )
 
 

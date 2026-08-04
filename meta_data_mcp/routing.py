@@ -1,5 +1,4 @@
-"""
-Sophisticated multi-criteria routing engine for provider discovery.
+"""Sophisticated multi-criteria routing engine for provider discovery.
 
 This module provides intelligent ranking of providers based on:
 - Token matching (exact matches, partial matches)
@@ -56,7 +55,6 @@ class Scorer(ABC):
     @abstractmethod
     async def score(self, query: str | None, provider: ProviderEntry) -> float:
         """Return score 0.0-1.0 for how well this provider matches the query."""
-        pass
 
 
 class TokenScorer(Scorer):
@@ -83,7 +81,7 @@ class TokenScorer(Scorer):
                 " ".join(provider.keywords),
                 " ".join(provider.domains),
                 " ".join(provider.regions),
-            )
+            ),
         ).lower()
 
         score = 0.0
@@ -211,6 +209,7 @@ class RoutingEngine:
             weights: Dict of {strategy_name: weight (0-1)}
             cache_size: Maximum cached queries
             cache_ttl_seconds: Cache expiration time
+
         """
         self.scorers = scorers or {
             "token": TokenScorer(),
@@ -283,6 +282,7 @@ class RoutingEngine:
 
         Returns:
             List of ScoredProvider ranked by score.
+
         """
         cache_key = self._cache_key(query, domain, region, explain)
 
@@ -293,8 +293,7 @@ class RoutingEngine:
                     log.debug(f"Cache hit for key {cache_key}")
                     self.cache.move_to_end(cache_key)
                     return cached_results[:limit]
-                else:
-                    del self.cache[cache_key]
+                del self.cache[cache_key]
 
         # Apply hard filters (outside lock — read-only registry access).
         # iter_registry() yields both the static REGISTRY and the in-memory
@@ -315,15 +314,13 @@ class RoutingEngine:
         for provider in filtered:
             if query and query.strip():
                 score, breakdown, has_relevance = await self._combined_score(
-                    query, provider, explain
+                    query,
+                    provider,
+                    explain,
                 )
             else:
                 score = 1.0
-                breakdown = (
-                    {strategy_name: 0.0 for strategy_name in self.scorers}
-                    if explain
-                    else None
-                )
+                breakdown = dict.fromkeys(self.scorers, 0.0) if explain else None
                 # No query means "list everything" — every provider is relevant.
                 has_relevance = True
             if score > 0 and has_relevance:
@@ -332,7 +329,7 @@ class RoutingEngine:
                         entry=provider,
                         score=score,
                         breakdown=breakdown if explain else None,
-                    )
+                    ),
                 )
 
         # Sort by score descending, then by id for stability
@@ -360,9 +357,7 @@ class RoutingEngine:
 
         if normalized_domain and normalized_domain not in provider_domains:
             return False
-        if normalized_region and normalized_region not in provider_regions:
-            return False
-        return True
+        return not (normalized_region and normalized_region not in provider_regions)
 
     async def _combined_score(
         self,
@@ -413,7 +408,11 @@ async def find_providers_sophisticated(
     """Route query using sophisticated engine and return ProviderEntry values."""
     engine = RoutingEngine()
     results = await engine.route(
-        query=query, domain=domain, region=region, limit=limit, explain=explain
+        query=query,
+        domain=domain,
+        region=region,
+        limit=limit,
+        explain=explain,
     )
     # Return entries for backward compatibility
     return [r.entry for r in results]

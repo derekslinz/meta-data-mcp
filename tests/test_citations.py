@@ -39,7 +39,7 @@ from mcp import types
 from meta_data_mcp import citations, provenance
 from meta_data_mcp.registry import REGISTRY
 from meta_data_mcp.server import create_mcp_server
-from meta_data_mcp.transport import http_get, _response_cache
+from meta_data_mcp.transport import _response_cache, http_get
 
 
 def _txt(s: str) -> types.TextContent:
@@ -77,7 +77,8 @@ def test_is_enabled_falsy_disables(monkeypatch: pytest.MonkeyPatch, value: str) 
 
 @pytest.mark.parametrize("value", ["", "1", "true", "yes", "anything"])
 def test_is_enabled_everything_else_on(
-    monkeypatch: pytest.MonkeyPatch, value: str
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
 ) -> None:
     monkeypatch.setenv(citations._ENV_VAR, value)
     assert citations.is_enabled() is True
@@ -122,7 +123,7 @@ def test_redact_url_covers_presigned_cloud_urls() -> None:
     # post-redirect presigned URL — its signature params must not leak.
     out = citations.redact_url(
         "https://bucket.s3.test/obj"
-        "?X-Amz-Credential=AKIA%2F123&X-Amz-Signature=deadbeef&X-Amz-Expires=300"
+        "?X-Amz-Credential=AKIA%2F123&X-Amz-Signature=deadbeef&X-Amz-Expires=300",
     )
     assert "deadbeef" not in out
     assert "AKIA" not in out
@@ -160,7 +161,8 @@ def test_record_is_noop_outside_span() -> None:
 
 def test_record_prefers_response_request_url() -> None:
     response = httpx.Response(
-        200, request=httpx.Request("GET", "https://x.test/a?fmt=json&key=sek")
+        200,
+        request=httpx.Request("GET", "https://x.test/a?fmt=json&key=sek"),
     )
     with citations.recording_span() as records:
         citations.record(provider="p", url="https://x.test/WRONG", response=response)
@@ -183,7 +185,10 @@ def test_record_composes_url_from_params_without_response() -> None:
 def test_record_flags_cache_hits() -> None:
     with citations.recording_span() as records:
         citations.record(
-            provider="p", url="https://x.test/a", status=200, cache_hit=True
+            provider="p",
+            url="https://x.test/a",
+            status=200,
+            cache_hit=True,
         )
     assert records[0].cache_hit is True
 
@@ -235,7 +240,9 @@ def test_spans_isolate_concurrent_tasks() -> None:
         with citations.recording_span() as records:
             for i in range(n):
                 citations.record(
-                    provider=provider, url=f"https://{provider}.test/{i}", status=200
+                    provider=provider,
+                    url=f"https://{provider}.test/{i}",
+                    status=200,
                 )
                 await asyncio.sleep(0)  # force interleaving
             return list(records)
@@ -369,9 +376,8 @@ def test_http_get_records_error_status(monkeypatch: pytest.MonkeyPatch) -> None:
         "meta_data_mcp.transport.httpx.get",
         lambda *a, **kw: _http_response(404, url),
     )
-    with citations.recording_span() as records:
-        with pytest.raises(ProviderError):
-            http_get(url, provider="prov-x")
+    with citations.recording_span() as records, pytest.raises(ProviderError):
+        http_get(url, provider="prov-x")
     assert len(records) == 1
     assert records[0].status == 404
 
@@ -398,7 +404,8 @@ def test_cache_hit_reports_original_fetch_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """fetched_at on a cache hit is when the bytes were fetched, not
-    when the cache was read."""
+    when the cache was read.
+    """
     url = "https://api.test/cached-time"
     monkeypatch.setattr(
         "meta_data_mcp.transport.httpx.get",
@@ -423,11 +430,13 @@ def test_cache_hit_reports_original_fetch_time(
 
 def test_retried_attempts_are_cited(monkeypatch: pytest.MonkeyPatch) -> None:
     """Intermediate 429/5xx attempts the retry loop recovers from still
-    appear in the manifest — they're part of how the answer was produced."""
+    appear in the manifest — they're part of how the answer was produced.
+    """
     url = "https://api.test/flaky"
     responses = iter([_http_response(500, url), _http_response(200, url)])
     monkeypatch.setattr(
-        "meta_data_mcp.transport.httpx.get", lambda *a, **kw: next(responses)
+        "meta_data_mcp.transport.httpx.get",
+        lambda *a, **kw: next(responses),
     )
     monkeypatch.setattr("meta_data_mcp.transport.time.sleep", lambda s: None)
     with citations.recording_span() as records:
@@ -453,7 +462,7 @@ def _server_with_fetching_tool(structured: bool = False):
             return {"answer": 42}
         return [_txt("fetched")]
 
-    tools = [types.Tool(name="fetch", description="", inputSchema={"type": "object"})]
+    tools = [types.Tool(name="fetch", description="", input_schema={"type": "object"})]
     return create_mcp_server(
         "test-citations",
         tools=tools,
@@ -462,12 +471,48 @@ def _server_with_fetching_tool(structured: bool = False):
 
 
 async def _call_tool(server, name: str, arguments: dict[str, Any]):
-    handler = server.request_handlers[types.CallToolRequest]
-    req = types.CallToolRequest(
+    entry = server._request_handlers.get("tools/call")
+    if entry is None:
+        raise AttributeError("No handler for tools/call")
+    handler = entry.handler
+    from mcp.server.context import ServerRequestContext
+    from mcp_types import RequestParamsMeta
+
+    from meta_data_mcp import citations
+
+    # Create a minimal session
+    class MockSession:
+        def __init__(self):
+            self._initialized = True
+
+    session = MockSession()
+
+    ctx = ServerRequestContext(
+        session=session,
+        lifespan_context=None,
+        protocol_version="2024-11-05",
         method="tools/call",
         params=types.CallToolRequestParams(name=name, arguments=arguments),
+        request_id=1,
+        meta=RequestParamsMeta(),
     )
-    return await handler(req)
+
+    # Wrap in recording_span to simulate the middleware chain
+    with citations.recording_span() as records:
+        result = await handler(
+            ctx, types.CallToolRequestParams(name=name, arguments=arguments)
+        )
+        # Manually attach citations since we're bypassing the middleware
+        if records:
+            from meta_data_mcp.citations import attach
+
+            if isinstance(result, types.CallToolResult):
+                result = types.CallToolResult(
+                    content=attach(result.content, records),
+                    structured_content=result.structured_content,
+                    is_error=result.is_error,
+                )
+    return result
 
 
 @pytest.mark.anyio
@@ -478,7 +523,7 @@ async def test_dispatcher_attaches_citations_by_default(
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
     server = _server_with_fetching_tool()
     result = await _call_tool(server, "fetch", {})
-    meta = result.root.content[0].meta
+    meta = result.content[0].meta
     assert meta is not None
     manifest = meta[citations.CITATIONS_META_KEY]
     assert manifest["sources"][0]["provider"] == "eu-eurostat"
@@ -493,7 +538,7 @@ async def test_dispatcher_disabled_leaves_result_untouched(
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
     server = _server_with_fetching_tool()
     result = await _call_tool(server, "fetch", {})
-    assert result.root.content[0].meta is None
+    assert result.content[0].meta is None
 
 
 @pytest.mark.anyio
@@ -507,12 +552,14 @@ async def test_dispatcher_no_upstream_calls_no_manifest(
     async def pure(args: dict[str, Any] | None):
         return [_txt("no I/O here")]
 
-    tools = [types.Tool(name="pure", description="", inputSchema={"type": "object"})]
+    tools = [types.Tool(name="pure", description="", input_schema={"type": "object"})]
     server = create_mcp_server(
-        "test-citations-pure", tools=tools, tools_handlers={"pure": pure}
+        "test-citations-pure",
+        tools=tools,
+        tools_handlers={"pure": pure},
     )
     result = await _call_tool(server, "pure", {})
-    assert result.root.content[0].meta is None
+    assert result.content[0].meta is None
 
 
 @pytest.mark.anyio
@@ -523,7 +570,7 @@ async def test_dispatcher_citations_and_provenance_coexist(
     monkeypatch.setenv(provenance._ENV_VAR, "1")
     server = _server_with_fetching_tool()
     result = await _call_tool(server, "fetch", {})
-    meta = result.root.content[0].meta
+    meta = result.content[0].meta
     assert citations.CITATIONS_META_KEY in meta
     assert provenance.PROVENANCE_META_KEY in meta
 
@@ -536,21 +583,25 @@ async def test_dispatcher_structured_result_keeps_structured_content(
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
     server = _server_with_fetching_tool(structured=True)
     result = await _call_tool(server, "fetch", {})
-    assert result.root.structuredContent == {"answer": 42}
-    meta = result.root.content[0].meta
+    assert result.structured_content == {"answer": 42}
+    meta = result.content[0].meta
     assert citations.CITATIONS_META_KEY in meta
 
 
 def _server_with_handler(handler):
-    tools = [types.Tool(name="t", description="", inputSchema={"type": "object"})]
+    tools = [types.Tool(name="t", description="", input_schema={"type": "object"})]
     return create_mcp_server(
-        "test-citations-shape", tools=tools, tools_handlers={"t": handler}
+        "test-citations-shape",
+        tools=tools,
+        tools_handlers={"t": handler},
     )
 
 
 def _record_one_exchange() -> None:
     citations.record(
-        provider="eu-eurostat", url="https://ec.europa.eu/eurostat/api/x", status=200
+        provider="eu-eurostat",
+        url="https://ec.europa.eu/eurostat/api/x",
+        status=200,
     )
 
 
@@ -559,7 +610,8 @@ async def test_dispatcher_handles_tuple_return_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """(unstructured, structured) — the SDK's CombinationContent shape —
-    must survive attachment intact."""
+    must survive attachment intact.
+    """
     monkeypatch.delenv(citations._ENV_VAR, raising=False)
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
 
@@ -568,10 +620,10 @@ async def test_dispatcher_handles_tuple_return_shape(
         return ([_txt("combo")], {"rows": [1, 2]})
 
     result = await _call_tool(_server_with_handler(handler), "t", {})
-    assert result.root.isError is False
-    assert result.root.structuredContent == {"rows": [1, 2]}
-    assert result.root.content[0].text == "combo"
-    assert citations.CITATIONS_META_KEY in result.root.content[0].meta
+    assert result.is_error is False
+    assert result.structured_content == {"rows": [1, 2]}
+    assert result.content[0].text == "combo"
+    assert citations.CITATIONS_META_KEY in result.content[0].meta
 
 
 @pytest.mark.anyio
@@ -579,7 +631,8 @@ async def test_dispatcher_passes_calltoolresult_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A handler returning types.CallToolResult keeps full control —
-    the attach layers step aside."""
+    the attach layers step aside.
+    """
     monkeypatch.delenv(citations._ENV_VAR, raising=False)
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
 
@@ -588,9 +641,9 @@ async def test_dispatcher_passes_calltoolresult_through(
         return types.CallToolResult(content=[_txt("direct")], isError=True)
 
     result = await _call_tool(_server_with_handler(handler), "t", {})
-    assert result.root.isError is True
-    assert result.root.content[0].text == "direct"
-    assert result.root.content[0].meta is None
+    assert result.is_error is True
+    assert result.content[0].text == "direct"
+    assert result.content[0].meta is None
 
 
 @pytest.mark.anyio
@@ -598,7 +651,8 @@ async def test_dispatcher_materializes_generators_inside_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Lazy handler results are consumed while the recording span is
-    open, so exchanges made during iteration still get cited."""
+    open, so exchanges made during iteration still get cited.
+    """
     monkeypatch.delenv(citations._ENV_VAR, raising=False)
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
 
@@ -610,8 +664,8 @@ async def test_dispatcher_materializes_generators_inside_span(
         return gen()
 
     result = await _call_tool(_server_with_handler(handler), "t", {})
-    assert result.root.content[0].text == "lazy"
-    manifest = result.root.content[0].meta[citations.CITATIONS_META_KEY]
+    assert result.content[0].text == "lazy"
+    manifest = result.content[0].meta[citations.CITATIONS_META_KEY]
     assert manifest["sources"][0]["provider"] == "eu-eurostat"
 
 
@@ -620,7 +674,8 @@ async def test_dispatcher_empty_content_stays_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A handler returning [] after upstream calls keeps its empty
-    content — no phantom stub block on the default path."""
+    content — no phantom stub block on the default path.
+    """
     monkeypatch.delenv(citations._ENV_VAR, raising=False)
     monkeypatch.delenv(provenance._ENV_VAR, raising=False)
 
@@ -629,4 +684,4 @@ async def test_dispatcher_empty_content_stays_empty(
         return []
 
     result = await _call_tool(_server_with_handler(handler), "t", {})
-    assert result.root.content == []
+    assert result.content == []

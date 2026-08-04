@@ -113,7 +113,7 @@ _PLAN = {
                     "to": {"name": "Utrecht Centraal"},
                 },
             ],
-        }
+        },
     ],
     "direct": [
         {
@@ -122,14 +122,15 @@ _PLAN = {
             "endTime": "2026-07-19T07:40:00Z",
             "transfers": 0,
             "legs": [{"mode": "BIKE", "duration": 12000}],
-        }
+        },
     ],
 }
 
 
 def test_plan_compacts_itineraries_and_drops_geometry():
     params = TransitousPlanParams(
-        from_place="52.3791,4.9003", to_place="52.0894,5.1077"
+        from_place="52.3791,4.9003",
+        to_place="52.0894,5.1077",
     )
     with patch("httpx.get", return_value=_response(_PLAN)):
         result = plan_journey(params)
@@ -194,8 +195,8 @@ _STOPTIMES = {
                 "scheduledDeparture": "2026-07-19T04:18:00Z",
                 "track": "D",
             },
-        }
-    ]
+        },
+    ],
 }
 
 
@@ -213,7 +214,7 @@ def test_departures_compact_with_track_and_realtime():
             "scheduled_departure": "2026-07-19T04:18:00Z",
             "track": "D",
             "real_time": True,
-        }
+        },
     ]
 
 

@@ -1,5 +1,4 @@
-"""
-RIPE NCC RIPEstat Provider
+"""RIPE NCC RIPEstat Provider
 
 This module exposes RIPE NCC's RIPEstat data API, which provides production-
 grade BGP routing data, network information, and Internet routing analytics.
@@ -27,9 +26,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_network_topology_v1 import (
@@ -49,9 +49,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-ripe-stat"
 BASE_URL = "https://stat.ripe.net/data"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -93,8 +93,9 @@ async def handle_ripestat_network_info(
         data = fetch_ripestat_network_info(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching RIPEstat network info: {e}")
@@ -107,8 +108,8 @@ TOOLS.append(
         description=(
             "Get the BGP prefix and announcing ASN(s) for an IP address or prefix using RIPE NCC RIPEstat."
         ),
-        inputSchema=RIPEStatNetworkInfoParams.model_json_schema(),
-    )
+        input_schema=RIPEStatNetworkInfoParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ripestat-network-info"] = handle_ripestat_network_info
 
@@ -128,7 +129,7 @@ class RIPEStatBGPStateParams(BaseModel):
             "Returns current BGP routing entries from RIPE RIS collectors."
         ),
     )
-    rrcs: Optional[str] = Field(
+    rrcs: str | None = Field(
         None,
         description="Comma-separated list of RIPE RIS Route Collectors (e.g. 'rrc00,rrc01'). Defaults to all.",
     )
@@ -140,7 +141,9 @@ def fetch_ripestat_bgp_state(params: RIPEStatBGPStateParams) -> dict:
     if params.rrcs:
         query_params["rrcs"] = params.rrcs
     response = http_get(
-        f"{BASE_URL}/bgp-state/data.json", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/bgp-state/data.json",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -156,8 +159,9 @@ async def handle_ripestat_bgp_state(
         data = fetch_ripestat_bgp_state(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching RIPEstat BGP state: {e}")
@@ -171,8 +175,8 @@ TOOLS.append(
             "Get a snapshot of the current BGP routing table state for a prefix or ASN "
             "from RIPE NCC RIS collectors."
         ),
-        inputSchema=RIPEStatBGPStateParams.model_json_schema(),
-    )
+        input_schema=RIPEStatBGPStateParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ripestat-bgp-state"] = handle_ripestat_bgp_state
 
@@ -212,8 +216,9 @@ async def handle_ripestat_prefix_overview(
         data = fetch_ripestat_prefix_overview(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching RIPEstat prefix overview: {e}")
@@ -227,8 +232,8 @@ TOOLS.append(
             "Get an overview of an IP prefix: originating ASNs, visibility across route "
             "collectors, RIR, and related prefixes."
         ),
-        inputSchema=RIPEStatPrefixOverviewParams.model_json_schema(),
-    )
+        input_schema=RIPEStatPrefixOverviewParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ripestat-prefix-overview"] = handle_ripestat_prefix_overview
 
@@ -245,15 +250,15 @@ class RIPEStatAnnouncedPrefixesParams(BaseModel):
         ...,
         description="ASN (e.g. 'AS3333' or '3333'). Returns all prefixes originated by this ASN.",
     )
-    starttime: Optional[str] = Field(
+    starttime: str | None = Field(
         None,
         description="Start of the time window (ISO 8601, e.g. '2024-01-01T00:00:00'). Defaults to 2 weeks ago.",
     )
-    endtime: Optional[str] = Field(
+    endtime: str | None = Field(
         None,
         description="End of the time window (ISO 8601). Defaults to now.",
     )
-    min_peers_seeing: Optional[int] = Field(
+    min_peers_seeing: int | None = Field(
         None,
         description="Minimum number of RIS peers that must have seen a prefix to be included.",
     )
@@ -289,8 +294,9 @@ async def handle_ripestat_announced_prefixes(
         data = fetch_ripestat_announced_prefixes(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching RIPEstat announced prefixes: {e}")
@@ -301,8 +307,8 @@ TOOLS.append(
     types.Tool(
         name="ripestat-announced-prefixes",
         description="List all IP prefixes announced by an ASN over a time window.",
-        inputSchema=RIPEStatAnnouncedPrefixesParams.model_json_schema(),
-    )
+        input_schema=RIPEStatAnnouncedPrefixesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ripestat-announced-prefixes"] = handle_ripestat_announced_prefixes
 
@@ -322,11 +328,11 @@ class RIPEStatRoutingHistoryParams(BaseModel):
             "Returns a timeline of routing changes."
         ),
     )
-    starttime: Optional[str] = Field(
+    starttime: str | None = Field(
         None,
         description="Start of the time window (ISO 8601). Defaults to 2 weeks ago.",
     )
-    endtime: Optional[str] = Field(
+    endtime: str | None = Field(
         None,
         description="End of the time window (ISO 8601). Defaults to now.",
     )
@@ -358,8 +364,9 @@ async def handle_ripestat_routing_history(
         data = fetch_ripestat_routing_history(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching RIPEstat routing history: {e}")
@@ -372,8 +379,8 @@ TOOLS.append(
         description=(
             "Get the routing history (announcements and withdrawals) for an IP prefix or ASN."
         ),
-        inputSchema=RIPEStatRoutingHistoryParams.model_json_schema(),
-    )
+        input_schema=RIPEStatRoutingHistoryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ripestat-routing-history"] = handle_ripestat_routing_history
 
@@ -390,11 +397,11 @@ class RIPEStatASNNeighboursParams(BaseModel):
         ...,
         description="ASN (e.g. 'AS3333' or '3333'). Returns current BGP neighbors.",
     )
-    starttime: Optional[str] = Field(
+    starttime: str | None = Field(
         None,
         description="Start of the time window (ISO 8601). Defaults to most recent data.",
     )
-    endtime: Optional[str] = Field(
+    endtime: str | None = Field(
         None,
         description="End of the time window (ISO 8601). Defaults to now.",
     )
@@ -417,7 +424,8 @@ def fetch_ripestat_asn_neighbours(params: RIPEStatASNNeighboursParams) -> dict:
 def _coerce_asn(value: Any) -> int | None:
     """Normalise an ASN-ish value to an int, or ``None`` if it doesn't look
     like one. RIPEstat returns ASNs as numbers, but the resource echoed in
-    ``data.resource`` is a string (e.g. ``"3333"`` or ``"AS3333"``)."""
+    ``data.resource`` is a string (e.g. ``"3333"`` or ``"AS3333"``).
+    """
     if isinstance(value, bool):
         # bool is an int subclass; never an ASN.
         return None
@@ -425,8 +433,7 @@ def _coerce_asn(value: Any) -> int | None:
         return value
     if isinstance(value, str):
         s = value.strip().upper()
-        if s.startswith("AS"):
-            s = s[2:]
+        s = s.removeprefix("AS")
         if s.isdigit():
             return int(s)
     return None
@@ -499,7 +506,8 @@ def _ripestat_asn_neighbours_to_topology_payload(data: Any, focus: Any) -> dict:
             continue
         ripe_type = entry.get("type")
         relationship = _RIPESTAT_NEIGHBOUR_TYPE_MAP.get(
-            ripe_type if isinstance(ripe_type, str) else "", "peer"
+            ripe_type if isinstance(ripe_type, str) else "",
+            "peer",
         )
         edge: dict[str, Any] = {
             "source_asn": focus_asn,
@@ -550,13 +558,13 @@ TOOLS.append(
             "Get the current BGP neighbors (peers, upstreams, downstreams) of an ASN "
             "from RIPE NCC RIS. Returns neighbor ASNs grouped by relationship type."
         ),
-        inputSchema=RIPEStatASNNeighboursParams.model_json_schema(),
+        input_schema=RIPEStatASNNeighboursParams.model_json_schema(),
         # MCP Apps binding: render via the Phase 5 network-topology app.
         # Use the alias keyword ``_meta=`` — ``meta=`` silently drops into
         # extras; see tests/test_ui_resource.py::
         # test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": NETWORK_TOPOLOGY_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["ripestat-asn-neighbours"] = handle_ripestat_asn_neighbours
 
@@ -573,15 +581,15 @@ class RIPEStatASNNeighboursHistoryParams(BaseModel):
         ...,
         description="ASN (e.g. 'AS3333' or '3333'). Returns historical BGP neighbor changes.",
     )
-    starttime: Optional[str] = Field(
+    starttime: str | None = Field(
         None,
         description="Start of the time window (ISO 8601). Defaults to 2 weeks ago.",
     )
-    endtime: Optional[str] = Field(
+    endtime: str | None = Field(
         None,
         description="End of the time window (ISO 8601). Defaults to now.",
     )
-    max_rows: Optional[int] = Field(
+    max_rows: int | None = Field(
         None,
         description="Maximum number of result rows to return.",
     )
@@ -615,8 +623,9 @@ async def handle_ripestat_asn_neighbours_history(
         data = fetch_ripestat_asn_neighbours_history(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching RIPEstat ASN neighbours history: {e}")
@@ -630,7 +639,7 @@ TOOLS.append(
             "Get the historical BGP neighbour relationships for an ASN over a time window. "
             "Shows how peering, transit, and customer relationships changed over time."
         ),
-        inputSchema=RIPEStatASNNeighboursHistoryParams.model_json_schema(),
+        input_schema=RIPEStatASNNeighboursHistoryParams.model_json_schema(),
         # MCP Apps binding: render via the Phase 5 network-topology app.
         # The handler intentionally returns the raw RIPEstat history
         # response (not a network-topology payload) — the history shape
@@ -642,7 +651,7 @@ TOOLS.append(
         # a future "evolving topology" payload contract has a place to
         # plug in without re-touching the wire format.
         _meta={"ui": {"resourceUri": NETWORK_TOPOLOGY_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["ripestat-asn-neighbours-history"] = (
     handle_ripestat_asn_neighbours_history
@@ -732,12 +741,12 @@ TOOLS.append(
     types.Tool(
         name="ripestat-geoloc",
         description="Get the geolocation (country, coordinates) of an IP address or prefix using RIPE NCC data.",
-        inputSchema=RIPEStatGeolocParams.model_json_schema(),
+        input_schema=RIPEStatGeolocParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["ripestat-geoloc"] = handle_ripestat_geoloc
 
@@ -746,7 +755,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-ripe-stat", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-ripe-stat",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

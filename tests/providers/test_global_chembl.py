@@ -10,9 +10,9 @@ import httpx
 import pytest
 
 from meta_data_mcp.providers.global_chembl import (
-    handle_chembl_search_molecules,
     handle_chembl_get_molecule,
     handle_chembl_list_activities,
+    handle_chembl_search_molecules,
 )
 
 

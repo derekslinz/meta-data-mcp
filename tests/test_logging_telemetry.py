@@ -6,10 +6,8 @@ import json
 import logging
 from unittest.mock import MagicMock, patch
 
-
 from meta_data_mcp.logging_config import _JsonFormatter, configure_logging
 from meta_data_mcp.telemetry import configure_otel
-
 
 # ---------------------------------------------------------------------------
 # logging_config
@@ -252,7 +250,7 @@ def test_configure_otel_console_exporter(monkeypatch):
     fake_otel_sdk_resources.SERVICE_NAME = "service.name"
     fake_otel_sdk_trace_export = MagicMock()
     fake_otel_sdk_trace_export.BatchSpanProcessor = MagicMock(
-        return_value=mock_processor
+        return_value=mock_processor,
     )
     fake_otel_sdk_trace_export.ConsoleSpanExporter = mock_console_exporter_cls
     fake_otel.trace = mock_trace_mod

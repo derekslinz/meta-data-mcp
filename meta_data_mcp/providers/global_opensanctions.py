@@ -16,9 +16,10 @@ the commercial-tier datasets.
 
 import logging
 import os
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, ConfigDict, Field
 
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
@@ -35,9 +36,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-opensanctions"
 BASE_URL = "https://api.opensanctions.org"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -65,7 +66,7 @@ class OpenSanctionsSearchParams(BaseModel):
             "OpenSanctions performs fuzzy matching including transliteration."
         ),
     )
-    schema_: Optional[str] = Field(
+    schema_: str | None = Field(
         None,
         alias="schema",
         description=(
@@ -74,14 +75,14 @@ class OpenSanctionsSearchParams(BaseModel):
             "Defaults to all schemas."
         ),
     )
-    countries: Optional[str] = Field(
+    countries: str | None = Field(
         None,
         description=(
             "ISO 3166-1 alpha-2 country code(s), comma-separated (e.g. "
             "'ru,by'). Filters to entities tagged with these countries."
         ),
     )
-    topics: Optional[str] = Field(
+    topics: str | None = Field(
         None,
         description=(
             "Topic filter — 'sanction', 'sanction.linked', 'role.pep', "
@@ -154,7 +155,10 @@ def _opensanctions_search_to_entity_graph_payload(data: dict) -> dict:
         return "entity"
 
     def _add_node(
-        node_id: str, label: str, ntype: str, attrs: dict | None = None
+        node_id: str,
+        label: str,
+        ntype: str,
+        attrs: dict | None = None,
     ) -> None:
         if not node_id or node_id in seen:
             return
@@ -165,7 +169,7 @@ def _opensanctions_search_to_entity_graph_payload(data: dict) -> dict:
                 "label": label or node_id,
                 "type": ntype,
                 "attrs": attrs or {},
-            }
+            },
         )
 
     for result in results:
@@ -224,7 +228,7 @@ def _opensanctions_search_to_entity_graph_payload(data: dict) -> dict:
                             "target": target_id,
                             "label": str(prop_name),
                             "weight": 1,
-                        }
+                        },
                     )
 
     return {"nodes": nodes, "edges": edges}
@@ -257,12 +261,12 @@ TOOLS.append(
             "matching. Returns the entity's schema, topics, countries, and "
             "source references."
         ),
-        inputSchema=OpenSanctionsSearchParams.model_json_schema(),
+        input_schema=OpenSanctionsSearchParams.model_json_schema(),
         # MCP Apps binding: render persons/companies via entity-graph.
         # Use the alias keyword (``_meta=``) — ``meta=`` silently drops
         # into extras; see tests/test_ui_resource.py.
         _meta={"ui": {"resourceUri": ENTITY_GRAPH_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["opensanctions-search"] = handle_opensanctions_search
 
@@ -311,8 +315,8 @@ TOOLS.append(
             "Fetch the full structured profile for a single OpenSanctions "
             "entity — properties, sources, related entities, and provenance."
         ),
-        inputSchema=OpenSanctionsGetEntityParams.model_json_schema(),
-    )
+        input_schema=OpenSanctionsGetEntityParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["opensanctions-get-entity"] = handle_opensanctions_get_entity
 

@@ -1,18 +1,18 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_open_library import (
     TOOLS,
     _openlibrary_search_to_shape_payload,
-    handle_openlibrary_search_books,
-    handle_openlibrary_search_authors,
-    handle_openlibrary_get_work,
-    handle_openlibrary_get_edition,
     handle_openlibrary_get_author,
+    handle_openlibrary_get_edition,
+    handle_openlibrary_get_work,
     handle_openlibrary_isbn_lookup,
+    handle_openlibrary_search_authors,
+    handle_openlibrary_search_books,
     handle_openlibrary_subject,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -33,13 +33,13 @@ async def test_openlibrary_search_books_success():
                     "title": "The Lord of the Rings",
                     "author_name": ["J.R.R. Tolkien"],
                     "key": "/works/OL27448W",
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_openlibrary_search_books(
-            {"title": "lord of the rings", "limit": 1}
+            {"title": "lord of the rings", "limit": 1},
         )
         assert "Tolkien" in result[0].text
 
@@ -135,7 +135,7 @@ async def test_openlibrary_subject_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_openlibrary_subject(
-            {"subject": "science_fiction", "limit": 5}
+            {"subject": "science_fiction", "limit": 5},
         )
         assert "Dune" in result[0].text
 
@@ -158,7 +158,7 @@ def test_openlibrary_adapter_flattens_docs_to_rows():
                 "publisher": ["Gnome Press", "Avon"],
                 "edition_count": 50,
                 "cover_i": 12345,
-            }
+            },
         ],
     }
     payload = _openlibrary_search_to_shape_payload(raw)

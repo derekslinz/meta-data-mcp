@@ -66,7 +66,8 @@ class ConsentRoutes:
     def _looks_like_email(value: str) -> bool:
         """Cheap structural email check — not RFC-5322, just enough to reject
         obvious junk before we send. Final proof of validity is whether the
-        magic link is actually received and clicked."""
+        magic link is actually received and clicked.
+        """
         value = value.strip()
         if not (3 <= len(value) <= 254) or " " in value:
             return False
@@ -108,7 +109,8 @@ class ConsentRoutes:
     def _check_email_page(self, email: str) -> HTMLResponse:
         """The 'we sent you a link' page — shown on real sends AND on silent
         per-email throttling, so an attacker can't tell a bombed address from a
-        delivered one."""
+        delivered one.
+        """
         email_escaped = _html.escape(email)
         return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -136,7 +138,7 @@ class ConsentRoutes:
         # HTML-escape every value derived from dynamic client registration to
         # prevent XSS via a crafted client_name or scope.
         client_name = _html.escape(
-            str(session.get("client_name", session.get("client_id", "?")))
+            str(session.get("client_name", session.get("client_id", "?"))),
         )
         scopes_html = _html.escape(", ".join(session.get("scopes", [])) or "(default)")
         session_token_escaped = _html.escape(session_token)
@@ -190,7 +192,8 @@ class ConsentRoutes:
         if session.get("state"):
             params["state"] = session["state"]
         return RedirectResponse(
-            self._add_query_params(session["redirect_uri"], params), status_code=302
+            self._add_query_params(session["redirect_uri"], params),
+            status_code=302,
         )
 
     async def request_link_post(self, request: Request) -> HTMLResponse:
@@ -266,7 +269,8 @@ class ConsentRoutes:
         if session.get("state"):
             params["state"] = session["state"]
         return RedirectResponse(
-            self._add_query_params(session["redirect_uri"], params), status_code=302
+            self._add_query_params(session["redirect_uri"], params),
+            status_code=302,
         )
 
     # ------------------------------------------------------------------
@@ -275,7 +279,8 @@ class ConsentRoutes:
 
     def routes(self) -> list[Route]:
         """Return the consent/magic routes, including the gated ones when the
-        email gate is enabled."""
+        email gate is enabled.
+        """
         routes = [
             Route("/oauth/consent", endpoint=self.consent_get, methods=["GET"]),
             Route(

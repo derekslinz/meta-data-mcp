@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 
 
 class InMemoryOAuthProvider(
-    OAuthAuthorizationServerProvider[AuthorizationCode, RefreshToken, AccessToken]
+    OAuthAuthorizationServerProvider[AuthorizationCode, RefreshToken, AccessToken],
 ):
     """Stateful in-memory OAuth provider.
 
@@ -70,10 +70,12 @@ class InMemoryOAuthProvider(
     def __init__(self, issuer_url: str, persistence: Any = None) -> None:
         self.issuer_url = issuer_url.rstrip("/")
         self._max_clients = self._read_positive_int_env(
-            "META_DATA_MCP_OAUTH_MAX_CLIENTS", self._DEFAULT_MAX_CLIENTS
+            "META_DATA_MCP_OAUTH_MAX_CLIENTS",
+            self._DEFAULT_MAX_CLIENTS,
         )
         self._token_ttl = self._read_positive_int_env(
-            "META_DATA_MCP_OAUTH_TOKEN_TTL", self._DEFAULT_TOKEN_TTL
+            "META_DATA_MCP_OAUTH_TOKEN_TTL",
+            self._DEFAULT_TOKEN_TTL,
         )
         # Storage maps: key → object
         self._clients: dict[str, OAuthClientInformationFull] = {}
@@ -143,7 +145,7 @@ class InMemoryOAuthProvider(
             raise ValueError(
                 f"Maximum number of registered OAuth clients ({self._max_clients}) "
                 "reached. Increase META_DATA_MCP_OAUTH_MAX_CLIENTS or remove "
-                "unused clients."
+                "unused clients.",
             )
         self._clients[client_info.client_id] = client_info
         if self._persistence is not None:
@@ -154,7 +156,9 @@ class InMemoryOAuthProvider(
     # ------------------------------------------------------------------
 
     async def authorize(
-        self, client: OAuthClientInformationFull, params: AuthorizationParams
+        self,
+        client: OAuthClientInformationFull,
+        params: AuthorizationParams,
     ) -> str:
         """Create a short-lived consent session and return the consent page URL."""
         session_token = secrets.token_urlsafe(32)
@@ -276,7 +280,9 @@ class InMemoryOAuthProvider(
         if self._persistence is not None:
             self._persistence.save_access_token(access_token_str, access_token, email)
             self._persistence.save_refresh_token(
-                refresh_token_str, refresh_token, email
+                refresh_token_str,
+                refresh_token,
+                email,
             )
             # A verified-email token issuance is a sign-in — record it for audit.
             if email:

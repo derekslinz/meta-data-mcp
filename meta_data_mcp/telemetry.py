@@ -61,7 +61,7 @@ def configure_otel() -> None:
             )
 
             provider.add_span_processor(
-                BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)),
             )
             log.info(
                 "OpenTelemetry: OTLP exporter → %s (service=%s)",
@@ -72,7 +72,7 @@ def configure_otel() -> None:
             log.warning(
                 "OTEL_EXPORTER_OTLP_ENDPOINT is set but "
                 "opentelemetry-exporter-otlp-proto-http is not installed. "
-                "Run: pip install 'meta-data-mcp[otel]'"
+                "Run: pip install 'meta-data-mcp[otel]'",
             )
 
     trace.set_global_tracer_provider(provider)

@@ -1,5 +1,4 @@
-"""
-OVapi Data Provider — Dutch public transport, live.
+"""OVapi Data Provider — Dutch public transport, live.
 
 OVapi (https://gtfs.ovapi.nl/) is the community-run service that
 redistributes the Dutch NDOV open transit data in two forms:
@@ -24,10 +23,11 @@ data is public transit schedules, nothing sensitive rides the wire.
 
 import logging
 import re
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.utils import http_get, to_json_text
@@ -47,9 +47,9 @@ _LINE_ID_RE = re.compile(r"^[A-Za-z0-9:_-]+$")
 _TPC_LIST_RE = re.compile(r"^[0-9]+(,[0-9]+)*$")
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -63,7 +63,7 @@ class OvapiGtfsFeedsParams(BaseModel):
     path: str = Field(default="/", description="Directory to list (e.g. '/', '/new/')")
 
 
-def list_gtfs_feeds(path: str) -> List[dict]:
+def list_gtfs_feeds(path: str) -> list[dict]:
     """Parse the Cherokee directory index at gtfs.ovapi.nl."""
     if not path.startswith("/"):
         path = "/" + path
@@ -73,7 +73,7 @@ def list_gtfs_feeds(path: str) -> List[dict]:
     parsed, expected = urlparse(url), urlparse(GTFS_BASE)
     if parsed.netloc != expected.netloc or parsed.scheme != expected.scheme:
         raise ValueError(
-            f"Resolved URL '{url}' is outside the allowed host '{GTFS_BASE}'"
+            f"Resolved URL '{url}' is outside the allowed host '{GTFS_BASE}'",
         )
 
     # Directory index is HTML — override the kernel's JSON default.
@@ -88,7 +88,8 @@ def list_gtfs_feeds(path: str) -> List[dict]:
     # Cherokee emits rows as <a class="link" href="...">name</a> — allow
     # arbitrary attributes before href.
     for href, text in re.findall(
-        r'<a [^>]*?href="([^"?]+)"[^>]*>([^<]+)</a>', response.text
+        r'<a [^>]*?href="([^"?]+)"[^>]*>([^<]+)</a>',
+        response.text,
     ):
         if href in ("../", "/") or href.startswith(("?", "/cherokee_themes")):
             continue
@@ -103,7 +104,7 @@ def list_gtfs_feeds(path: str) -> List[dict]:
                 "name": text.strip().rstrip("/"),
                 "kind": kind,
                 "url": urljoin(url, href),
-            }
+            },
         )
     return entries
 
@@ -128,8 +129,8 @@ TOOLS.append(
             "List the bulk GTFS zip and GTFS-RT protobuf feed files published "
             "at gtfs.ovapi.nl (Dutch national transit), with download URLs."
         ),
-        inputSchema=OvapiGtfsFeedsParams.model_json_schema(),
-    )
+        input_schema=OvapiGtfsFeedsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ovapi-gtfs-feeds"] = handle_ovapi_gtfs_feeds
 
@@ -149,10 +150,14 @@ class OvapiLinesParams(BaseModel):
         ),
     )
     transport_type: str | None = Field(
-        None, description="Filter by mode: BUS, TRAM, METRO, TRAIN, BOAT"
+        None,
+        description="Filter by mode: BUS, TRAM, METRO, TRAIN, BOAT",
     )
     limit: int = Field(
-        default=50, ge=1, le=200, description="Maximum number of lines to return"
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum number of lines to return",
     )
 
 
@@ -230,8 +235,8 @@ TOOLS.append(
             "ferry) by number, name, destination, or mode. Returns line ids "
             "usable with ovapi-line-details."
         ),
-        inputSchema=OvapiLinesParams.model_json_schema(),
-    )
+        input_schema=OvapiLinesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ovapi-lines"] = handle_ovapi_lines
 
@@ -299,7 +304,7 @@ def get_line_details(line_id: str) -> dict:
                 "lat": raw.get("Latitude"),
                 "lon": raw.get("Longitude"),
                 "operator": raw.get("OperatorCode"),
-            }
+            },
         )
 
     line_raw = payload.get("Line") or {}
@@ -334,8 +339,8 @@ TOOLS.append(
             "pattern (with timing-point codes for ovapi-stop-departures), and "
             "live vehicle positions."
         ),
-        inputSchema=OvapiLineDetailsParams.model_json_schema(),
-    )
+        input_schema=OvapiLineDetailsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ovapi-line-details"] = handle_ovapi_line_details
 
@@ -356,7 +361,10 @@ class OvapiStopDeparturesParams(BaseModel):
         ),
     )
     limit: int = Field(
-        default=15, ge=1, le=50, description="Maximum departures per stop"
+        default=15,
+        ge=1,
+        le=50,
+        description="Maximum departures per stop",
     )
 
 
@@ -378,7 +386,7 @@ def get_stop_departures(params: OvapiStopDeparturesParams) -> dict:
     if not _TPC_LIST_RE.match(codes):
         raise ValueError(
             "timing_point_codes must be numeric codes separated by commas, "
-            f"got {params.timing_point_codes!r}"
+            f"got {params.timing_point_codes!r}",
         )
 
     # Real-time data: never cached.
@@ -436,8 +444,8 @@ TOOLS.append(
             "timing-point code — target vs expected time, line, destination, "
             "operator, status."
         ),
-        inputSchema=OvapiStopDeparturesParams.model_json_schema(),
-    )
+        input_schema=OvapiStopDeparturesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ovapi-stop-departures"] = handle_ovapi_stop_departures
 
@@ -446,7 +454,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "nl-ovapi", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "nl-ovapi",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

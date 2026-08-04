@@ -1,6 +1,4 @@
-"""
-This experimental client implementation can be used to test your server implementation.
-"""
+"""This experimental client implementation can be used to test your server implementation."""
 
 import logging
 

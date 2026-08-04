@@ -155,7 +155,7 @@ def _build_geo_index() -> dict[str, GeoMatch]:
             # alias (the country would just vanish from federation).
             raise LookupError(
                 f"_NAME_ALIASES[{alias!r}] -> {iso3!r} not in the ISO table; "
-                "update the alias or regenerate harmonize_data.py"
+                "update the alias or regenerate harmonize_data.py",
             )
         index[alias] = by_iso3[iso3]
     for code, (iso3, name) in _QUIRKS.items():
@@ -281,7 +281,8 @@ def detect_frequency(values: list[str | int]) -> str | None:
 
 def coarsest_frequency(freqs: list[str]) -> str | None:
     """The coarsest of the given frequencies (``A`` beats ``Q`` beats
-    ``M`` …) — the only alignment target that never invents data."""
+    ``M`` …) — the only alignment target that never invents data.
+    """
     known = [f for f in freqs if f in _FREQ_ORDER]
     if not known:
         return None

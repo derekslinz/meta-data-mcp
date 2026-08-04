@@ -12,8 +12,8 @@ import pytest
 from meta_data_mcp.providers.us_fayetteville import (
     TOOLS,
     _socrata_views_to_shape_payload,
-    handle_us_fayetteville_search_catalog,
     handle_us_fayetteville_get_metadata,
+    handle_us_fayetteville_search_catalog,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -28,7 +28,7 @@ async def test_us_fayetteville_search_catalog_success():
     """Smoke test: us-fayetteville-search-catalog returns records-shape payload."""
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"id": "abcd-1234", "name": "Fayetteville Permits"}
+            {"id": "abcd-1234", "name": "Fayetteville Permits"},
         ]
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
@@ -84,7 +84,7 @@ def test_socrata_adapter_flattens_views_to_rows():
             "name": "Fayetteville Permits",
             "category": "Public Safety",
             "owner": {"displayName": "City Planning"},
-        }
+        },
     ]
     payload = _socrata_views_to_shape_payload(raw)
     row = payload["rows"][0]

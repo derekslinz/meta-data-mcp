@@ -1,11 +1,11 @@
 import logging
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
-import mcp.types as types
 import pytest
-from mcp import ClientSession, StdioServerParameters
+from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 from mcp.server.stdio import stdio_server
 
@@ -20,8 +20,8 @@ RESOURCES = [
         name="test-resource",
         uri=RESOURCE_URI,
         description="Test resource",
-        mimeType="text/plain",
-    )
+        mime_type="text/plain",
+    ),
 ]
 
 
@@ -34,13 +34,13 @@ TOOLS = [
     types.Tool(
         name="test-tool",
         description="Test tool",
-        inputSchema={
+        input_schema={
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
             },
         },
-    )
+    ),
 ]
 
 

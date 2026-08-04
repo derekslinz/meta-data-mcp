@@ -35,7 +35,7 @@ def test_fetch_pwned_passwords_range_uppercases_prefix():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok("ABCDEF:42")
         result = fetch_pwned_passwords_range(
-            PwnedPasswordsRangeParams(sha1_prefix="abcde")
+            PwnedPasswordsRangeParams(sha1_prefix="abcde"),
         )
         assert result == "ABCDEF:42"
         assert mock_get.call_args[0][0].endswith("/range/ABCDE")

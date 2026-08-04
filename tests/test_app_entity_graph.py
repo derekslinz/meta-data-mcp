@@ -28,7 +28,7 @@ def _fresh_state():
 
 def _load_bundle() -> str:
     return (files("meta_data_mcp.ui_resources") / "app_entity_graph_v1.html").read_text(
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
 
@@ -48,7 +48,7 @@ def test_register_apps_registers_canonical_resource_metadata():
     # MCP Apps requires the ``;profile=mcp-app`` parameter — without it
     # hosts reject the resource as "Unsupported UI resource content
     # format".
-    assert res.mimeType == "text/html;profile=mcp-app"
+    assert res.mime_type == "text/html;profile=mcp-app"
     assert res.name == "app/entity-graph/v1"
     desc = res.description.lower()
     assert "entity" in desc and "graph" in desc
@@ -61,7 +61,8 @@ def test_register_apps_registers_canonical_resource_metadata():
 
 def test_register_apps_returns_entity_graph_mapping():
     """``register_apps`` returns ``{name: uri}`` so callers can log or
-    surface the wiring. Pin the entity-graph/v1 entry."""
+    surface the wiring. Pin the entity-graph/v1 entry.
+    """
     resources, handlers = _fresh_state()
     result = register_apps(resources, handlers)
     assert result.get("entity-graph/v1") == ENTITY_GRAPH_URI
@@ -78,7 +79,8 @@ def test_bundle_contains_script_tag():
 def test_bundle_has_graph_container():
     """The graph mount point is the primary render target. Pin its
     existence so a redesign that drops the container has to update
-    tests + provider expectations together."""
+    tests + provider expectations together.
+    """
     html = _load_bundle().lower()
     assert 'id="graph"' in html, "bundle has no #graph mount point"
 
@@ -98,7 +100,8 @@ def test_bundle_listens_for_tool_result_from_parent():
 def test_bundle_loads_d3_from_canonical_cdn():
     """D3.js is loaded from cdn.jsdelivr.net per the plan; pin the
     canonical URL pattern so an accidental switch to a different
-    (unpinned, or supply-chain-unsafe) CDN is caught."""
+    (unpinned, or supply-chain-unsafe) CDN is caught.
+    """
     html = _load_bundle().lower()
     assert "cdn.jsdelivr.net" in html, "bundle doesn't load D3 from jsdelivr"
     assert "d3@7" in html, "bundle doesn't pin D3 v7"
@@ -115,7 +118,8 @@ def test_handler_returns_same_bytes_as_file_on_disk():
 def test_bundle_size_under_100kb():
     """Phase 6b bundle-budget enforcement. The entity-graph app ships
     only the force-layout glue — D3 itself is CDN-loaded — so the
-    bundle stays well under budget."""
+    bundle stays well under budget.
+    """
     html = _load_bundle()
     size_kb = len(html.encode("utf-8")) / 1024
     assert size_kb < 100, f"entity-graph bundle is {size_kb:.1f}KB (budget: <100KB)"
@@ -125,7 +129,8 @@ def test_bundle_advertises_payload_contract_in_header():
     """The header comment documents the payload contract so a host
     integrator can wire app↔host without reading the bundle source.
     Pin that the three core keys appear so a refactor can't silently
-    rename them in the comment without also updating it everywhere."""
+    rename them in the comment without also updating it everywhere.
+    """
     html = _load_bundle()
     head = html[: html.find("</head>")] if "</head>" in html else html
     for required in ("nodes", "edges", "label", "type"):
@@ -137,7 +142,8 @@ def test_bundle_does_not_use_dangerous_html_assignment():
     flows through this bundle. No assignment to the DOM property whose
     name is ``"inner"`` + ``"HTML"`` anywhere — all DOM mutation has
     to go through ``textContent`` / ``replaceChildren`` / explicit
-    element creation so markup injection is impossible by construction."""
+    element creation so markup injection is impossible by construction.
+    """
     html = _load_bundle()
     forbidden = "." + "inner" + "HTML"
     pattern = re.compile(re.escape(forbidden) + r"\s*[+]?=")
@@ -152,7 +158,8 @@ def test_bundle_only_external_script_is_d3_cdn():
     """The only external <script src> allowed is D3 from jsdelivr.
     Any other external script (e.g. analytics, fonts-loader, other
     chart libs) would expand the supply-chain surface for no good
-    reason and should fail the smoke gate."""
+    reason and should fail the smoke gate.
+    """
     html = _load_bundle()
     pattern = re.compile(
         r"<script\b[^>]*\bsrc\s*=\s*[\"']([^\"']+)[\"']",

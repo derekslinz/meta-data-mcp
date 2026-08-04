@@ -1,21 +1,21 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_ripe_stat import (
     TOOLS,
     _ripestat_asn_neighbours_to_topology_payload,
     _ripestat_geoloc_to_shape_payload,
-    handle_ripestat_network_info,
-    handle_ripestat_bgp_state,
-    handle_ripestat_prefix_overview,
     handle_ripestat_announced_prefixes,
-    handle_ripestat_routing_history,
-    handle_ripestat_geoloc,
     handle_ripestat_asn_neighbours,
     handle_ripestat_asn_neighbours_history,
+    handle_ripestat_bgp_state,
+    handle_ripestat_geoloc,
+    handle_ripestat_network_info,
+    handle_ripestat_prefix_overview,
+    handle_ripestat_routing_history,
 )
 from meta_data_mcp.ui_resources.app_network_topology_v1 import (
     URI as NETWORK_TOPOLOGY_URI,
@@ -86,7 +86,7 @@ async def test_ripestat_bgp_state_with_rrcs():
         mock_get.return_value.raise_for_status = Mock()
 
         await handle_ripestat_bgp_state(
-            {"resource": "193.0.0.0/21", "rrcs": "rrc00,rrc01"}
+            {"resource": "193.0.0.0/21", "rrcs": "rrc00,rrc01"},
         )
         call_params = mock_get.call_args.kwargs.get("params", {})
         assert call_params.get("rrcs") == "rrc00,rrc01"
@@ -158,7 +158,7 @@ async def test_ripestat_geoloc_success():
                         "latitude": 52.37,
                         "longitude": 4.9,
                         "resources": ["193.0.0.1"],
-                    }
+                    },
                 ],
             },
         }
@@ -213,7 +213,7 @@ async def test_ripestat_asn_neighbours_history_success():
                         "starttime": "2024-01-01T00:00:00",
                         "endtime": "2024-01-07T00:00:00",
                         "neighbours": [{"asn": 1234, "type": "left"}],
-                    }
+                    },
                 ],
             },
         }
@@ -231,7 +231,7 @@ async def test_ripestat_asn_neighbours_history_with_params():
         mock_get.return_value.raise_for_status = Mock()
 
         await handle_ripestat_asn_neighbours_history(
-            {"resource": "AS3333", "starttime": "2024-01-01T00:00:00", "max_rows": 100}
+            {"resource": "AS3333", "starttime": "2024-01-01T00:00:00", "max_rows": 100},
         )
         call_params = mock_get.call_args.kwargs.get("params", {})
         assert call_params.get("starttime") == "2024-01-01T00:00:00"
@@ -302,8 +302,8 @@ def test_adapter_skips_locations_without_coords():
                 {"latitude": "bad", "longitude": 4.9, "city": "bad lat"},
                 {"latitude": 200.0, "longitude": 4.9, "city": "out of range"},
                 {"latitude": 52.37, "longitude": 4.9, "city": "ok"},
-            ]
-        }
+            ],
+        },
     }
     payload = _ripestat_geoloc_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -331,7 +331,7 @@ async def test_ripestat_geoloc_returns_shape_payload():
                         "latitude": 52.37,
                         "longitude": 4.9,
                         "resources": ["193.0.0.1"],
-                    }
+                    },
                 ],
             },
         }
@@ -359,13 +359,15 @@ async def test_ripestat_geoloc_returns_shape_payload():
 
 
 @pytest.mark.parametrize(
-    "tool_name", ["ripestat-asn-neighbours", "ripestat-asn-neighbours-history"]
+    "tool_name",
+    ["ripestat-asn-neighbours", "ripestat-asn-neighbours-history"],
 )
 def test_asn_neighbours_tools_bind_to_network_topology_app(tool_name):
     """Both ASN-neighbour tools render through the Phase 5 network-
     topology app. The binding's wire-level alias (``_meta``) is what
     the host reads — populate_by_name isn't enabled on the SDK Tool
-    model so ``meta=`` would silently drop into extras."""
+    model so ``meta=`` would silently drop into extras.
+    """
     tool = next(t for t in TOOLS if t.name == tool_name)
     assert tool.meta == {"ui": {"resourceUri": NETWORK_TOPOLOGY_URI}}, (
         f"{tool_name} is not bound to {NETWORK_TOPOLOGY_URI}"
@@ -381,7 +383,8 @@ def test_geoloc_binding_unchanged_by_phase5():
     ripestat-geoloc must NOT be clobbered by the Phase 5 network-
     topology work. If a future refactor unifies the binding tables and
     accidentally re-points geoloc at the topology app, this fires
-    immediately."""
+    immediately.
+    """
     tool = next(t for t in TOOLS if t.name == "ripestat-geoloc")
     assert tool.meta == {"ui": {"resourceUri": GEOFEATURES_URI}}
     assert tool.meta != {"ui": {"resourceUri": NETWORK_TOPOLOGY_URI}}
@@ -432,7 +435,8 @@ def test_topology_adapter_handles_empty_neighbours():
 
 def test_topology_adapter_handles_missing_structure():
     """Empty data block / missing neighbours key / non-dict input must
-    not crash — the panel renders an empty graph for these."""
+    not crash — the panel renders an empty graph for these.
+    """
     expected_empty_with_focus = {
         "asns": [{"asn": 3333}],
         "edges": [],
@@ -460,8 +464,8 @@ def test_topology_adapter_drops_unparseable_and_self_edges():
                 {"asn": 3333, "type": "peer"},  # self-edge — must be dropped
                 {"type": "left"},  # missing asn — must be dropped
                 {"asn": 1234, "type": "left"},
-            ]
-        }
+            ],
+        },
     }
     payload = _ripestat_asn_neighbours_to_topology_payload(raw, "3333")
     # Only the (3333 → 1234) edge survives the filters.
@@ -483,7 +487,8 @@ def test_topology_adapter_handles_focus_without_as_prefix():
 async def test_asn_neighbours_handler_returns_topology_payload():
     """End-to-end: handler should emit network-topology contract JSON
     (not the raw RIPEstat envelope) so the bound app can render the
-    result inline without bundle-side reshape logic."""
+    result inline without bundle-side reshape logic.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "status": "ok",

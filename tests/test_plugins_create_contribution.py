@@ -45,7 +45,9 @@ async def test_proceed_consent_opens_pr(monkeypatch):
 
     async def fake_contribute(plugin_id, files, *, repo_root, meta=None):
         return ContributionResult(
-            status="opened", pr_url="https://x/pull/1", branch="contribute/plugin-acme"
+            status="opened",
+            pr_url="https://x/pull/1",
+            branch="contribute/plugin-acme",
         )
 
     monkeypatch.setattr(mod, "resolve_consent", fake_consent)

@@ -1,19 +1,19 @@
 import json
+from unittest.mock import Mock, patch
 
 import pytest
-from unittest.mock import patch, Mock
 
 from meta_data_mcp.providers.ch_sbb import (
     TOOLS,
+    RailwayLineParams,
+    RollingStockParams,
+    TrafficInfoParams,
     _railway_lines_to_shape_payload,
     fetch_rail_traffic_info,
-    TrafficInfoParams,
-    handle_rail_traffic_info,
     fetch_railway_lines,
-    RailwayLineParams,
-    handle_railway_lines,
     fetch_rolling_stock,
-    RollingStockParams,
+    handle_rail_traffic_info,
+    handle_railway_lines,
     handle_rolling_stock,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -246,7 +246,7 @@ def test_adapter_maps_railway_lines_to_features():
                 "linienname": "Basel - Luzern",
                 "geo_point_2d": {"lon": 7.950031, "lat": 47.298676},
             },
-        ]
+        ],
     }
     payload = _railway_lines_to_shape_payload(raw)
     assert len(payload["features"]) == 2
@@ -269,7 +269,8 @@ def test_adapter_handles_missing_structure():
 
 def test_adapter_skips_lines_without_geo_point():
     """Lines without a geo_point_2d block (or with invalid coords) are
-    dropped silently so the bundle never has to render bad pins."""
+    dropped silently so the bundle never has to render bad pins.
+    """
     raw = {
         "results": [
             {"linie": 1, "linienname": "no point"},
@@ -277,7 +278,7 @@ def test_adapter_skips_lines_without_geo_point():
             {"linie": 3, "geo_point_2d": {"lon": "bad", "lat": 1.0}},
             {"linie": 4, "geo_point_2d": {"lon": 200.0, "lat": 1.0}},  # range
             {"linie": 5, "geo_point_2d": {"lon": 7.0, "lat": 47.0}},
-        ]
+        ],
     }
     payload = _railway_lines_to_shape_payload(raw)
     assert len(payload["features"]) == 1

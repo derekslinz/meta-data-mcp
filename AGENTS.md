@@ -90,15 +90,15 @@ See `tools/specs/README.md` for the full YAML field reference.
 
 ```python
 ProviderEntry(
-    id="us_example",           # snake_case, unique
+    id="us_example",  # snake_case, unique
     server_name="us-example",  # kebab-case version of id
-    title="Example Source",    # short human title
-    description="...",         # 1-2 sentences; used by routing engine
-    domains=("government",),   # tuple of values from DOMAINS vocab below
-    regions=("us",),           # tuple of values from REGIONS vocab below
-    keywords=("example", ...), # words a user might type; drives token matching
-    homepage="https://...",    # optional
-    env_vars=(),               # optional env var names the plugin requires
+    title="Example Source",  # short human title
+    description="...",  # 1-2 sentences; used by routing engine
+    domains=("government",),  # tuple of values from DOMAINS vocab below
+    regions=("us",),  # tuple of values from REGIONS vocab below
+    keywords=("example", ...),  # words a user might type; drives token matching
+    homepage="https://...",  # optional
+    env_vars=(),  # optional env var names the plugin requires
 )
 ```
 

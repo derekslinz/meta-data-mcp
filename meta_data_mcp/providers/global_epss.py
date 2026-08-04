@@ -11,9 +11,10 @@ Auth: None required.
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_vulnerability_v1 import URI as VULN_APP_URI
@@ -29,9 +30,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-epss"
 BASE_URL = "https://api.first.org/data/v1"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -43,42 +44,42 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class EpssScoresParams(BaseModel):
     """Parameters for epss-scores."""
 
-    cve: Optional[str] = Field(
+    cve: str | None = Field(
         None,
         description=(
             "Comma-separated CVE id list (e.g. 'CVE-2021-44228,CVE-2024-3094'). "
             "Returns the latest EPSS score for each."
         ),
     )
-    days: Optional[int] = Field(
+    days: int | None = Field(
         None,
         ge=1,
         le=30,
         description="Return scores updated in the last N days (1-30).",
     )
-    epss_gt: Optional[float] = Field(
+    epss_gt: float | None = Field(
         None,
         ge=0.0,
         le=1.0,
         description="Filter to scores strictly greater than this probability (0.0-1.0).",
     )
-    percentile_gt: Optional[float] = Field(
+    percentile_gt: float | None = Field(
         None,
         ge=0.0,
         le=100.0,
         description="Filter to percentile rank strictly greater than this (0-100).",
     )
-    order: Optional[str] = Field(
+    order: str | None = Field(
         None,
         description="Sort field — use '!epss' for descending EPSS, '!percentile' for top percentile.",
     )
-    limit: Optional[int] = Field(
+    limit: int | None = Field(
         100,
         ge=1,
         le=2000,
         description="Maximum number of results to return (default 100, max 2000).",
     )
-    offset: Optional[int] = Field(
+    offset: int | None = Field(
         0,
         ge=0,
         description="Pagination offset (0-indexed).",
@@ -123,10 +124,10 @@ TOOLS.append(
             "probability / percentile / recency. Returns the daily-updated "
             "30-day exploitation probability and percentile rank for each CVE."
         ),
-        inputSchema=EpssScoresParams.model_json_schema(),
+        input_schema=EpssScoresParams.model_json_schema(),
         # MCP Apps binding: render via the vulnerability app.
         _meta={"ui": {"resourceUri": VULN_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["epss-scores"] = handle_epss_scores
 

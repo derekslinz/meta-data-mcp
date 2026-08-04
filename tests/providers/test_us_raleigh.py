@@ -12,8 +12,8 @@ import pytest
 from meta_data_mcp.providers.us_raleigh import (
     TOOLS,
     _socrata_views_to_shape_payload,
-    handle_us_raleigh_search_catalog,
     handle_us_raleigh_get_metadata,
+    handle_us_raleigh_search_catalog,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -28,7 +28,7 @@ async def test_us_raleigh_search_catalog_success():
     """Smoke test: us-raleigh-search-catalog returns records-shape payload."""
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"id": "abcd-1234", "name": "Raleigh Crime Incidents"}
+            {"id": "abcd-1234", "name": "Raleigh Crime Incidents"},
         ]
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
@@ -100,13 +100,14 @@ def test_adapter_owner_non_dict_does_not_raise_attribute_error():
     raises AttributeError. The fix wraps the or-chain in parens so the
     conditional applies to the whole expression. Mirrors the same fix in
     us_fayetteville, us_cary, us_cdc_socrata, us_healthdata_gov,
-    fr_data_gouv, us_data_gov."""
+    fr_data_gouv, us_data_gov.
+    """
     raw = [
         {
             "id": "abc-1234",
             "name": "Sample",
             "owner": "not-a-dict-just-a-string",
-        }
+        },
     ]
     payload = _socrata_views_to_shape_payload(raw)
     assert len(payload["rows"]) == 1

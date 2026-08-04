@@ -12,8 +12,8 @@ import pytest
 from meta_data_mcp.providers.us_healthdata_gov import (
     TOOLS,
     _socrata_views_to_shape_payload,
-    handle_us_healthdata_search_catalog,
     handle_us_healthdata_get_metadata,
+    handle_us_healthdata_search_catalog,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -28,7 +28,7 @@ async def test_us_healthdata_search_catalog_success():
     """Smoke test: us-healthdata-search-catalog returns records-shape payload."""
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"id": "abcd-1234", "name": "Hospital Capacity Dataset"}
+            {"id": "abcd-1234", "name": "Hospital Capacity Dataset"},
         ]
         mock_get.return_value.raise_for_status = Mock()
         mock_get.return_value.status_code = 200
@@ -82,7 +82,7 @@ def test_socrata_adapter_flattens_views_to_rows():
             "name": "Hospital Capacity",
             "category": "Health",
             "attribution": "HHS",
-        }
+        },
     ]
     payload = _socrata_views_to_shape_payload(raw)
     assert payload["rows"][0]["name"] == "Hospital Capacity"

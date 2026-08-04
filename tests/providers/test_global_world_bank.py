@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_world_bank import (
     TOOLS,
     _world_bank_indicator_data_to_shape_payload,
-    handle_list_countries,
     handle_get_country,
-    handle_list_indicators,
-    handle_search_indicators,
     handle_get_indicator_data,
-    handle_list_topics,
-    handle_list_sources,
+    handle_list_countries,
     handle_list_income_levels,
+    handle_list_indicators,
+    handle_list_sources,
+    handle_list_topics,
+    handle_search_indicators,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -118,7 +118,7 @@ async def test_world_bank_get_indicator_data_success():
                 "indicator": "NY.GDP.MKTP.CD",
                 "start": 2020,
                 "end": 2021,
-            }
+            },
         )
         assert "United States" in result[0].text
 
@@ -211,13 +211,13 @@ async def test_world_bank_get_indicator_data_returns_shape_payload():
                     "country": {"value": "USA"},
                     "value": 100.0,
                     "date": "2020",
-                }
+                },
             ],
         ]
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_indicator_data(
-            {"country": "USA", "indicator": "NY.GDP.MKTP.CD"}
+            {"country": "USA", "indicator": "NY.GDP.MKTP.CD"},
         )
         body = json.loads(result[0].text)
         assert body["axes"]["y"] == "GDP"

@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_opensky import (
     TOOLS,
     _opensky_states_to_shape_payload,
-    handle_get_states_all,
-    handle_get_states_by_aircraft,
     handle_get_flights_aircraft,
     handle_get_flights_arrival,
     handle_get_flights_departure,
+    handle_get_states_all,
+    handle_get_states_by_aircraft,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -24,7 +24,8 @@ def anyio_backend():
 @pytest.mark.anyio
 async def test_opensky_states_all_success():
     """Now returns the geofeatures shape payload — coords lift to top-level
-    lat/lon and named fields go into attrs."""
+    lat/lon and named fields go into attrs.
+    """
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "time": 1700000000,
@@ -49,13 +50,13 @@ async def test_opensky_states_all_success():
                     "1200",
                     False,
                     0,
-                ]
+                ],
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_states_all(
-            {"lamin": 40.0, "lomin": -75.0, "lamax": 41.0, "lomax": -74.0}
+            {"lamin": 40.0, "lomin": -75.0, "lamax": 41.0, "lomax": -74.0},
         )
         assert "abc123" in result[0].text
 
@@ -94,12 +95,12 @@ async def test_opensky_states_by_aircraft_missing_icao():
 async def test_opensky_flights_aircraft_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"icao24": "deadbe", "firstSeen": 1, "lastSeen": 2}
+            {"icao24": "deadbe", "firstSeen": 1, "lastSeen": 2},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_flights_aircraft(
-            {"icao24": "deadbe", "begin": 1, "end": 2}
+            {"icao24": "deadbe", "begin": 1, "end": 2},
         )
         assert "deadbe" in result[0].text
 
@@ -108,12 +109,12 @@ async def test_opensky_flights_aircraft_success():
 async def test_opensky_flights_arrival_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"estArrivalAirport": "EDDF", "icao24": "abc"}
+            {"estArrivalAirport": "EDDF", "icao24": "abc"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_flights_arrival(
-            {"airport": "EDDF", "begin": 100, "end": 200}
+            {"airport": "EDDF", "begin": 100, "end": 200},
         )
         assert "EDDF" in result[0].text
 
@@ -122,12 +123,12 @@ async def test_opensky_flights_arrival_success():
 async def test_opensky_flights_departure_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"estDepartureAirport": "KJFK", "icao24": "xyz"}
+            {"estDepartureAirport": "KJFK", "icao24": "xyz"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_flights_departure(
-            {"airport": "KJFK", "begin": 100, "end": 200}
+            {"airport": "KJFK", "begin": 100, "end": 200},
         )
         assert "KJFK" in result[0].text
 
@@ -167,7 +168,7 @@ def test_adapter_maps_state_vectors_to_features():
                 False,
                 230.5,
                 270.0,
-            ]
+            ],
         ],
     }
     payload = _opensky_states_to_shape_payload(raw)
@@ -204,7 +205,7 @@ def test_adapter_skips_invalid_state_vectors():
             ["a", "b", "c", 1, 2, "bad", 40.0, 100.0],  # bad lon
             ["a", "b", "c", 1, 2, -74.0, 200.0, 100.0],  # lat out of range
             ["ok123", "X       ", "X", 1, 2, -74.0, 40.5, 100.0],  # valid
-        ]
+        ],
     }
     payload = _opensky_states_to_shape_payload(raw)
     assert len(payload["features"]) == 1
@@ -236,7 +237,7 @@ async def test_opensky_states_all_returns_shape_payload():
                     False,
                     230.5,
                     270.0,
-                ]
+                ],
             ],
         }
         mock_get.return_value.raise_for_status = Mock()

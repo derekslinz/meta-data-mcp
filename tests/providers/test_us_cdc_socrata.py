@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_cdc_socrata import (
     TOOLS,
     _socrata_views_to_shape_payload,
-    handle_search_datasets,
-    handle_get_dataset_metadata,
-    handle_query_dataset,
     handle_count_dataset_rows,
+    handle_get_dataset_metadata,
     handle_get_metadata_v1,
+    handle_query_dataset,
+    handle_search_datasets,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -25,7 +25,7 @@ def anyio_backend():
 async def test_cdc_search_datasets_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"id": "9bhg-hcku", "name": "COVID-19 Cases"}
+            {"id": "9bhg-hcku", "name": "COVID-19 Cases"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -64,7 +64,7 @@ async def test_cdc_query_dataset_success():
                 "limit": 1,
                 "offset": 0,
                 "where": "state='CA'",
-            }
+            },
         )
         assert "CA" in result[0].text
 
@@ -115,7 +115,7 @@ def test_socrata_adapter_flattens_views_to_rows():
             "name": "COVID-19 Cases",
             "category": "Health",
             "attribution": "CDC",
-        }
+        },
     ]
     payload = _socrata_views_to_shape_payload(raw)
     assert payload["rows"][0]["name"] == "COVID-19 Cases"
@@ -137,7 +137,7 @@ def test_search_datasets_tool_binds_to_records_shape_primitive():
 async def test_cdc_search_datasets_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"id": "9bhg-hcku", "name": "COVID-19 Cases"}
+            {"id": "9bhg-hcku", "name": "COVID-19 Cases"},
         ]
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_search_datasets({"q": "covid"})

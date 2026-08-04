@@ -1,5 +1,4 @@
-"""
-CourtListener Provider (Free Law Project)
+"""CourtListener Provider (Free Law Project)
 
 This module exposes the CourtListener REST API v4, which offers free,
 open access to US federal and state court opinions, dockets, judges,
@@ -30,9 +29,10 @@ Usage:
 
 import logging
 import os
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.fields import PageInt
@@ -50,9 +50,9 @@ BASE_URL = "https://www.courtlistener.com/api/rest/v4"
 _MAX_SNIPPET_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -72,8 +72,9 @@ def _auth_headers() -> dict[str, str]:
 class CourtListenerSearchParams(BaseModel):
     """Parameters for searching CourtListener."""
 
-    q: Optional[str] = Field(
-        None, description="Free-text query (Lucene-style supported)."
+    q: str | None = Field(
+        None,
+        description="Free-text query (Lucene-style supported).",
     )
     type: str = Field(
         default="o",
@@ -82,7 +83,7 @@ class CourtListenerSearchParams(BaseModel):
             "'oa' (oral arguments)."
         ),
     )
-    order_by: Optional[str] = Field(
+    order_by: str | None = Field(
         None,
         description="Sort expression, e.g. 'dateFiled desc', 'score desc'.",
     )
@@ -138,7 +139,7 @@ def _courtlistener_search_to_shape_payload(data: dict) -> dict:
                 "docketNumber": hit.get("docketNumber"),
                 "status": hit.get("status"),
                 "snippet": snippet,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -168,7 +169,7 @@ def _courtlistener_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Snippet (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["court", "status"],
     }
@@ -204,9 +205,9 @@ TOOLS.append(
             "Search CourtListener across opinions ('o'), RECAP docs ('r'), "
             "people/judges ('p'), or oral arguments ('oa')."
         ),
-        inputSchema=CourtListenerSearchParams.model_json_schema(),
+        input_schema=CourtListenerSearchParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["courtlistener-search"] = handle_courtlistener_search
 
@@ -251,8 +252,8 @@ TOOLS.append(
     types.Tool(
         name="courtlistener-list-courts",
         description="List the courts indexed by CourtListener (paginated).",
-        inputSchema=CourtListenerListCourtsParams.model_json_schema(),
-    )
+        input_schema=CourtListenerListCourtsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["courtlistener-list-courts"] = handle_courtlistener_list_courts
 
@@ -297,8 +298,8 @@ TOOLS.append(
     types.Tool(
         name="courtlistener-get-opinion",
         description="Fetch a single CourtListener opinion (with full text) by numeric id.",
-        inputSchema=CourtListenerGetOpinionParams.model_json_schema(),
-    )
+        input_schema=CourtListenerGetOpinionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["courtlistener-get-opinion"] = handle_courtlistener_get_opinion
 
@@ -312,7 +313,8 @@ class CourtListenerGetClusterParams(BaseModel):
     """Parameters for fetching an opinion cluster by id."""
 
     cluster_id: int = Field(
-        ..., description="Numeric CourtListener opinion-cluster id."
+        ...,
+        description="Numeric CourtListener opinion-cluster id.",
     )
 
 
@@ -348,8 +350,8 @@ TOOLS.append(
             "Fetch a CourtListener opinion cluster (case-level metadata grouping "
             "related opinions) by numeric id."
         ),
-        inputSchema=CourtListenerGetClusterParams.model_json_schema(),
-    )
+        input_schema=CourtListenerGetClusterParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["courtlistener-get-opinion-cluster"] = handle_courtlistener_get_cluster
 
@@ -362,8 +364,8 @@ TOOLS_HANDLERS["courtlistener-get-opinion-cluster"] = handle_courtlistener_get_c
 class CourtListenerListJudgesParams(BaseModel):
     """Parameters for searching CourtListener people (judges)."""
 
-    name_first: Optional[str] = Field(None, description="Judge's first name filter.")
-    name_last: Optional[str] = Field(None, description="Judge's last name filter.")
+    name_first: str | None = Field(None, description="Judge's first name filter.")
+    name_last: str | None = Field(None, description="Judge's last name filter.")
     page: PageInt = Field(description="Results page (1-indexed).")
 
 
@@ -400,8 +402,8 @@ TOOLS.append(
     types.Tool(
         name="courtlistener-list-judges",
         description="Search CourtListener's people endpoint (judges) by first/last name.",
-        inputSchema=CourtListenerListJudgesParams.model_json_schema(),
-    )
+        input_schema=CourtListenerListJudgesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["courtlistener-list-judges"] = handle_courtlistener_list_judges
 
@@ -446,8 +448,8 @@ TOOLS.append(
     types.Tool(
         name="courtlistener-get-judge",
         description="Fetch a CourtListener person (judge) by numeric id.",
-        inputSchema=CourtListenerGetJudgeParams.model_json_schema(),
-    )
+        input_schema=CourtListenerGetJudgeParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["courtlistener-get-judge"] = handle_courtlistener_get_judge
 
@@ -460,11 +462,13 @@ TOOLS_HANDLERS["courtlistener-get-judge"] = handle_courtlistener_get_judge
 class CourtListenerListDocketsParams(BaseModel):
     """Parameters for listing CourtListener dockets."""
 
-    court: Optional[str] = Field(
-        None, description="Court id slug (e.g. 'scotus', 'ca9')."
+    court: str | None = Field(
+        None,
+        description="Court id slug (e.g. 'scotus', 'ca9').",
     )
-    docket_number: Optional[str] = Field(
-        None, description="Docket number filter (exact match)."
+    docket_number: str | None = Field(
+        None,
+        description="Docket number filter (exact match).",
     )
     page: PageInt = Field(description="Results page (1-indexed).")
 
@@ -502,8 +506,8 @@ TOOLS.append(
     types.Tool(
         name="courtlistener-list-dockets",
         description="List CourtListener dockets, optionally filtered by court and/or docket number.",
-        inputSchema=CourtListenerListDocketsParams.model_json_schema(),
-    )
+        input_schema=CourtListenerListDocketsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["courtlistener-list-dockets"] = handle_courtlistener_list_dockets
 
@@ -512,7 +516,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-courtlistener", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-courtlistener",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

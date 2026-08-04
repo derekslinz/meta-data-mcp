@@ -16,10 +16,10 @@ from meta_data_mcp.providers.global_rest_countries import (
     fetch_restcountries_get_by_code,
     fetch_restcountries_list_by_region,
     fetch_restcountries_search_by_name,
-    handle_restcountries_search_by_name,
     handle_restcountries_get_by_code,
-    handle_restcountries_list_by_region,
     handle_restcountries_list_all,
+    handle_restcountries_list_by_region,
+    handle_restcountries_search_by_name,
 )
 
 
@@ -41,7 +41,7 @@ def test_fetch_restcountries_search_by_name_uses_name_in_path():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"name": {"common": "Germany"}}])
         result = fetch_restcountries_search_by_name(
-            RestcountriesSearchByNameParams(name="Germany")
+            RestcountriesSearchByNameParams(name="Germany"),
         )
         assert result[0]["name"]["common"] == "Germany"
         assert mock_get.call_args[0][0].endswith("/name/Germany")
@@ -51,7 +51,7 @@ def test_fetch_restcountries_search_by_name_url_encodes_path_segment():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"name": {"common": "Côte d'Ivoire"}}])
         fetch_restcountries_search_by_name(
-            RestcountriesSearchByNameParams(name="Côte d'Ivoire")
+            RestcountriesSearchByNameParams(name="Côte d'Ivoire"),
         )
         assert mock_get.call_args[0][0].endswith("/name/C%C3%B4te%20d%27Ivoire")
 
@@ -60,7 +60,7 @@ def test_fetch_restcountries_get_by_code_uses_code_in_path():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"cca2": "DE"}])
         result = fetch_restcountries_get_by_code(
-            RestcountriesGetByCodeParams(code="DE")
+            RestcountriesGetByCodeParams(code="DE"),
         )
         assert result[0]["cca2"] == "DE"
         assert mock_get.call_args[0][0].endswith("/alpha/DE")
@@ -77,7 +77,7 @@ def test_fetch_restcountries_list_by_region_uses_region_in_path():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"region": "Europe"}])
         result = fetch_restcountries_list_by_region(
-            RestcountriesListByRegionParams(region="Europe")
+            RestcountriesListByRegionParams(region="Europe"),
         )
         assert result[0]["region"] == "Europe"
         assert mock_get.call_args[0][0].endswith("/region/Europe")
@@ -87,7 +87,7 @@ def test_fetch_restcountries_list_by_region_url_encodes_path_segment():
     with patch("httpx.get") as mock_get:
         mock_get.return_value = _ok([{"region": "Middle East"}])
         fetch_restcountries_list_by_region(
-            RestcountriesListByRegionParams(region="Middle East")
+            RestcountriesListByRegionParams(region="Middle East"),
         )
         assert mock_get.call_args[0][0].endswith("/region/Middle%20East")
 

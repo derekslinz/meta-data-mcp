@@ -1,5 +1,7 @@
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock
+
 from meta_data_mcp.providers.global_rcsb_pdb import (
     TOOLS,
     handle_pdb_entry,
@@ -53,7 +55,8 @@ def test_pdb_entry_tool_binds_to_molecular_app():
     from it for the actual atoms. Pin both the Python-side ``.meta``
     attribute AND the wire-level alias (``model_dump(by_alias=True)``
     emits ``_meta``) so a future SDK regression on the populate_by_name
-    footgun is caught here."""
+    footgun is caught here.
+    """
     tool = next(t for t in TOOLS if t.name == "pdb-entry")
     assert tool.meta == {"ui": {"resourceUri": MOLECULAR_URI}}, (
         f"pdb-entry is not bound to {MOLECULAR_URI}"
@@ -67,7 +70,8 @@ def test_pdb_polymer_tool_not_bound_to_molecular_app():
     molecular app: it returns metadata for one chain inside an entry,
     with no separable structure URL — the viewer would have nothing to
     render that the parent entry doesn't already provide. If a future
-    refactor binds it, document why on this assertion."""
+    refactor binds it, document why on this assertion.
+    """
     tool = next(t for t in TOOLS if t.name == "pdb-polymer-entity")
     wire = tool.model_dump(by_alias=True, exclude_none=True)
     assert "_meta" not in wire, (

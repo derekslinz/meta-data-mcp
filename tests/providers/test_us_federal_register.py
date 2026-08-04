@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.us_federal_register import (
     TOOLS,
-    _fedreg_search_to_shape_payload,
     FedRegListExecutiveOrdersParams,
     FedRegSearchDocumentsParams,
-    handle_fedreg_search_documents,
+    _fedreg_search_to_shape_payload,
+    handle_fedreg_get_agency,
     handle_fedreg_get_document,
     handle_fedreg_list_agencies,
-    handle_fedreg_get_agency,
-    handle_fedreg_public_inspection,
     handle_fedreg_list_executive_orders,
+    handle_fedreg_public_inspection,
+    handle_fedreg_search_documents,
     handle_fedreg_suggested_searches,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -34,7 +34,7 @@ async def test_fedreg_search_documents_success():
                 {
                     "document_number": "2024-12345",
                     "title": "Clean Air Act amendments",
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
@@ -109,7 +109,7 @@ async def test_fedreg_get_agency_success():
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_fedreg_get_agency(
-            {"slug": "environmental-protection-agency"}
+            {"slug": "environmental-protection-agency"},
         )
         assert "Environmental Protection Agency" in result[0].text
 
@@ -136,7 +136,7 @@ async def test_fedreg_list_executive_orders_success():
                 {
                     "document_number": "2024-99999",
                     "title": "Executive Order on Energy",
-                }
+                },
             ],
         }
         mock_get.return_value.raise_for_status = Mock()
@@ -152,7 +152,7 @@ async def test_fedreg_list_executive_orders_success():
 async def test_fedreg_suggested_searches_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"title": "Climate change", "slug": "climate-change"}
+            {"title": "Climate change", "slug": "climate-change"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -187,7 +187,7 @@ def test_fedreg_adapter_flattens_results_to_rows():
                 "agencies": [{"name": "EPA"}],
                 "html_url": "https://federalregister.gov/d/2024-12345",
                 "abstract": "Rule about CAA.",
-            }
+            },
         ],
     }
     payload = _fedreg_search_to_shape_payload(raw)

@@ -83,7 +83,8 @@ def _app(
 
 def _client(app):
     return httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     )
 
 
@@ -140,7 +141,9 @@ async def test_consent_post_approve_redirects_with_code(provider):
     app = _app(provider)
     async with _client(app) as c:
         r = await c.post(
-            "/oauth/consent/approve", data={"session": session}, follow_redirects=False
+            "/oauth/consent/approve",
+            data={"session": session},
+            follow_redirects=False,
         )
     assert r.status_code == 302
     q = parse_qs(urlsplit(r.headers["location"]).query)
@@ -272,7 +275,8 @@ async def test_request_link_ip_throttle_returns_429(provider):
 @pytest.mark.anyio
 async def test_request_link_email_throttle_silently_drops(provider):
     """Over-limit for one email returns the normal page but sends no email, so
-    a victim can't be bombed and an attacker can't detect the throttle."""
+    a victim can't be bombed and an attacker can't detect the throttle.
+    """
     emailer = RecordingEmailer()
     app = _app(
         provider,

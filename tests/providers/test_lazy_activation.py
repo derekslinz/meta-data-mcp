@@ -187,7 +187,7 @@ async def test_find_providers_activate_top_loads_tools():
     """activate_top=N must load the top N providers' tools in the same turn."""
     tools_before = len(srv.TOOLS)
     r = await srv.handle_find_providers(
-        {"query": "air quality", "activate_top": 2, "limit": 3}
+        {"query": "air quality", "activate_top": 2, "limit": 3},
     )
     payload = _payload(r)
 
@@ -229,7 +229,8 @@ def test_load_all_plugins_default_is_empty(monkeypatch):
 def test_load_all_plugins_preload_specific(monkeypatch):
     """Comma-separated env var preloads only the named providers."""
     monkeypatch.setenv(
-        "META_DATA_MCP_PRELOAD", "global-openaq, us_data_gov, no-such-thing"
+        "META_DATA_MCP_PRELOAD",
+        "global-openaq, us_data_gov, no-such-thing",
     )
     # Need to clear state first because we're sharing module-level state.
     srv._active_providers.clear()

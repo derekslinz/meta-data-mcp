@@ -20,10 +20,9 @@ server boot. Each registers its resources against the server's shared
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from mcp import types
-from pydantic import AnyUrl
 
 from .app_discovery_v1 import URI as _APP_DISCOVERY_URI
 from .app_discovery_v1 import register as _register_discovery_app
@@ -80,7 +79,7 @@ URIS: dict[str, str] = {
 
 def register_shapes(
     resources: list[types.Resource],
-    resources_handlers: dict[str, Callable[[AnyUrl], str | bytes]],
+    resources_handlers: dict[str, Callable[[str], str | bytes]],
 ) -> dict[str, str]:
     """Register all v2 shape primitives on the given server state.
 
@@ -100,7 +99,7 @@ def register_shapes(
 
 def register_apps(
     resources: list[types.Resource],
-    resources_handlers: dict[str, Callable[[AnyUrl], str | bytes]],
+    resources_handlers: dict[str, Callable[[str], str | bytes]],
 ) -> dict[str, str]:
     """Register all v2 apps on the given server state.
 
@@ -121,6 +120,7 @@ def register_apps(
         "molecular/v1": _register_molecular_app(resources, resources_handlers),
         "news-tone/v1": _register_news_tone_app(resources, resources_handlers),
         "network-topology/v1": _register_network_topology_app(
-            resources, resources_handlers
+            resources,
+            resources_handlers,
         ),
     }

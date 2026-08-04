@@ -1,5 +1,4 @@
-"""
-US Geological Survey (USGS) Earthquake Hazards Program Provider
+"""US Geological Survey (USGS) Earthquake Hazards Program Provider
 
 This module exposes the USGS Earthquake Catalog FDSN web service and the
 public GeoJSON real-time feeds. The catalog covers global seismic events
@@ -23,9 +22,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
@@ -40,9 +40,9 @@ BASE_URL = "https://earthquake.usgs.gov/fdsnws/event/1"
 FEED_BASE_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -54,34 +54,51 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class USGSEqQueryParams(BaseModel):
     """Parameters for querying the USGS FDSN event catalog."""
 
-    starttime: Optional[str] = Field(
+    starttime: str | None = Field(
         None,
         description="Start time (ISO 8601, e.g. 2024-01-01 or 2024-01-01T00:00:00).",
     )
-    endtime: Optional[str] = Field(
+    endtime: str | None = Field(
         None,
         description="End time (ISO 8601, e.g. 2024-01-02 or 2024-01-02T00:00:00).",
     )
-    minmagnitude: Optional[float] = Field(
-        None, description="Minimum event magnitude (inclusive)."
+    minmagnitude: float | None = Field(
+        None,
+        description="Minimum event magnitude (inclusive).",
     )
-    maxmagnitude: Optional[float] = Field(
-        None, description="Maximum event magnitude (inclusive)."
+    maxmagnitude: float | None = Field(
+        None,
+        description="Maximum event magnitude (inclusive).",
     )
-    minlatitude: Optional[float] = Field(
-        None, ge=-90.0, le=90.0, description="Southern bounding-box latitude."
+    minlatitude: float | None = Field(
+        None,
+        ge=-90.0,
+        le=90.0,
+        description="Southern bounding-box latitude.",
     )
-    maxlatitude: Optional[float] = Field(
-        None, ge=-90.0, le=90.0, description="Northern bounding-box latitude."
+    maxlatitude: float | None = Field(
+        None,
+        ge=-90.0,
+        le=90.0,
+        description="Northern bounding-box latitude.",
     )
-    minlongitude: Optional[float] = Field(
-        None, ge=-360.0, le=360.0, description="Western bounding-box longitude."
+    minlongitude: float | None = Field(
+        None,
+        ge=-360.0,
+        le=360.0,
+        description="Western bounding-box longitude.",
     )
-    maxlongitude: Optional[float] = Field(
-        None, ge=-360.0, le=360.0, description="Eastern bounding-box longitude."
+    maxlongitude: float | None = Field(
+        None,
+        ge=-360.0,
+        le=360.0,
+        description="Eastern bounding-box longitude.",
     )
     limit: int = Field(
-        default=100, ge=1, le=20000, description="Maximum number of events to return."
+        default=100,
+        ge=1,
+        le=20000,
+        description="Maximum number of events to return.",
     )
 
 
@@ -144,12 +161,12 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-query",
         description="Query the USGS FDSN earthquake catalog (GeoJSON). Supports time, magnitude, and bounding-box filters.",
-        inputSchema=USGSEqQueryParams.model_json_schema(),
+        input_schema=USGSEqQueryParams.model_json_schema(),
         # MCP Apps binding: render via the shared geofeatures shape primitive.
         # Use the alias keyword `_meta=` — see
         # tests/test_ui_resource.py::test_tool_meta_constructor_kwarg_does_not_reach_wire.
         _meta={"ui": {"resourceUri": GEOFEATURES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-query"] = handle_usgs_eq_query
 
@@ -162,10 +179,11 @@ TOOLS_HANDLERS["usgs-eq-query"] = handle_usgs_eq_query
 class USGSEqCountParams(BaseModel):
     """Parameters for counting events that match a filter."""
 
-    starttime: Optional[str] = Field(None, description="Start time (ISO 8601).")
-    endtime: Optional[str] = Field(None, description="End time (ISO 8601).")
-    minmagnitude: Optional[float] = Field(
-        None, description="Minimum event magnitude (inclusive)."
+    starttime: str | None = Field(None, description="Start time (ISO 8601).")
+    endtime: str | None = Field(None, description="End time (ISO 8601).")
+    minmagnitude: float | None = Field(
+        None,
+        description="Minimum event magnitude (inclusive).",
     )
 
 
@@ -197,8 +215,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-count",
         description="Return the number of USGS earthquake events matching a filter (no payload).",
-        inputSchema=USGSEqCountParams.model_json_schema(),
-    )
+        input_schema=USGSEqCountParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-count"] = handle_usgs_eq_count
 
@@ -210,8 +228,6 @@ TOOLS_HANDLERS["usgs-eq-count"] = handle_usgs_eq_count
 
 class USGSEqFeedParams(BaseModel):
     """No parameters; feeds are fixed URLs maintained by USGS."""
-
-    pass
 
 
 def _fetch_feed(url: str) -> dict:
@@ -309,8 +325,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-feed-significant-day",
         description="GeoJSON feed of significant earthquakes in the past day.",
-        inputSchema=USGSEqFeedParams.model_json_schema(),
-    )
+        input_schema=USGSEqFeedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-feed-significant-day"] = handle_usgs_eq_feed_significant_day
 
@@ -318,8 +334,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-feed-significant-week",
         description="GeoJSON feed of significant earthquakes in the past week.",
-        inputSchema=USGSEqFeedParams.model_json_schema(),
-    )
+        input_schema=USGSEqFeedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-feed-significant-week"] = handle_usgs_eq_feed_significant_week
 
@@ -327,8 +343,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-feed-all-day",
         description="GeoJSON feed of all earthquakes in the past day.",
-        inputSchema=USGSEqFeedParams.model_json_schema(),
-    )
+        input_schema=USGSEqFeedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-feed-all-day"] = handle_usgs_eq_feed_all_day
 
@@ -336,8 +352,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-feed-all-week",
         description="GeoJSON feed of all earthquakes in the past week.",
-        inputSchema=USGSEqFeedParams.model_json_schema(),
-    )
+        input_schema=USGSEqFeedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-feed-all-week"] = handle_usgs_eq_feed_all_week
 
@@ -345,8 +361,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-feed-m45-week",
         description="GeoJSON feed of earthquakes with magnitude >= 4.5 in the past week.",
-        inputSchema=USGSEqFeedParams.model_json_schema(),
-    )
+        input_schema=USGSEqFeedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-feed-m45-week"] = handle_usgs_eq_feed_m45_week
 
@@ -359,13 +375,13 @@ TOOLS_HANDLERS["usgs-eq-feed-m45-week"] = handle_usgs_eq_feed_m45_week
 class USGSEqVersionParams(BaseModel):
     """No parameters required for the /version endpoint."""
 
-    pass
-
 
 def fetch_usgs_eq_application_version(_params: USGSEqVersionParams) -> str:
     """Call the FDSN /version endpoint. Response is plain text, not JSON."""
     response = http_get(
-        f"{BASE_URL}/version", headers={"Accept": "text/plain"}, provider=PROVIDER_ID
+        f"{BASE_URL}/version",
+        headers={"Accept": "text/plain"},
+        provider=PROVIDER_ID,
     )
     return response.text
 
@@ -387,8 +403,8 @@ TOOLS.append(
     types.Tool(
         name="usgs-eq-application-version",
         description="Return the USGS FDSN event web-service application version string.",
-        inputSchema=USGSEqVersionParams.model_json_schema(),
-    )
+        input_schema=USGSEqVersionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["usgs-eq-application-version"] = handle_usgs_eq_application_version
 
@@ -397,7 +413,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-usgs-earthquake", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-usgs-earthquake",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

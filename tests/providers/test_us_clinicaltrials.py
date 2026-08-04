@@ -1,17 +1,18 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
+
 from meta_data_mcp.providers.us_clinicaltrials import (
     TOOLS,
     _ctgov_search_to_shape_payload,
-    handle_search_studies,
     handle_get_study,
+    handle_list_stats,
     handle_search_by_condition,
     handle_search_by_intervention,
     handle_search_by_location,
-    handle_list_stats,
+    handle_search_studies,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -26,7 +27,7 @@ async def test_ctgov_search_studies_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "studies": [
-                {"protocolSection": {"identificationModule": {"nctId": "NCT01234567"}}}
+                {"protocolSection": {"identificationModule": {"nctId": "NCT01234567"}}},
             ],
             "nextPageToken": "abc",
         }
@@ -53,8 +54,8 @@ async def test_ctgov_get_study_success():
                 "identificationModule": {
                     "nctId": "NCT00000001",
                     "briefTitle": "Sample Study",
-                }
-            }
+                },
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -73,7 +74,7 @@ async def test_ctgov_get_study_requires_nctid():
 async def test_ctgov_search_by_condition_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "studies": [{"condition": "diabetes"}]
+            "studies": [{"condition": "diabetes"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -85,7 +86,7 @@ async def test_ctgov_search_by_condition_success():
 async def test_ctgov_search_by_intervention_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "studies": [{"intervention": "metformin"}]
+            "studies": [{"intervention": "metformin"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -136,12 +137,12 @@ def test_ctgov_adapter_flattens_protocol_section_to_rows():
                         "phases": ["PHASE3"],
                     },
                     "sponsorCollaboratorsModule": {
-                        "leadSponsor": {"name": "Acme Pharma"}
+                        "leadSponsor": {"name": "Acme Pharma"},
                     },
                     "conditionsModule": {"conditions": ["Lung Cancer"]},
                     "descriptionModule": {"briefSummary": "Summary here."},
-                }
-            }
+                },
+            },
         ],
         "nextPageToken": "abc",
     }
@@ -165,9 +166,9 @@ def test_ctgov_adapter_handles_partial_protocol_section():
     payload = _ctgov_search_to_shape_payload(
         {
             "studies": [
-                {"protocolSection": {"identificationModule": {"nctId": "NCT99999999"}}}
-            ]
-        }
+                {"protocolSection": {"identificationModule": {"nctId": "NCT99999999"}}},
+            ],
+        },
     )
     assert payload["rows"][0]["nctId"] == "NCT99999999"
 
@@ -184,8 +185,8 @@ async def test_ctgov_search_studies_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "studies": [
-                {"protocolSection": {"identificationModule": {"nctId": "NCT01234567"}}}
-            ]
+                {"protocolSection": {"identificationModule": {"nctId": "NCT01234567"}}},
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_search_studies({"query_term": "cancer"})

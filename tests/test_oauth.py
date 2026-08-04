@@ -223,7 +223,7 @@ def _build_dual_auth_app(static_token: str | None, oauth_provider_instance=None)
                 endpoint=lambda r: PlainTextResponse("root-ok"),
                 methods=["GET"],
             ),
-        ]
+        ],
     )
     app.add_middleware(
         BearerAuthMiddleware,
@@ -238,10 +238,12 @@ async def test_static_token_still_accepted_when_oauth_enabled(provider):
     """The static bearer token continues to work when OAuth is also configured."""
     app = _build_dual_auth_app("my-static-token", oauth_provider_instance=provider)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         r = await client.get(
-            "/sse", headers={"Authorization": "Bearer my-static-token"}
+            "/sse",
+            headers={"Authorization": "Bearer my-static-token"},
         )
     assert r.status_code == 200
 
@@ -270,7 +272,8 @@ async def test_oauth_token_accepted_by_middleware(provider):
 
     app = _build_dual_auth_app(static_token=None, oauth_provider_instance=provider)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         r = await client.get(
             "/sse",
@@ -283,7 +286,8 @@ async def test_oauth_token_accepted_by_middleware(provider):
 async def test_invalid_token_rejected(provider):
     app = _build_dual_auth_app("real-token", oauth_provider_instance=provider)
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         r = await client.get("/sse", headers={"Authorization": "Bearer wrong"})
     assert r.status_code == 401
@@ -316,7 +320,8 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
 
     async def oidc_discovery(_request):
         return RedirectResponse(
-            "/.well-known/oauth-authorization-server", status_code=301
+            "/.well-known/oauth-authorization-server",
+            status_code=301,
         )
 
     async def patched_oauth_metadata(request: Request):
@@ -337,7 +342,7 @@ def _build_oauth_starlette_app(issuer: str = "http://localhost:8000"):
                     "none",
                 ],
                 "code_challenge_methods_supported": ["S256"],
-            }
+            },
         )
 
     protected_resource_routes = create_protected_resource_routes(
@@ -391,7 +396,8 @@ async def test_oauth_metadata_endpoint():
     """/.well-known/oauth-authorization-server returns 200 + issuer field."""
     app, _ = _build_oauth_starlette_app()
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
     ) as client:
         r = await client.get("/.well-known/oauth-authorization-server")
     assert r.status_code == 200
@@ -407,7 +413,8 @@ async def test_oauth_dynamic_registration():
     """POST /register returns client_id."""
     app, _ = _build_oauth_starlette_app()
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
     ) as client:
         r = await client.post(
             "/register",
@@ -429,7 +436,8 @@ async def test_oauth_routes_exempt_from_bearer_middleware():
     """OAuth discovery, register, and consent routes return non-401 without auth."""
     app, _ = _build_oauth_starlette_app()
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
     ) as client:
         # metadata endpoint — no auth
         r1 = await client.get("/.well-known/oauth-authorization-server")
@@ -450,7 +458,8 @@ async def test_protected_resource_metadata_endpoint():
     """/.well-known/oauth-protected-resource returns 200 + required RFC 9728 fields."""
     app, _ = _build_oauth_starlette_app()
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
     ) as client:
         r = await client.get("/.well-known/oauth-protected-resource")
     assert r.status_code == 200
@@ -468,7 +477,8 @@ async def test_protected_resource_endpoint_no_auth_required():
     """/.well-known/oauth-protected-resource is accessible without Bearer auth."""
     app, _ = _build_oauth_starlette_app()
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://localhost:8000",
     ) as client:
         r = await client.get("/.well-known/oauth-protected-resource")
     assert r.status_code == 200, (

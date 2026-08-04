@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 
 import httpx
@@ -43,10 +43,14 @@ def test_http_get_cache_hit_and_expiry(monkeypatch):
     monkeypatch.setattr(utils.httpx, "get", mock_get)
 
     r1 = utils.http_get(
-        "https://example.test/api", cache_ttl=10, provider="test-provider"
+        "https://example.test/api",
+        cache_ttl=10,
+        provider="test-provider",
     )
     r2 = utils.http_get(
-        "https://example.test/api", cache_ttl=10, provider="test-provider"
+        "https://example.test/api",
+        cache_ttl=10,
+        provider="test-provider",
     )
 
     assert r1 is first
@@ -55,7 +59,9 @@ def test_http_get_cache_hit_and_expiry(monkeypatch):
 
     now = 111.0
     r3 = utils.http_get(
-        "https://example.test/api", cache_ttl=10, provider="test-provider"
+        "https://example.test/api",
+        cache_ttl=10,
+        provider="test-provider",
     )
     assert r3 is second
     assert mock_get.call_count == 2
@@ -101,7 +107,9 @@ def test_cache_isolates_auth_from_anonymous(monkeypatch):
     monkeypatch.setattr(utils.httpx, "get", mock_get)
 
     r_anon = utils.http_get(
-        "https://example.test/api", cache_ttl=60, provider="test-provider"
+        "https://example.test/api",
+        cache_ttl=60,
+        provider="test-provider",
     )
     r_auth = utils.http_get(
         "https://example.test/api",
@@ -116,7 +124,9 @@ def test_cache_isolates_auth_from_anonymous(monkeypatch):
 
     # And confirm both are independently cached
     r_anon_cached = utils.http_get(
-        "https://example.test/api", cache_ttl=60, provider="test-provider"
+        "https://example.test/api",
+        cache_ttl=60,
+        provider="test-provider",
     )
     r_auth_cached = utils.http_get(
         "https://example.test/api",
@@ -137,7 +147,9 @@ def test_http_get_retries_on_429_with_retry_after(monkeypatch):
     monkeypatch.setattr(utils.time, "sleep", lambda s: sleeps.append(s))
 
     rate_limited = _response(
-        "rate-limited", status_code=429, headers={"Retry-After": "0"}
+        "rate-limited",
+        status_code=429,
+        headers={"Retry-After": "0"},
     )
     ok = _response("ok")
     mock_get = Mock(side_effect=[rate_limited, ok])
@@ -216,7 +228,9 @@ def test_cache_isolates_lowercase_auth_header(monkeypatch):
     monkeypatch.setattr(utils.httpx, "get", mock_get)
 
     r_anon = utils.http_get(
-        "https://example.test/api", cache_ttl=60, provider="test-provider"
+        "https://example.test/api",
+        cache_ttl=60,
+        provider="test-provider",
     )
     r_auth = utils.http_get(
         "https://example.test/api",
@@ -238,11 +252,13 @@ def test_http_get_retries_on_429_with_http_date_retry_after(monkeypatch):
     monkeypatch.setattr(utils.time, "sleep", lambda s: sleeps.append(s))
 
     # An HTTP-date 5 seconds in the future → should sleep ~5 s (≤ 30 s cap)
-    future = datetime.now(timezone.utc) + timedelta(seconds=5)
+    future = datetime.now(UTC) + timedelta(seconds=5)
     retry_after_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
     rate_limited = _response(
-        "rate-limited", status_code=429, headers={"Retry-After": retry_after_date}
+        "rate-limited",
+        status_code=429,
+        headers={"Retry-After": retry_after_date},
     )
     ok = _response("ok")
     mock_get = Mock(side_effect=[rate_limited, ok])
@@ -265,7 +281,9 @@ def test_http_get_retry_after_capped_at_30s(monkeypatch):
 
     # Retry-After: 120 should be clamped to 30
     rate_limited = _response(
-        "rate-limited", status_code=429, headers={"Retry-After": "120"}
+        "rate-limited",
+        status_code=429,
+        headers={"Retry-After": "120"},
     )
     ok = _response("ok")
     mock_get = Mock(side_effect=[rate_limited, ok])
@@ -404,7 +422,9 @@ def test_http_post_with_provider_translates_network_error(monkeypatch):
 
     with pytest.raises(NetworkError) as exc_info:
         utils.http_post(
-            "https://example.test/api", json={"x": 1}, provider="test-provider"
+            "https://example.test/api",
+            json={"x": 1},
+            provider="test-provider",
         )
 
     assert exc_info.value.provider == "test-provider"

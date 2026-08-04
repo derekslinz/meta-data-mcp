@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = REPO_ROOT / "tools" / "specs" / "example_weather_alert.yaml"
 GENERATOR_PATH = REPO_ROOT / "tools" / "generate_provider.py"
@@ -81,7 +80,8 @@ def test_example_spec_tools_have_required_fields(spec):
 
 def test_path_param_detection(generator):
     """The path-param regex finds {name} placeholders, including
-    multiple placeholders in a single segment."""
+    multiple placeholders in a single segment.
+    """
     assert generator._path_params("/alerts/active") == []
     assert generator._path_params("/alerts/{alert_id}") == ["alert_id"]
     assert generator._path_params("/points/{latitude},{longitude}") == [
@@ -295,7 +295,7 @@ def test_response_shape_validates_against_known_shapes(generator, tmp_path):
         "id: bad\nserver_name: bad\nbase_url: https://x\n"
         "description: x\ntools:\n"
         "  - name: bad-tool\n    description: x\n    endpoint: /x\n"
-        "    response_shape: bogus\n"
+        "    response_shape: bogus\n",
     )
     with pytest.raises(generator.SpecError, match="response_shape"):
         generator.load_spec(bad)
@@ -303,13 +303,14 @@ def test_response_shape_validates_against_known_shapes(generator, tmp_path):
 
 def test_response_shape_rejects_text_response_format(generator, tmp_path):
     """A shape needs JSON to carry the envelope contract; text responses
-    can't be re-shaped without losing bytes."""
+    can't be re-shaped without losing bytes.
+    """
     bad = tmp_path / "bad.yaml"
     bad.write_text(
         "id: bad\nserver_name: bad\nbase_url: https://x\n"
         "description: x\ntools:\n"
         "  - name: bad-tool\n    description: x\n    endpoint: /x\n"
-        "    response_shape: records\n    response_format: text\n"
+        "    response_shape: records\n    response_format: text\n",
     )
     with pytest.raises(generator.SpecError, match="response_format='json'"):
         generator.load_spec(bad)
@@ -333,13 +334,15 @@ def test_response_shape_emits_uri_imports(shape_rendered):
 
 def test_response_shape_emits_meta_binding(shape_rendered):
     """Each shape-bound tool gets ``_meta={"ui": {"resourceUri": …}}``
-    on its registration — and only those tools."""
+    on its registration — and only those tools.
+    """
     assert '_meta={"ui": {"resourceUri": RECORDS_URI}}' in shape_rendered
     assert '_meta={"ui": {"resourceUri": GEOFEATURES_URI}}' in shape_rendered
     assert '_meta={"ui": {"resourceUri": TIMESERIES_URI}}' in shape_rendered
     # The unbound tool's registration must NOT carry a _meta line.
     plain_block = shape_rendered.split('name="sd-plain"', 1)[1].split(
-        "TOOLS.append", 1
+        "TOOLS.append",
+        1,
     )[0]
     assert "_meta=" not in plain_block
 
@@ -347,7 +350,8 @@ def test_response_shape_emits_meta_binding(shape_rendered):
 def test_response_shape_emits_size_bounded_serializer(shape_rendered):
     """Records → to_records_text. Geofeatures → to_geofeatures_text.
     Timeseries → to_json_text(max_chars=MAX_RESPONSE_CHARS). Unbound →
-    serialize_for_llm (unchanged)."""
+    serialize_for_llm (unchanged).
+    """
     assert "to_records_text(data)" in shape_rendered
     assert "to_geofeatures_text(data)" in shape_rendered
     assert "to_json_text(data, max_chars=MAX_RESPONSE_CHARS)" in shape_rendered
@@ -357,19 +361,21 @@ def test_response_shape_emits_size_bounded_serializer(shape_rendered):
 def test_response_shape_emits_adapter_todo(shape_rendered):
     """Each shape-bound handler carries the adapter TODO comment so the
     author doesn't forget to write the provider-specific shape-mapping
-    function."""
+    function.
+    """
     for snake in ("sd_records", "sd_features", "sd_series"):
         assert f"_{snake}_to_shape_payload(data)" in shape_rendered
 
 
 def test_response_shape_default_is_unbound(generator, tmp_path):
     """Specs that omit response_shape still generate working providers
-    (backward compat with all existing specs in tools/specs/)."""
+    (backward compat with all existing specs in tools/specs/).
+    """
     path = tmp_path / "noop.yaml"
     path.write_text(
         "id: noop\nserver_name: noop\nbase_url: https://x\n"
         "description: x\ntools:\n"
-        "  - name: noop\n    description: x\n    endpoint: /x\n"
+        "  - name: noop\n    description: x\n    endpoint: /x\n",
     )
     spec = generator.load_spec(path)
     assert spec["tools"][0]["response_shape"] == "none"

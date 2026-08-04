@@ -1,5 +1,4 @@
-"""
-PubChem Provider
+"""PubChem Provider
 
 This module provides interfaces to the NCBI PubChem API, the world's largest
 collection of freely accessible chemical information.
@@ -11,9 +10,10 @@ API Documentation: https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest
 """
 
 import logging
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_molecular_v1 import URI as MOLECULAR_APP_URI
@@ -27,9 +27,9 @@ PROVIDER_ID = "global-pubchem"
 BASE_URL = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -42,7 +42,8 @@ class PubChemCompoundParams(BaseModel):
 
     identifier: str = Field(..., description="Compound name, CID, SMILES, or InChI")
     namespace: str = Field(
-        default="name", description="Type of identifier (name, cid, smiles, inchi)"
+        default="name",
+        description="Type of identifier (name, cid, smiles, inchi)",
     )
 
 
@@ -64,8 +65,9 @@ async def handle_pubchem_compound(
         data = fetch_pubchem_compound(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching PubChem compound: {e}")
@@ -76,7 +78,7 @@ TOOLS.append(
     types.Tool(
         name="pubchem-compound",
         description="Fetch chemical compound data from PubChem by name, CID, etc.",
-        inputSchema=PubChemCompoundParams.model_json_schema(),
+        input_schema=PubChemCompoundParams.model_json_schema(),
         # MCP Apps binding: render via the molecular structure app. The
         # compound endpoint returns CID + properties; the app derives a
         # /cid/<CID>/SDF?record_type=3d URL for the actual 3D coordinates.
@@ -84,7 +86,7 @@ TOOLS.append(
         # depositor-supplied records that often lack 3D coordinates, and
         # the viewer would render an empty canvas.
         _meta={"ui": {"resourceUri": MOLECULAR_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["pubchem-compound"] = handle_pubchem_compound
 
@@ -102,7 +104,8 @@ class PubChemSubstanceParams(BaseModel):
 def fetch_pubchem_substance(params: PubChemSubstanceParams) -> Any:
     """Fetch substance data from PubChem."""
     response = http_get(
-        f"{BASE_URL}/substance/sid/{params.sid}/JSON", provider=PROVIDER_ID
+        f"{BASE_URL}/substance/sid/{params.sid}/JSON",
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -116,8 +119,9 @@ async def handle_pubchem_substance(
         data = fetch_pubchem_substance(params)
         return [
             types.TextContent(
-                type="text", text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS)
-            )
+                type="text",
+                text=to_json_text(data, max_chars=MAX_RESPONSE_CHARS),
+            ),
         ]
     except Exception as e:
         log.error(f"Error fetching PubChem substance: {e}")
@@ -128,8 +132,8 @@ TOOLS.append(
     types.Tool(
         name="pubchem-substance",
         description="Fetch chemical substance data from PubChem by SID.",
-        inputSchema=PubChemSubstanceParams.model_json_schema(),
-    )
+        input_schema=PubChemSubstanceParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["pubchem-substance"] = handle_pubchem_substance
 
@@ -138,7 +142,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-pubchem", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-pubchem",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

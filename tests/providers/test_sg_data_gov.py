@@ -1,16 +1,16 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.sg_data_gov import (
     TOOLS,
     _sg_datasets_to_shape_payload,
-    handle_sg_datagov_list_datasets,
+    handle_sg_datagov_get_collection,
     handle_sg_datagov_get_dataset,
     handle_sg_datagov_list_collections,
-    handle_sg_datagov_get_collection,
+    handle_sg_datagov_list_datasets,
     handle_sg_datagov_poll_download,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -70,7 +70,7 @@ async def test_sg_datagov_list_collections_success():
             "code": 0,
             "data": {
                 "collections": [
-                    {"collectionId": "c_001", "name": "Housing Collection"}
+                    {"collectionId": "c_001", "name": "Housing Collection"},
                 ],
             },
         }
@@ -126,7 +126,7 @@ def test_sg_adapter_flattens_v2_envelope_to_rows():
                     "format": "CSV",
                     "status": "PUBLISHED",
                     "managedByAgencyName": "HDB",
-                }
+                },
             ],
             "pages": {"total": 1},
         },

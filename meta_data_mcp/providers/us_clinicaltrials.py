@@ -1,5 +1,4 @@
-"""
-ClinicalTrials.gov v2 API Provider
+"""ClinicalTrials.gov v2 API Provider
 
 This module provides interfaces to access the U.S. National Library of
 Medicine (NLM) / NIH ClinicalTrials.gov v2 REST API, which exposes the
@@ -28,9 +27,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -47,9 +47,9 @@ BASE_URL = "https://clinicaltrials.gov/api/v2"
 _MAX_SUMMARY_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -61,16 +61,16 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class CtgovSearchStudiesParams(BaseModel):
     """Parameters for searching ClinicalTrials.gov studies by free-text term."""
 
-    query_term: Optional[str] = Field(
+    query_term: str | None = Field(
         None,
         description="Free-text search term (mapped to query.term)",
     )
     pageSize: int = Field(default=20, description="Number of studies per page")
-    pageToken: Optional[str] = Field(
+    pageToken: str | None = Field(
         None,
         description="Pagination token returned by a previous response (nextPageToken)",
     )
-    fields: Optional[str] = Field(
+    fields: str | None = Field(
         None,
         description="Comma-separated list of field paths to include (e.g. 'NCTId,BriefTitle')",
     )
@@ -90,7 +90,10 @@ def fetch_search_studies(params: CtgovSearchStudiesParams) -> dict:
         query_params["fields"] = params.fields
 
     response = http_get(
-        f"{BASE_URL}/studies", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/studies",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -149,10 +152,10 @@ def _ctgov_search_to_shape_payload(data: dict) -> dict:
                 "conditions": condition_csv,
                 "startDate": (status.get("startDateStruct") or {}).get("date"),
                 "completionDate": (status.get("completionDateStruct") or {}).get(
-                    "date"
+                    "date",
                 ),
                 "briefSummary": brief_summary,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -200,7 +203,7 @@ def _ctgov_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Brief summary (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["overallStatus", "studyType", "phase"],
     }
@@ -233,9 +236,9 @@ TOOLS.append(
             "Search ClinicalTrials.gov studies by free-text term. Supports "
             "pagination via pageToken and optional fields filtering."
         ),
-        inputSchema=CtgovSearchStudiesParams.model_json_schema(),
+        input_schema=CtgovSearchStudiesParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["ctgov-search-studies"] = handle_search_studies
 
@@ -249,9 +252,10 @@ class CtgovGetStudyParams(BaseModel):
     """Parameters for fetching a single ClinicalTrials.gov study by NCT ID."""
 
     nctId: str = Field(
-        ..., description="NCT identifier of the study (e.g. 'NCT00000001')"
+        ...,
+        description="NCT identifier of the study (e.g. 'NCT00000001')",
     )
-    fields: Optional[str] = Field(
+    fields: str | None = Field(
         None,
         description="Comma-separated list of field paths to include",
     )
@@ -291,8 +295,8 @@ TOOLS.append(
     types.Tool(
         name="ctgov-get-study",
         description="Fetch the full record for a ClinicalTrials.gov study by NCT identifier (e.g. NCT00000001).",
-        inputSchema=CtgovGetStudyParams.model_json_schema(),
-    )
+        input_schema=CtgovGetStudyParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ctgov-get-study"] = handle_get_study
 
@@ -306,7 +310,8 @@ class CtgovSearchByConditionParams(BaseModel):
     """Parameters for searching studies by condition / disease."""
 
     condition: str = Field(
-        ..., description="Condition or disease name (e.g. 'diabetes')"
+        ...,
+        description="Condition or disease name (e.g. 'diabetes')",
     )
     pageSize: int = Field(default=20, description="Number of studies per page")
 
@@ -319,7 +324,10 @@ def fetch_search_by_condition(params: CtgovSearchByConditionParams) -> dict:
         "format": "json",
     }
     response = http_get(
-        f"{BASE_URL}/studies", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/studies",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -343,8 +351,8 @@ TOOLS.append(
     types.Tool(
         name="ctgov-search-by-condition",
         description="Search ClinicalTrials.gov studies by condition / disease name.",
-        inputSchema=CtgovSearchByConditionParams.model_json_schema(),
-    )
+        input_schema=CtgovSearchByConditionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ctgov-search-by-condition"] = handle_search_by_condition
 
@@ -358,7 +366,8 @@ class CtgovSearchByInterventionParams(BaseModel):
     """Parameters for searching studies by intervention / treatment."""
 
     intervention: str = Field(
-        ..., description="Intervention or treatment name (e.g. 'metformin')"
+        ...,
+        description="Intervention or treatment name (e.g. 'metformin')",
     )
     pageSize: int = Field(default=20, description="Number of studies per page")
 
@@ -373,7 +382,10 @@ def fetch_search_by_intervention(
         "format": "json",
     }
     response = http_get(
-        f"{BASE_URL}/studies", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/studies",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -397,8 +409,8 @@ TOOLS.append(
     types.Tool(
         name="ctgov-search-by-intervention",
         description="Search ClinicalTrials.gov studies by intervention / treatment.",
-        inputSchema=CtgovSearchByInterventionParams.model_json_schema(),
-    )
+        input_schema=CtgovSearchByInterventionParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ctgov-search-by-intervention"] = handle_search_by_intervention
 
@@ -426,7 +438,10 @@ def fetch_search_by_location(params: CtgovSearchByLocationParams) -> dict:
         "format": "json",
     }
     response = http_get(
-        f"{BASE_URL}/studies", params=query_params, timeout=30.0, provider=PROVIDER_ID
+        f"{BASE_URL}/studies",
+        params=query_params,
+        timeout=30.0,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -450,8 +465,8 @@ TOOLS.append(
     types.Tool(
         name="ctgov-search-by-location",
         description="Search ClinicalTrials.gov studies by location (city, state, country or facility).",
-        inputSchema=CtgovSearchByLocationParams.model_json_schema(),
-    )
+        input_schema=CtgovSearchByLocationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ctgov-search-by-location"] = handle_search_by_location
 
@@ -463,8 +478,6 @@ TOOLS_HANDLERS["ctgov-search-by-location"] = handle_search_by_location
 
 class CtgovListStatsParams(BaseModel):
     """Parameters for fetching overall ClinicalTrials.gov registry statistics."""
-
-    pass
 
 
 def fetch_list_stats(_params: CtgovListStatsParams) -> dict:
@@ -490,8 +503,8 @@ TOOLS.append(
     types.Tool(
         name="ctgov-list-stats",
         description="Get overall ClinicalTrials.gov registry size statistics (/stats/size).",
-        inputSchema=CtgovListStatsParams.model_json_schema(),
-    )
+        input_schema=CtgovListStatsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["ctgov-list-stats"] = handle_list_stats
 
@@ -500,7 +513,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "us-clinicaltrials", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "us-clinicaltrials",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

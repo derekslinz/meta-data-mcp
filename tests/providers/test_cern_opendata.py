@@ -1,16 +1,16 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.cern_opendata import (
     TOOLS,
     _cern_search_to_shape_payload,
-    handle_search_records,
     handle_get_record,
     handle_list_collections,
     handle_search_by_experiment,
+    handle_search_records,
     handle_search_software,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -25,7 +25,7 @@ def anyio_backend():
 async def test_cern_search_records_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "hits": {"hits": [{"metadata": {"title": "Higgs boson dataset"}}]}
+            "hits": {"hits": [{"metadata": {"title": "Higgs boson dataset"}}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -38,7 +38,7 @@ async def test_cern_search_records_success():
 async def test_cern_get_record_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "metadata": {"recid": 12345, "title": "CMS run 2011"}
+            "metadata": {"recid": 12345, "title": "CMS run 2011"},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -56,7 +56,7 @@ async def test_cern_get_record_missing_id():
 async def test_cern_list_collections_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "hits": {"hits": [{"metadata": {"title": "Dataset A"}}]}
+            "hits": {"hits": [{"metadata": {"title": "Dataset A"}}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -69,13 +69,13 @@ async def test_cern_search_by_experiment_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
             "hits": {
-                "hits": [{"metadata": {"experiment": "CMS", "title": "CMS analysis"}}]
-            }
+                "hits": [{"metadata": {"experiment": "CMS", "title": "CMS analysis"}}],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_search_by_experiment(
-            {"experiment": "CMS", "q": "jets", "size": 5}
+            {"experiment": "CMS", "q": "jets", "size": 5},
         )
         assert "CMS analysis" in result[0].text
 
@@ -90,7 +90,7 @@ async def test_cern_search_by_experiment_missing_experiment():
 async def test_cern_search_software_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "hits": {"hits": [{"metadata": {"title": "CMSSW Release"}}]}
+            "hits": {"hits": [{"metadata": {"title": "CMSSW Release"}}]},
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -127,10 +127,10 @@ def test_cern_adapter_flattens_invenio_hits_to_rows():
                         "year": 2015,
                         "publication_date": "2024-04-01",
                     },
-                }
+                },
             ],
             "total": 1,
-        }
+        },
     }
     payload = _cern_search_to_shape_payload(raw)
     assert payload["total"] == 1
@@ -150,8 +150,8 @@ def test_cern_adapter_handles_missing_hits():
 def test_cern_adapter_handles_list_experiment():
     raw = {
         "hits": {
-            "hits": [{"metadata": {"title": "Multi", "experiment": ["CMS", "ATLAS"]}}]
-        }
+            "hits": [{"metadata": {"title": "Multi", "experiment": ["CMS", "ATLAS"]}}],
+        },
     }
     payload = _cern_search_to_shape_payload(raw)
     assert "CMS" in payload["rows"][0]["experiment"]
@@ -169,7 +169,7 @@ def test_search_records_tool_binds_to_records_shape_primitive():
 async def test_cern_search_records_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "hits": {"hits": [{"metadata": {"title": "Higgs boson dataset"}}]}
+            "hits": {"hits": [{"metadata": {"title": "Higgs boson dataset"}}]},
         }
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_search_records({"q": "higgs"})

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import meta_data_mcp.auth_gate as auth_gate
+from meta_data_mcp import auth_gate
 from meta_data_mcp.auth_gate import MagicLinkStore, RateLimiter
 
 

@@ -1,5 +1,6 @@
 import pkgutil
-import meta_data_mcp.providers as providers
+
+from meta_data_mcp import providers
 
 
 def test_real_provider_discovery():

@@ -1,20 +1,20 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_crossref import (
     TOOLS,
     _crossref_works_by_author_to_entity_graph_payload,
     _crossref_works_to_shape_payload,
-    handle_crossref_works_search,
+    handle_crossref_funders_search,
+    handle_crossref_get_journal,
     handle_crossref_get_work,
+    handle_crossref_journals_search,
     handle_crossref_works_by_author,
     handle_crossref_works_by_title,
-    handle_crossref_journals_search,
-    handle_crossref_get_journal,
-    handle_crossref_funders_search,
+    handle_crossref_works_search,
 )
 from meta_data_mcp.ui_resources.app_entity_graph_v1 import URI as ENTITY_GRAPH_URI
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -36,7 +36,7 @@ async def test_crossref_works_search_success():
                     {
                         "DOI": "10.1038/nature12373",
                         "title": ["The structure of something"],
-                    }
+                    },
                 ],
             },
         }
@@ -184,7 +184,7 @@ def test_crossref_adapter_flattens_message_items_to_rows():
                     "type": "journal-article",
                     "published-print": {"date-parts": [[2023, 5, 1]]},
                     "is-referenced-by-count": 42,
-                }
+                },
             ],
         },
     }
@@ -223,7 +223,7 @@ async def test_crossref_works_search_returns_shape_payload():
                     {
                         "DOI": "10.1038/nature12373",
                         "title": ["The structure of something"],
-                    }
+                    },
                 ],
             },
         }
@@ -245,7 +245,8 @@ async def test_crossref_works_search_returns_shape_payload():
 def test_crossref_entity_graph_adapter_flattens_works_and_authors():
     """Co-author overlay: each work in the response is a ``work`` node;
     each author is an ``author`` node; an ``authored`` edge connects
-    each work to each of its authors. Authors dedupe across works."""
+    each work to each of its authors. Authors dedupe across works.
+    """
     raw = {
         "message": {
             "items": [
@@ -267,8 +268,8 @@ def test_crossref_entity_graph_adapter_flattens_works_and_authors():
                         {"given": "Alice", "family": "Smith"},
                     ],
                 },
-            ]
-        }
+            ],
+        },
     }
     payload = _crossref_works_by_author_to_entity_graph_payload(raw, "alice")
     work_nodes = [n for n in payload["nodes"] if n["type"] == "work"]
@@ -288,7 +289,8 @@ def test_crossref_entity_graph_adapter_flattens_works_and_authors():
 
 def test_crossref_entity_graph_adapter_orcid_id_preferred():
     """Where ORCID is available we use it as the stable node id; only
-    fall back to a name-derived id when ORCID is missing."""
+    fall back to a name-derived id when ORCID is missing.
+    """
     raw = {
         "message": {
             "items": [
@@ -302,9 +304,9 @@ def test_crossref_entity_graph_adapter_orcid_id_preferred():
                             "ORCID": "https://orcid.org/0000-0001",
                         },
                     ],
-                }
-            ]
-        }
+                },
+            ],
+        },
     }
     payload = _crossref_works_by_author_to_entity_graph_payload(raw, "z")
     author_node = next(n for n in payload["nodes"] if n["type"] == "author")
@@ -316,7 +318,8 @@ def test_crossref_entity_graph_adapter_handles_empty_items():
     assert _crossref_works_by_author_to_entity_graph_payload({}, "x")["nodes"] == []
     assert (
         _crossref_works_by_author_to_entity_graph_payload(
-            {"message": {"items": []}}, "x"
+            {"message": {"items": []}},
+            "x",
         )["edges"]
         == []
     )
@@ -326,7 +329,8 @@ def test_works_search_stays_bound_to_records_after_entity_graph_landed():
     """Regression guard: ``crossref-works-search`` MUST remain on the
     records primitive. Phase 4 bound it there; Phase 5's entity-graph
     binding is on a DIFFERENT tool (``works-by-author``). If a refactor
-    accidentally cross-wires them this fires."""
+    accidentally cross-wires them this fires.
+    """
     tool = next(t for t in TOOLS if t.name == "crossref-works-search")
     assert tool.meta == {"ui": {"resourceUri": RECORDS_URI}}
 
@@ -350,9 +354,9 @@ async def test_crossref_works_by_author_returns_entity_graph_payload():
                         "author": [
                             {"given": "X", "family": "Y"},
                         ],
-                    }
-                ]
-            }
+                    },
+                ],
+            },
         }
         mock_get.return_value.raise_for_status = Mock()
         result = await handle_crossref_works_by_author({"author": "Y"})

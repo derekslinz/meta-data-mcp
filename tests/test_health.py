@@ -153,7 +153,8 @@ async def test_health_scorer_drops_for_failing_provider():
 @pytest.mark.anyio
 async def test_routing_engine_combined_score_penalizes_unhealthy_provider():
     """With non-zero health weight, an unhealthy provider scores below a
-    healthy peer for the same query and base signals."""
+    healthy peer for the same query and base signals.
+    """
     healthy = _make_provider("healthy-1")
     flaky = _make_provider("flaky-1")
 
@@ -167,7 +168,7 @@ async def test_routing_engine_combined_score_penalizes_unhealthy_provider():
             "metadata": 0.0,
             "semantic": 0.0,
             "health": 0.5,
-        }
+        },
     )
 
     health._clock = lambda: 100.0
@@ -205,14 +206,15 @@ def test_snapshot_unknown_provider_defaults_to_healthy():
     """When a caller asks for a provider that's never been recorded, the
     snapshot returns the fully-healthy baseline rather than omitting the
     entry. This keeps the discovery app's UI free of "missing badge"
-    edge cases."""
+    edge cases.
+    """
     snap = health.snapshot(["never-seen"])
     assert snap == {
         "never-seen": {
             "score": 1.0,
             "failure_mass": 0.0,
             "last_update_ts": None,
-        }
+        },
     }
 
 
@@ -228,7 +230,8 @@ def test_snapshot_reflects_recorded_failures():
 def test_snapshot_consistent_with_health_score():
     """The snapshot's score field MUST equal what health_score() would
     return at the same instant — otherwise the UI badge and the scorer
-    disagree about which providers are 'healthy enough to route to'."""
+    disagree about which providers are 'healthy enough to route to'.
+    """
     health._clock = lambda: 0.0
     health.record_failure("p2")
     health.record_failure("p2")
@@ -247,7 +250,8 @@ def test_snapshot_without_ids_returns_all_recorded_providers():
 
 def test_snapshot_returns_fresh_dict_caller_mutation_safe():
     """The caller must be able to mutate the returned dict without
-    corrupting the in-memory registry."""
+    corrupting the in-memory registry.
+    """
     health._clock = lambda: 0.0
     health.record_failure("p")
     snap = health.snapshot(["p"])
@@ -296,7 +300,8 @@ def test_record_failure_skipped_for_401_403(monkeypatch):
 
 def test_record_failure_still_fires_for_500(monkeypatch):
     """Sanity counterpart: non-auth status codes (e.g. 500) DO degrade health.
-    Without this the V12 branch could silently swallow all failures."""
+    Without this the V12 branch could silently swallow all failures.
+    """
     import httpx
 
     from meta_data_mcp import utils as utils_module

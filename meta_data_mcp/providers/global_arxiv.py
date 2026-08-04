@@ -1,5 +1,4 @@
-"""
-arXiv Preprint Provider
+"""arXiv Preprint Provider
 
 This module exposes the arXiv export API, which returns Atom XML feeds of
 preprint metadata across physics, mathematics, computer science, biology,
@@ -29,9 +28,10 @@ Usage:
 
 import logging
 import xml.etree.ElementTree as ET
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -53,9 +53,9 @@ _ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 _ATOM_HEADERS = {"Accept": "application/atom+xml"}
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -76,7 +76,8 @@ class ArxivQueryParams(BaseModel):
     )
     start: int = Field(default=0, description="Offset into the result set.")
     max_results: int = Field(
-        default=10, description="Maximum results to return (max 2000)."
+        default=10,
+        description="Maximum results to return (max 2000).",
     )
     sortBy: str = Field(
         default="relevance",
@@ -176,7 +177,7 @@ def _arxiv_atom_to_shape_payload(xml_text: str) -> dict:
                 "published": published_el.text if published_el is not None else None,
                 "updated": updated_el.text if updated_el is not None else None,
                 "summary": summary,
-            }
+            },
         )
     return {
         "rows": rows,
@@ -216,7 +217,7 @@ def _arxiv_schema() -> dict[str, Any]:
                 "type": "string",
                 "description": "Abstract (truncated)",
             },
-        ]
+        ],
     }
 
 
@@ -248,9 +249,9 @@ TOOLS.append(
     types.Tool(
         name="arxiv-query",
         description="Run an arXiv search query. Use field prefixes like 'ti:', 'au:', 'cat:'.",
-        inputSchema=ArxivQueryParams.model_json_schema(),
+        input_schema=ArxivQueryParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["arxiv-query"] = handle_arxiv_query
 
@@ -301,8 +302,8 @@ TOOLS.append(
     types.Tool(
         name="arxiv-search-by-title",
         description="Search arXiv preprints by title (Atom XML response).",
-        inputSchema=ArxivSearchByTitleParams.model_json_schema(),
-    )
+        input_schema=ArxivSearchByTitleParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["arxiv-search-by-title"] = handle_arxiv_search_by_title
 
@@ -355,8 +356,8 @@ TOOLS.append(
     types.Tool(
         name="arxiv-search-by-author",
         description="Search arXiv preprints by author, newest first (Atom XML response).",
-        inputSchema=ArxivSearchByAuthorParams.model_json_schema(),
-    )
+        input_schema=ArxivSearchByAuthorParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["arxiv-search-by-author"] = handle_arxiv_search_by_author
 
@@ -370,7 +371,8 @@ class ArxivSearchByCategoryParams(BaseModel):
     """Parameters for an arXiv category feed."""
 
     category: str = Field(
-        ..., description="arXiv category slug (e.g. 'cs.AI', 'math.NT', 'q-bio.PE')."
+        ...,
+        description="arXiv category slug (e.g. 'cs.AI', 'math.NT', 'q-bio.PE').",
     )
     max_results: int = Field(default=10, description="Maximum results to return.")
 
@@ -411,8 +413,8 @@ TOOLS.append(
     types.Tool(
         name="arxiv-search-by-category",
         description="Fetch the latest arXiv preprints for a category like 'cs.AI' or 'math.NT'.",
-        inputSchema=ArxivSearchByCategoryParams.model_json_schema(),
-    )
+        input_schema=ArxivSearchByCategoryParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["arxiv-search-by-category"] = handle_arxiv_search_by_category
 
@@ -426,7 +428,8 @@ class ArxivGetPaperParams(BaseModel):
     """Parameters for fetching a single arXiv paper by id."""
 
     arxiv_id: str = Field(
-        ..., description="arXiv identifier (e.g. '2104.08653' or 'cs.AI/0606009')."
+        ...,
+        description="arXiv identifier (e.g. '2104.08653' or 'cs.AI/0606009').",
     )
 
 
@@ -461,8 +464,8 @@ TOOLS.append(
     types.Tool(
         name="arxiv-get-paper",
         description="Fetch metadata for a single arXiv paper by its identifier (Atom XML response).",
-        inputSchema=ArxivGetPaperParams.model_json_schema(),
-    )
+        input_schema=ArxivGetPaperParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["arxiv-get-paper"] = handle_arxiv_get_paper
 
@@ -471,7 +474,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "global-arxiv", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "global-arxiv",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

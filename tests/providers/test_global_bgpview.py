@@ -1,5 +1,4 @@
-"""
-BGPView provider tests.
+"""BGPView provider tests.
 
 BGPView (api.bgpview.io) shut down. All handlers now return a service-unavailable
 error message pointing users to the RIPEstat alternatives.
@@ -17,6 +16,8 @@ import json
 import pytest
 
 from meta_data_mcp.providers.global_bgpview import (
+    TOOLS,
+    TOOLS_HANDLERS,
     _bgpview_asn_relationships_to_topology_payload,
     handle_bgpview_asn,
     handle_bgpview_asn_downstreams,
@@ -26,8 +27,6 @@ from meta_data_mcp.providers.global_bgpview import (
     handle_bgpview_ip,
     handle_bgpview_prefix,
     handle_bgpview_search,
-    TOOLS,
-    TOOLS_HANDLERS,
 )
 from meta_data_mcp.ui_resources.app_network_topology_v1 import (
     URI as NETWORK_TOPOLOGY_URI,
@@ -95,7 +94,8 @@ def test_asn_relationship_tools_bind_to_network_topology_app(tool_name):
     network-topology app. The binding is forward-looking — the
     upstream is offline so handlers return ``unavailable``, but the
     binding declares intent so a drop-in replacement automatically
-    lights up the same panel."""
+    lights up the same panel.
+    """
     tool = next(t for t in TOOLS if t.name == tool_name)
     assert tool.meta == {"ui": {"resourceUri": NETWORK_TOPOLOGY_URI}}, (
         f"{tool_name} is not bound to {NETWORK_TOPOLOGY_URI}"
@@ -120,7 +120,8 @@ def test_non_topology_tools_do_not_bind_to_network_topology_app(tool_name):
     """Tools that don't render an ASN graph (prefix info, search, etc.)
     must NOT carry the network-topology binding — otherwise a host
     that opens any BGPView tool result would launch an irrelevant
-    empty graph panel."""
+    empty graph panel.
+    """
     tool = next(t for t in TOOLS if t.name == tool_name)
     assert tool.meta in (None, {}), (
         f"{tool_name} should not carry an MCP Apps binding (got {tool.meta!r})"
@@ -168,7 +169,7 @@ def test_topology_adapter_maps_upstreams_to_upstream_relationship():
                 {"asn": 174, "name": "COGENT", "country_code": "US"},
             ],
             "ipv6_upstreams": [],
-        }
+        },
     }
     payload = _bgpview_asn_relationships_to_topology_payload(raw, 3333, "upstreams")
     assert len(payload["edges"]) == 1
@@ -182,8 +183,8 @@ def test_topology_adapter_maps_downstreams_to_downstream_relationship():
         "data": {
             "ipv4_downstreams": [
                 {"asn": 65001, "country_code": "US"},
-            ]
-        }
+            ],
+        },
     }
     payload = _bgpview_asn_relationships_to_topology_payload(raw, 3333, "downstreams")
     assert len(payload["edges"]) == 1
@@ -195,7 +196,8 @@ def test_topology_adapter_maps_downstreams_to_downstream_relationship():
 def test_topology_adapter_handles_missing_structure():
     """Empty data block / non-dict input must not crash — the bound
     panel renders an empty graph for these. The focus ASN is still
-    emitted so the panel can tell it was queried for a specific node."""
+    emitted so the panel can tell it was queried for a specific node.
+    """
     expected_empty_with_focus = {
         "asns": [{"asn": 3333}],
         "edges": [],
@@ -222,8 +224,8 @@ def test_topology_adapter_drops_self_edges_and_bad_asns():
                 {"asn": "not-a-number"},  # invalid
                 {"asn": 3333},  # self-edge → drop
                 {"asn": 1234},
-            ]
-        }
+            ],
+        },
     }
     payload = _bgpview_asn_relationships_to_topology_payload(raw, 3333, "peers")
     assert len(payload["edges"]) == 1
@@ -241,7 +243,8 @@ def test_topology_adapter_accepts_focus_in_multiple_forms():
 def test_topology_adapter_unknown_relationship_key_falls_back_to_peer():
     """If a caller passes a typo'd relationship key, we don't render
     bogus transit edges — fall back to ``peer`` (the most charitable
-    classification) and let the panel render lateral relationships."""
+    classification) and let the panel render lateral relationships.
+    """
     raw = {"data": {"ipv4_typo": [{"asn": 1234}]}}
     payload = _bgpview_asn_relationships_to_topology_payload(raw, 3333, "typo")
     # ipv4_typo isn't in the candidate list (only peers/upstreams/

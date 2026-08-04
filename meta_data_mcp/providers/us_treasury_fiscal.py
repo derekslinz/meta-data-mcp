@@ -1,5 +1,4 @@
-"""
-US Treasury Fiscal Data Provider
+"""US Treasury Fiscal Data Provider
 
 This module exposes the US Department of the Treasury's Fiscal Data API at
 api.fiscaldata.treasury.gov. The API publishes daily and historical data
@@ -35,9 +34,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
@@ -53,7 +53,7 @@ BASE_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service"
 # Known Fiscal Data endpoints surfaced by treasury-list-endpoints. The Fiscal
 # Data API does not currently expose a machine-readable index of endpoints,
 # so we keep a curated list of the major datasets this provider wraps.
-KNOWN_ENDPOINTS: List[dict[str, str]] = [
+KNOWN_ENDPOINTS: list[dict[str, str]] = [
     {
         "path": "/v2/accounting/od/debt_to_penny",
         "name": "Debt to the Penny",
@@ -82,18 +82,18 @@ KNOWN_ENDPOINTS: List[dict[str, str]] = [
 ]
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
 def _build_params(
     *,
-    fields: Optional[str] = None,
-    page_size: Optional[int] = None,
-    filter: Optional[str] = None,
-    sort: Optional[str] = None,
+    fields: str | None = None,
+    page_size: int | None = None,
+    filter: str | None = None,
+    sort: str | None = None,
 ) -> dict[str, Any]:
     """Build a Fiscal Data params dict honoring the `page[size]` bracket key."""
     params: dict[str, Any] = {}
@@ -116,12 +116,12 @@ def _build_params(
 class TreasuryDebtToPennyParams(BaseModel):
     """Parameters for the Debt to the Penny dataset."""
 
-    fields: Optional[str] = Field(
+    fields: str | None = Field(
         None,
         description="Comma-separated list of fields to return, e.g. 'record_date,tot_pub_debt_out_amt'.",
     )
     page_size: int = Field(default=100, description="Maximum records per page.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Fiscal Data filter expression, e.g. 'record_date:gte:2024-01-01'.",
     )
@@ -132,7 +132,9 @@ def fetch_treasury_debt_to_penny(params: TreasuryDebtToPennyParams) -> dict:
     response = http_get(
         f"{BASE_URL}/v2/accounting/od/debt_to_penny",
         params=_build_params(
-            fields=params.fields, page_size=params.page_size, filter=params.filter
+            fields=params.fields,
+            page_size=params.page_size,
+            filter=params.filter,
         ),
         provider=PROVIDER_ID,
     )
@@ -189,9 +191,9 @@ TOOLS.append(
     types.Tool(
         name="treasury-get-debt-to-penny",
         description="Fetch the US Treasury 'Debt to the Penny' dataset (daily total public debt outstanding).",
-        inputSchema=TreasuryDebtToPennyParams.model_json_schema(),
+        input_schema=TreasuryDebtToPennyParams.model_json_schema(),
         _meta={"ui": {"resourceUri": TIMESERIES_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["treasury-get-debt-to-penny"] = handle_treasury_get_debt_to_penny
 
@@ -205,7 +207,7 @@ class TreasuryAvgInterestRatesParams(BaseModel):
     """Parameters for the Average Interest Rates dataset."""
 
     page_size: int = Field(default=100, description="Maximum records per page.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Fiscal Data filter expression, e.g. 'record_date:gte:2024-01-01'.",
     )
@@ -240,8 +242,8 @@ TOOLS.append(
     types.Tool(
         name="treasury-get-avg-interest-rates",
         description="Fetch monthly average interest rates on outstanding US Treasury marketable securities.",
-        inputSchema=TreasuryAvgInterestRatesParams.model_json_schema(),
-    )
+        input_schema=TreasuryAvgInterestRatesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["treasury-get-avg-interest-rates"] = (
     handle_treasury_get_avg_interest_rates
@@ -257,7 +259,7 @@ class TreasuryDtsOperatingCashParams(BaseModel):
     """Parameters for the DTS Operating Cash Balance dataset."""
 
     page_size: int = Field(default=100, description="Maximum records per page.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Fiscal Data filter expression, e.g. 'record_date:gte:2024-01-01'.",
     )
@@ -292,8 +294,8 @@ TOOLS.append(
     types.Tool(
         name="treasury-get-dts-operating-cash",
         description="Fetch the Daily Treasury Statement (DTS) Operating Cash Balance dataset.",
-        inputSchema=TreasuryDtsOperatingCashParams.model_json_schema(),
-    )
+        input_schema=TreasuryDtsOperatingCashParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["treasury-get-dts-operating-cash"] = (
     handle_treasury_get_dts_operating_cash
@@ -309,7 +311,7 @@ class TreasuryDtsPublicDebtParams(BaseModel):
     """Parameters for the DTS Public Debt Transactions dataset."""
 
     page_size: int = Field(default=100, description="Maximum records per page.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Fiscal Data filter expression, e.g. 'record_date:gte:2024-01-01'.",
     )
@@ -344,8 +346,8 @@ TOOLS.append(
     types.Tool(
         name="treasury-get-dts-public-debt",
         description="Fetch the Daily Treasury Statement (DTS) Public Debt Transactions dataset.",
-        inputSchema=TreasuryDtsPublicDebtParams.model_json_schema(),
-    )
+        input_schema=TreasuryDtsPublicDebtParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["treasury-get-dts-public-debt"] = handle_treasury_get_dts_public_debt
 
@@ -359,7 +361,7 @@ class TreasuryExchangeRatesParams(BaseModel):
     """Parameters for the Treasury Reporting Rates of Exchange dataset."""
 
     page_size: int = Field(default=100, description="Maximum records per page.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Fiscal Data filter expression, e.g. 'record_date:gte:2024-01-01' or 'country_currency_desc:eq:Canada-Dollar'.",
     )
@@ -394,8 +396,8 @@ TOOLS.append(
     types.Tool(
         name="treasury-get-exchange-rates",
         description="Fetch the US Treasury Reporting Rates of Exchange (quarterly).",
-        inputSchema=TreasuryExchangeRatesParams.model_json_schema(),
-    )
+        input_schema=TreasuryExchangeRatesParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["treasury-get-exchange-rates"] = handle_treasury_get_exchange_rates
 
@@ -433,8 +435,8 @@ TOOLS.append(
     types.Tool(
         name="treasury-list-endpoints",
         description="List the curated set of US Treasury Fiscal Data endpoints supported by this provider.",
-        inputSchema=TreasuryListEndpointsParams.model_json_schema(),
-    )
+        input_schema=TreasuryListEndpointsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["treasury-list-endpoints"] = handle_treasury_list_endpoints
 
@@ -451,16 +453,16 @@ class TreasurySearchRecordsParams(BaseModel):
         ...,
         description="Fiscal Data endpoint path (without host), e.g. '/v2/accounting/od/debt_to_penny'.",
     )
-    fields: Optional[str] = Field(
+    fields: str | None = Field(
         None,
         description="Comma-separated list of fields to return.",
     )
     page_size: int = Field(default=100, description="Maximum records per page.")
-    filter: Optional[str] = Field(
+    filter: str | None = Field(
         None,
         description="Fiscal Data filter expression, e.g. 'record_date:gte:2024-01-01'.",
     )
-    sort: Optional[str] = Field(
+    sort: str | None = Field(
         None,
         description="Sort key, e.g. '-record_date' for newest-first.",
     )
@@ -505,8 +507,8 @@ TOOLS.append(
     types.Tool(
         name="treasury-search-records",
         description="Query any US Treasury Fiscal Data endpoint with fields/filter/sort/page_size.",
-        inputSchema=TreasurySearchRecordsParams.model_json_schema(),
-    )
+        input_schema=TreasurySearchRecordsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["treasury-search-records"] = handle_treasury_search_records
 

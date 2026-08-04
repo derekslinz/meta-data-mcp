@@ -1,5 +1,4 @@
-"""
-UK Government Open Data Catalog (data.gov.uk) Provider
+"""UK Government Open Data Catalog (data.gov.uk) Provider
 
 This module exposes the public CKAN v3 API hosted at data.gov.uk, the UK
 Government's open data portal. The catalog aggregates datasets published by
@@ -25,9 +24,10 @@ Usage:
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -44,9 +44,9 @@ BASE_URL = "https://data.gov.uk/api/3/action"
 _MAX_NOTES_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -58,7 +58,7 @@ TOOLS_HANDLERS: dict[str, Any] = {}
 class UKGovSearchDatasetsParams(BaseModel):
     """Parameters for searching datasets in the data.gov.uk CKAN catalog."""
 
-    q: Optional[str] = Field(
+    q: str | None = Field(
         None,
         description="Free-text search query (CKAN 'q' parameter). Leave blank to list all.",
     )
@@ -80,7 +80,9 @@ def fetch_uk_gov_search_datasets(params: UKGovSearchDatasetsParams) -> dict:
         "start": params.start,
     }
     response = http_get(
-        f"{BASE_URL}/package_search", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/package_search",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -120,7 +122,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                 (r.get("format") or "").upper()
                 for r in resources
                 if isinstance(r, dict) and r.get("format")
-            }
+            },
         )
         notes = pkg.get("notes") or ""
         if isinstance(notes, str) and len(notes) > _MAX_NOTES_CHARS:
@@ -139,7 +141,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                 "metadata_created": pkg.get("metadata_created"),
                 "metadata_modified": pkg.get("metadata_modified"),
                 "notes": notes,
-            }
+            },
         )
     payload: dict[str, Any] = {
         "rows": rows,
@@ -184,7 +186,7 @@ def _ckan_package_search_to_shape_payload(data: dict) -> dict:
                     "type": "string",
                     "description": "Description (truncated)",
                 },
-            ]
+            ],
         },
         "default_facets": ["organization", "license", "formats"],
     }
@@ -216,11 +218,11 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-search-datasets",
         description="Search the UK Government data.gov.uk catalog (CKAN package_search).",
-        inputSchema=UKGovSearchDatasetsParams.model_json_schema(),
+        input_schema=UKGovSearchDatasetsParams.model_json_schema(),
         # MCP Apps binding: render via the shared records shape primitive.
         # See tests/test_ui_resource.py for the populate_by_name footgun.
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["uk-gov-search-datasets"] = handle_uk_gov_search_datasets
 
@@ -239,7 +241,9 @@ class UKGovGetDatasetParams(BaseModel):
 def fetch_uk_gov_get_dataset(params: UKGovGetDatasetParams) -> dict:
     """Call CKAN package_show on data.gov.uk."""
     response = http_get(
-        f"{BASE_URL}/package_show", params={"id": params.id}, provider=PROVIDER_ID
+        f"{BASE_URL}/package_show",
+        params={"id": params.id},
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -263,8 +267,8 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-get-dataset",
         description="Fetch full metadata for a single data.gov.uk dataset by id or slug.",
-        inputSchema=UKGovGetDatasetParams.model_json_schema(),
-    )
+        input_schema=UKGovGetDatasetParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-gov-get-dataset"] = handle_uk_gov_get_dataset
 
@@ -290,7 +294,9 @@ def fetch_uk_gov_list_organizations(params: UKGovListOrganizationsParams) -> dic
         "limit": params.limit,
     }
     response = http_get(
-        f"{BASE_URL}/organization_list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/organization_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -312,8 +318,8 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-list-organizations",
         description="List publishing organisations on data.gov.uk with full fields.",
-        inputSchema=UKGovListOrganizationsParams.model_json_schema(),
-    )
+        input_schema=UKGovListOrganizationsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-gov-list-organizations"] = handle_uk_gov_list_organizations
 
@@ -332,7 +338,9 @@ class UKGovGetOrganizationParams(BaseModel):
 def fetch_uk_gov_get_organization(params: UKGovGetOrganizationParams) -> dict:
     """Call CKAN organization_show on data.gov.uk."""
     response = http_get(
-        f"{BASE_URL}/organization_show", params={"id": params.id}, provider=PROVIDER_ID
+        f"{BASE_URL}/organization_show",
+        params={"id": params.id},
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -356,8 +364,8 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-get-organization",
         description="Fetch full details for a data.gov.uk publishing organisation.",
-        inputSchema=UKGovGetOrganizationParams.model_json_schema(),
-    )
+        input_schema=UKGovGetOrganizationParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-gov-get-organization"] = handle_uk_gov_get_organization
 
@@ -382,7 +390,9 @@ def fetch_uk_gov_list_groups(params: UKGovListGroupsParams) -> dict:
         "all_fields": "true" if params.all_fields else "false",
     }
     response = http_get(
-        f"{BASE_URL}/group_list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/group_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -404,8 +414,8 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-list-groups",
         description="List groups (themes) defined on data.gov.uk.",
-        inputSchema=UKGovListGroupsParams.model_json_schema(),
-    )
+        input_schema=UKGovListGroupsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-gov-list-groups"] = handle_uk_gov_list_groups
 
@@ -418,7 +428,7 @@ TOOLS_HANDLERS["uk-gov-list-groups"] = handle_uk_gov_list_groups
 class UKGovListTagsParams(BaseModel):
     """Parameters for listing or searching tags."""
 
-    query: Optional[str] = Field(
+    query: str | None = Field(
         None,
         description="Optional substring to filter tag names (CKAN 'query').",
     )
@@ -430,7 +440,9 @@ def fetch_uk_gov_list_tags(params: UKGovListTagsParams) -> dict:
     if params.query:
         query_params["query"] = params.query
     response = http_get(
-        f"{BASE_URL}/tag_list", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/tag_list",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     return response.json()
 
@@ -452,8 +464,8 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-list-tags",
         description="List or search tag names on data.gov.uk.",
-        inputSchema=UKGovListTagsParams.model_json_schema(),
-    )
+        input_schema=UKGovListTagsParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-gov-list-tags"] = handle_uk_gov_list_tags
 
@@ -502,8 +514,8 @@ TOOLS.append(
     types.Tool(
         name="uk-gov-list-recently-changed",
         description="List recently changed packages on data.gov.uk (activity feed).",
-        inputSchema=UKGovListRecentlyChangedParams.model_json_schema(),
-    )
+        input_schema=UKGovListRecentlyChangedParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["uk-gov-list-recently-changed"] = handle_uk_gov_list_recently_changed
 
@@ -512,7 +524,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "uk-gov", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "uk-gov",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

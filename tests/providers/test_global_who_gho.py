@@ -1,16 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
+
 from meta_data_mcp.providers.global_who_gho import (
     TOOLS,
     _who_gho_indicator_data_to_shape_payload,
-    handle_list_indicators,
     handle_get_indicator_data,
-    handle_list_dimensions,
-    handle_list_dimension_values,
     handle_list_countries,
+    handle_list_dimension_values,
+    handle_list_dimensions,
+    handle_list_indicators,
 )
 from meta_data_mcp.ui_resources.shape_timeseries_v1 import URI as TIMESERIES_URI
 
@@ -29,7 +30,7 @@ async def test_who_gho_list_indicators_success():
                     "IndicatorCode": "WHOSIS_000001",
                     "IndicatorName": "Life expectancy at birth (years)",
                 },
-            ]
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -49,12 +50,12 @@ async def test_who_gho_list_indicators_error():
 async def test_who_gho_get_indicator_data_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "value": [{"SpatialDim": "USA", "TimeDim": 2020, "NumericValue": 78.5}]
+            "value": [{"SpatialDim": "USA", "TimeDim": 2020, "NumericValue": 78.5}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_get_indicator_data(
-            {"indicator_code": "WHOSIS_000001", "filter": "SpatialDim eq 'USA'"}
+            {"indicator_code": "WHOSIS_000001", "filter": "SpatialDim eq 'USA'"},
         )
         assert "USA" in result[0].text
         assert "78.5" in result[0].text
@@ -72,7 +73,7 @@ def test_who_gho_adapter_flattens_value_array():
             {"SpatialDim": "USA", "TimeDim": 2020, "NumericValue": 78.5},
             {"SpatialDim": "USA", "TimeDim": 2021, "NumericValue": 79.0},
             {"SpatialDim": "GBR", "TimeDim": 2020, "NumericValue": 81.0},
-        ]
+        ],
     }
     payload = _who_gho_indicator_data_to_shape_payload(raw)
     assert payload["axes"] == {"x": "Year", "y": "Value"}
@@ -91,7 +92,7 @@ def test_who_gho_adapter_skips_null_numeric():
         "value": [
             {"SpatialDim": "USA", "TimeDim": 2020, "NumericValue": None},
             {"SpatialDim": "USA", "TimeDim": 2021, "NumericValue": 79.0},
-        ]
+        ],
     }
     payload = _who_gho_indicator_data_to_shape_payload(raw)
     assert len(payload["points"]) == 1
@@ -108,7 +109,7 @@ def test_who_gho_indicator_tool_bound_to_timeseries_shape():
 async def test_who_gho_indicator_returns_shape_payload():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "value": [{"SpatialDim": "USA", "TimeDim": 2020, "NumericValue": 78.5}]
+            "value": [{"SpatialDim": "USA", "TimeDim": 2020, "NumericValue": 78.5}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -134,7 +135,7 @@ async def test_who_gho_list_dimensions_success():
             "value": [
                 {"Code": "COUNTRY", "Title": "Country"},
                 {"Code": "SEX", "Title": "Sex"},
-            ]
+            ],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -147,7 +148,7 @@ async def test_who_gho_list_dimensions_success():
 async def test_who_gho_list_dimension_values_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "value": [{"Code": "USA", "Title": "United States of America"}]
+            "value": [{"Code": "USA", "Title": "United States of America"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 
@@ -165,7 +166,7 @@ async def test_who_gho_list_dimension_values_requires_dim():
 async def test_who_gho_list_countries_success():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = {
-            "value": [{"Code": "FRA", "Title": "France"}]
+            "value": [{"Code": "FRA", "Title": "France"}],
         }
         mock_get.return_value.raise_for_status = Mock()
 

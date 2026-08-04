@@ -12,9 +12,10 @@ Auth: None required.
 """
 
 import logging
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.app_vulnerability_v1 import URI as VULN_APP_URI
@@ -31,9 +32,9 @@ log = logging.getLogger(__name__)
 PROVIDER_ID = "global-osv-dev"
 BASE_URL = "https://api.osv.dev/v1"
 
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 
@@ -87,10 +88,10 @@ TOOLS.append(
             "Fetch a single vulnerability record from OSV.dev by id. Accepts "
             "CVE, GHSA, PYSEC, GO, RUSTSEC, OSV, and similar namespace ids."
         ),
-        inputSchema=OsvGetVulnParams.model_json_schema(),
+        input_schema=OsvGetVulnParams.model_json_schema(),
         # MCP Apps binding: render via the vulnerability app.
         _meta={"ui": {"resourceUri": VULN_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["osv-get-vulnerability"] = handle_osv_get_vuln
 
@@ -120,7 +121,7 @@ class OsvQueryPackageParams(BaseModel):
             "Exact spelling matters; see https://ossf.github.io/osv-schema/."
         ),
     )
-    version: Optional[str] = Field(
+    version: str | None = Field(
         None,
         description=(
             "Specific version to query (e.g. '2.31.0'). When omitted, all "
@@ -158,9 +159,9 @@ TOOLS.append(
             "aggregated from GHSA, PYSEC, RustSec, Go, npm, and other namespace "
             "feeds in the OSV schema."
         ),
-        inputSchema=OsvQueryPackageParams.model_json_schema(),
+        input_schema=OsvQueryPackageParams.model_json_schema(),
         _meta={"ui": {"resourceUri": VULN_APP_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["osv-query-package"] = handle_osv_query_package
 

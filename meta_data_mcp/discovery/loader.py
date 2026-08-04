@@ -55,7 +55,7 @@ _NON_PLUGIN_MODULES: frozenset[str] = frozenset(
         "__template__",
         "meta_data_mcp",  # the meta server itself
         "meta_data_mcp_all",  # legacy aggregator (removed but defensively skipped)
-    }
+    },
 )
 
 
@@ -185,7 +185,7 @@ def _activate_provider(provider_id: str) -> dict[str, Any]:
         name for name, owner in _owner_by_tool.items() if owner == canonical
     )
     tool_schemas = [
-        {"name": t.name, "description": t.description, "inputSchema": t.inputSchema}
+        {"name": t.name, "description": t.description, "input_schema": t.input_schema}
         for t in TOOLS
         if t.name in tool_names
     ]

@@ -1,27 +1,27 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_osm_nominatim import (
     TOOLS,
-    _nominatim_search_results_to_shape_payload,
-    fetch_search,
-    NominatimSearchParams,
-    handle_search,
-    fetch_reverse,
-    NominatimReverseParams,
-    handle_reverse,
-    fetch_lookup,
     NominatimLookupParams,
-    handle_lookup,
-    fetch_status,
-    NominatimStatusParams,
-    handle_status,
-    fetch_search_structured,
+    NominatimReverseParams,
+    NominatimSearchParams,
     NominatimSearchStructuredParams,
+    NominatimStatusParams,
+    _nominatim_search_results_to_shape_payload,
+    fetch_lookup,
+    fetch_reverse,
+    fetch_search,
+    fetch_search_structured,
+    fetch_status,
+    handle_lookup,
+    handle_reverse,
+    handle_search,
     handle_search_structured,
+    handle_status,
 )
 from meta_data_mcp.ui_resources.shape_geofeatures_v1 import URI as GEOFEATURES_URI
 
@@ -39,7 +39,7 @@ def mock_search_response():
             "display_name": "Berlin, Germany",
             "lat": "52.52",
             "lon": "13.41",
-        }
+        },
     ]
 
 
@@ -115,7 +115,7 @@ async def test_handle_reverse_missing_arg():
 def test_fetch_lookup():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"osm_id": 123, "display_name": "Place A"}
+            {"osm_id": 123, "display_name": "Place A"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -128,7 +128,7 @@ def test_fetch_lookup():
 async def test_handle_lookup():
     with patch("httpx.get") as mock_get:
         mock_get.return_value.json.return_value = [
-            {"osm_id": 123, "display_name": "Place A"}
+            {"osm_id": 123, "display_name": "Place A"},
         ]
         mock_get.return_value.raise_for_status = Mock()
 
@@ -171,12 +171,14 @@ def test_fetch_search_structured():
             {
                 "place_id": 42,
                 "display_name": "1600 Pennsylvania Ave NW, Washington, DC",
-            }
+            },
         ]
         mock_get.return_value.raise_for_status = Mock()
 
         params = NominatimSearchStructuredParams(
-            country="USA", city="Washington", street="1600 Pennsylvania Ave NW"
+            country="USA",
+            city="Washington",
+            street="1600 Pennsylvania Ave NW",
         )
         data = fetch_search_structured(params)
         assert data[0]["place_id"] == 42
@@ -189,12 +191,12 @@ async def test_handle_search_structured():
             {
                 "place_id": 42,
                 "display_name": "1600 Pennsylvania Ave NW, Washington, DC",
-            }
+            },
         ]
         mock_get.return_value.raise_for_status = Mock()
 
         result = await handle_search_structured(
-            {"country": "USA", "city": "Washington"}
+            {"country": "USA", "city": "Washington"},
         )
         assert "Washington" in result[0].text
 
@@ -237,9 +239,10 @@ def test_adapter_handles_empty_list():
 
 def test_adapter_handles_non_list_response():
     """Nominatim returns a list on success; an error response (dict) must
-    not crash the adapter."""
+    not crash the adapter.
+    """
     assert _nominatim_search_results_to_shape_payload({"error": "bad"}) == {
-        "features": []
+        "features": [],
     }
 
 

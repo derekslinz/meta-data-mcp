@@ -47,7 +47,8 @@ def test_every_registry_id_matches_a_provider_module():
 def test_every_provider_module_has_a_registry_entry():
     """Every provider module SHOULD have a registry entry. New providers
     must be added to the registry so they're discoverable via the meta
-    aggregator."""
+    aggregator.
+    """
     discovered = {
         name
         for _, name, _ in pkgutil.iter_modules(providers_pkg.__path__)
@@ -139,7 +140,8 @@ def _make_entry(eid: str, server_name: str | None = None) -> ProviderEntry:
 def test_remove_static_then_add_dynamic_remains_visible():
     """After removing a *static* entry, a subsequently added dynamic entry
     must still appear in ``dynamic()`` — i.e. ``_static_count`` was
-    decremented so the slice frontier didn't lap the new entry."""
+    decremented so the slice frontier didn't lap the new entry.
+    """
     snap = REGISTRY.snapshot()
     try:
         # Pick a real static id (alphabetically first) to remove.
@@ -161,7 +163,8 @@ def test_remove_static_then_add_dynamic_remains_visible():
 def test_remove_static_keeps_dynamic_slice_correct_with_existing_dynamics():
     """Same invariant when there's already a dynamic entry: removing a
     static must not shift the dynamic frontier so as to swallow the
-    pre-existing dynamic."""
+    pre-existing dynamic.
+    """
     snap = REGISTRY.snapshot()
     try:
         existing_dyn = _make_entry("_v2_phase0_pre_existing_dyn")

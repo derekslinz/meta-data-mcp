@@ -34,6 +34,7 @@ import re
 from pathlib import Path
 
 import pytest
+
 from meta_data_mcp.registry import REGISTRY
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -110,7 +111,7 @@ def test_no_generated_provider_ships_with_unwritten_shape_adapter() -> None:
     pytest.fail(
         "Generator placeholder adapters still in tree — write the "
         "_<snake>_to_shape_payload(data) function and replace the TODO "
-        "before merging the provider:\n" + rendered
+        "before merging the provider:\n" + rendered,
     )
 
 
@@ -134,7 +135,7 @@ ALLOWED_BUNDLE_ORIGINS: frozenset[str] = frozenset(
         "files.rcsb.org",  # RCSB PDB structure downloads (molecular)
         "pubchem.ncbi.nlm.nih.gov",  # PubChem SDF downloads (molecular)
         "www.openstreetmap.org",  # OSM attribution link (geofeatures)
-    }
+    },
 )
 
 # Matches any ``https://<host>`` reference in a bundle. We deliberately
@@ -167,7 +168,8 @@ def test_bundle_external_origins_are_allowlisted(bundle: Path) -> None:
 
 def test_bundle_directory_is_populated() -> None:
     """Parametrize-with-empty-list silently produces zero test cases.
-    Pin a floor so a refactor that moves the directory fails loudly."""
+    Pin a floor so a refactor that moves the directory fails loudly.
+    """
     assert _bundles(), (
         f"No bundles found in {BUNDLES_DIR} — directory moved or glob is stale."
     )

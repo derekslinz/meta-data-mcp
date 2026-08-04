@@ -67,7 +67,8 @@ class EmailBackend(str, Enum):
 @dataclass(frozen=True)
 class EmailMessage:
     """A single outbound email. ``html`` is optional; ``text`` is required so
-    every message has a plaintext part for clients that don't render HTML."""
+    every message has a plaintext part for clients that don't render HTML.
+    """
 
     to: str
     subject: str
@@ -112,7 +113,7 @@ class Emailer:
         self._http_client = http_client
 
     @classmethod
-    def from_env(cls) -> "Emailer":
+    def from_env(cls) -> Emailer:
         """Build an :class:`Emailer` from ``META_DATA_MCP_*`` environment vars.
 
         Backend precedence: Resend, then SMTP, then Console. The console
@@ -128,17 +129,19 @@ class Emailer:
                 raise ValueError(
                     "META_DATA_MCP_RESEND_API_KEY is set but "
                     "META_DATA_MCP_EMAIL_FROM is not — Resend requires a "
-                    "verified sender address."
+                    "verified sender address.",
                 )
             return cls(
-                EmailBackend.RESEND, from_addr=from_addr, resend_api_key=resend_key
+                EmailBackend.RESEND,
+                from_addr=from_addr,
+                resend_api_key=resend_key,
             )
 
         if smtp_host:
             if not from_addr:
                 raise ValueError(
                     "META_DATA_MCP_SMTP_HOST is set but META_DATA_MCP_EMAIL_FROM "
-                    "is not — SMTP requires a sender address."
+                    "is not — SMTP requires a sender address.",
                 )
             return cls(
                 EmailBackend.SMTP,
@@ -152,7 +155,7 @@ class Emailer:
         log.warning(
             "No email backend configured (set META_DATA_MCP_RESEND_API_KEY or "
             "META_DATA_MCP_SMTP_HOST). Falling back to the console backend — "
-            "magic links will be logged, not emailed. Do not use in production."
+            "magic links will be logged, not emailed. Do not use in production.",
         )
         return cls(EmailBackend.CONSOLE, from_addr=from_addr or _DEFAULT_FROM)
 
@@ -184,7 +187,9 @@ class Emailer:
 
         if self._http_client is not None:
             resp = await self._http_client.post(
-                RESEND_API_URL, json=payload, headers=headers
+                RESEND_API_URL,
+                json=payload,
+                headers=headers,
             )
         else:
             async with httpx.AsyncClient(timeout=10.0) as client:

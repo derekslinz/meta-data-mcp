@@ -1,5 +1,4 @@
-"""
-Dutch Rechtspraak (Case Law) Provider
+"""Dutch Rechtspraak (Case Law) Provider
 
 This module provides interfaces to the Dutch Rechtspraak Open Data API,
 the official source for Dutch court rulings and case law.
@@ -12,9 +11,10 @@ API Documentation: https://www.rechtspraak.nl/Paginas/Open-Data.aspx
 
 import logging
 import xml.etree.ElementTree as ET
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import mcp.types as types
+from mcp import types
 from pydantic import BaseModel, Field
 
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
@@ -32,9 +32,9 @@ ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 _MAX_SUMMARY_CHARS = 500
 
 # Registration Variables
-RESOURCES: List[Any] = []
+RESOURCES: list[Any] = []
 RESOURCES_HANDLERS: dict[str, Any] = {}
-TOOLS: List[types.Tool] = []
+TOOLS: list[types.Tool] = []
 TOOLS_HANDLERS: dict[str, Any] = {}
 
 ###################
@@ -47,13 +47,14 @@ class RechtspraakSearchParams(BaseModel):
 
     query: str = Field(..., description="Search query (e.g. 'arbeidsrecht')")
     max_results: int = Field(
-        default=10, description="Maximum number of results to return (max 1000)"
+        default=10,
+        description="Maximum number of results to return (max 1000)",
     )
-    date_from: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
-    date_to: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+    date_from: str | None = Field(None, description="Start date (YYYY-MM-DD)")
+    date_to: str | None = Field(None, description="End date (YYYY-MM-DD)")
 
 
-def search_rechtspraak(params: RechtspraakSearchParams) -> List[dict]:
+def search_rechtspraak(params: RechtspraakSearchParams) -> list[dict]:
     """Search for rulings via the Rechtspraak OpenSearch API."""
     query_params = {
         "q": params.query,
@@ -77,12 +78,12 @@ def search_rechtspraak(params: RechtspraakSearchParams) -> List[dict]:
                 "link": entry.find("atom:link", ATOM_NS).get("href")
                 if entry.find("atom:link", ATOM_NS) is not None
                 else "",
-            }
+            },
         )
     return results
 
 
-def _rechtspraak_search_to_shape_payload(data: List[dict]) -> dict:
+def _rechtspraak_search_to_shape_payload(data: list[dict]) -> dict:
     """Adapt the parsed Rechtspraak search results to the records shape
     primitive's payload. ``search_rechtspraak`` already returns a list of
     ``{ecli, title, summary, updated, link}`` dicts; we just truncate
@@ -103,7 +104,7 @@ def _rechtspraak_search_to_shape_payload(data: List[dict]) -> dict:
                     "summary": summary,
                     "updated": entry.get("updated"),
                     "link": entry.get("link"),
-                }
+                },
             )
     return {
         "rows": rows,
@@ -118,7 +119,7 @@ def _rechtspraak_search_to_shape_payload(data: List[dict]) -> dict:
                 },
                 {"name": "updated", "type": "date", "description": "Update timestamp"},
                 {"name": "link", "type": "string", "description": "Atom entry link"},
-            ]
+            ],
         },
         "default_facets": [],
     }
@@ -145,9 +146,9 @@ TOOLS.append(
     types.Tool(
         name="rechtspraak-search",
         description="Search for Dutch court rulings (uitspraken) via ECLI and text search.",
-        inputSchema=RechtspraakSearchParams.model_json_schema(),
+        input_schema=RechtspraakSearchParams.model_json_schema(),
         _meta={"ui": {"resourceUri": RECORDS_URI}},
-    )
+    ),
 )
 TOOLS_HANDLERS["rechtspraak-search"] = handle_rechtspraak_search
 
@@ -160,7 +161,8 @@ class RechtspraakContentParams(BaseModel):
     """Parameters for fetching a specific Dutch ruling."""
 
     ecli: str = Field(
-        ..., description="The ECLI identifier (e.g. 'ECLI:NL:HR:2020:1234')"
+        ...,
+        description="The ECLI identifier (e.g. 'ECLI:NL:HR:2020:1234')",
     )
 
 
@@ -168,7 +170,9 @@ def fetch_rechtspraak_content(params: RechtspraakContentParams) -> str:
     """Fetch the full content of a ruling from Rechtspraak."""
     query_params = {"id": params.ecli}
     response = http_get(
-        f"{BASE_URL}/content", params=query_params, provider=PROVIDER_ID
+        f"{BASE_URL}/content",
+        params=query_params,
+        provider=PROVIDER_ID,
     )
     # Return raw XML as it contains structured legal data
     return response.text
@@ -191,8 +195,8 @@ TOOLS.append(
     types.Tool(
         name="rechtspraak-get-content",
         description="Fetch the full text and metadata of a specific Dutch court ruling by ECLI.",
-        inputSchema=RechtspraakContentParams.model_json_schema(),
-    )
+        input_schema=RechtspraakContentParams.model_json_schema(),
+    ),
 )
 TOOLS_HANDLERS["rechtspraak-get-content"] = handle_rechtspraak_content
 
@@ -201,7 +205,11 @@ async def main(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.
     from meta_data_mcp.utils import create_mcp_server, run_server
 
     server = create_mcp_server(
-        "nl-rechtspraak", RESOURCES, RESOURCES_HANDLERS, TOOLS, TOOLS_HANDLERS
+        "nl-rechtspraak",
+        RESOURCES,
+        RESOURCES_HANDLERS,
+        TOOLS,
+        TOOLS_HANDLERS,
     )
 
     await run_server(server, transport, port, host)

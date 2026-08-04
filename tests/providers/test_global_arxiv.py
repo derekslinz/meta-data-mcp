@@ -1,17 +1,17 @@
 import json
+from unittest.mock import Mock, patch
 
-import pytest
-from unittest.mock import patch, Mock
 import httpx
+import pytest
 
 from meta_data_mcp.providers.global_arxiv import (
     TOOLS,
     _arxiv_atom_to_shape_payload,
+    handle_arxiv_get_paper,
     handle_arxiv_query,
-    handle_arxiv_search_by_title,
     handle_arxiv_search_by_author,
     handle_arxiv_search_by_category,
-    handle_arxiv_get_paper,
+    handle_arxiv_search_by_title,
 )
 from meta_data_mcp.ui_resources.shape_records_v1 import URI as RECORDS_URI
 
@@ -115,7 +115,7 @@ def test_arxiv_adapter_parses_atom_feed_into_rows():
 
 def test_arxiv_adapter_handles_empty_feed():
     payload = _arxiv_atom_to_shape_payload(
-        '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>'
+        '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>',
     )
     assert payload["rows"] == []
 
