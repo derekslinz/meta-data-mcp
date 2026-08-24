@@ -18,6 +18,8 @@ import hmac
 import json
 import logging
 import os
+import time
+import uuid
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
@@ -39,7 +41,9 @@ from mcp.types import (
     ReadResourceResult,
     TextResourceContents,
 )
-from starlette.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from meta_data_mcp import citations, provenance
 
@@ -489,6 +493,104 @@ class BearerAuthMiddleware:
         await response(scope, receive, send)
 
 
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    """Log HTTP requests and responses with timing."""
+
+    def __init__(
+        self,
+        app,
+        *,
+        logger: logging.Logger | None = None,
+        log_request_body: bool = False,
+        log_response_body: bool = False,
+        excluded_paths: set[str] | None = None,
+    ):
+        super().__init__(app)
+        self.logger = logger or logging.getLogger("meta_data_mcp.access")
+        self.log_request_body = log_request_body
+        self.log_response_body = log_response_body
+        self.excluded_paths = excluded_paths or {"/health", "/ready", "/live"}
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Skip excluded paths
+        if request.url.path in self.excluded_paths:
+            return await call_next(request)
+
+        # Generate request ID for correlation
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())[:8]
+        request.state.request_id = request_id
+
+        start_time = time.perf_counter()
+        client_host = request.client.host if request.client else "unknown"
+        method = request.method
+        path = request.url.path
+        query = str(request.url.query) if request.url.query else ""
+
+        # Log request
+        request_log = {
+            "request_id": request_id,
+            "client": client_host,
+            "method": method,
+            "path": path,
+            "query": query,
+            "user_agent": request.headers.get("user-agent", ""),
+        }
+
+        if self.log_request_body and method in ("POST", "PUT", "PATCH"):
+            try:
+                body = await request.body()
+                if body:
+                    request_log["body"] = body.decode("utf-8")[:1000]  # Limit size
+            except Exception:
+                request_log["body"] = "<unreadable>"
+
+        self.logger.info("request", extra=request_log)
+
+        # Process request
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            self.logger.error(
+                "request_failed",
+                extra={
+                    "request_id": request_id,
+                    "client": client_host,
+                    "method": method,
+                    "path": path,
+                    "duration_ms": round(duration_ms, 2),
+                    "error": str(e),
+                },
+            )
+            raise
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
+        # Log response
+        response_log = {
+            "request_id": request_id,
+            "client": client_host,
+            "method": method,
+            "path": path,
+            "status_code": response.status_code,
+            "duration_ms": round(duration_ms, 2),
+        }
+
+        if self.log_response_body:
+            # Note: This consumes the response body, so we'd need to buffer it
+            # For now, just log the status
+            pass
+
+        if response.status_code >= 400:
+            self.logger.warning("response", extra=response_log)
+        else:
+            self.logger.info("response", extra=response_log)
+
+        # Add request ID to response headers
+        response.headers["x-request-id"] = request_id
+        return response
+
+
 async def run_server(
     server: Server,
     transport: str = "stdio",
@@ -555,9 +657,19 @@ async def run_server(
                     "status": "running",
                     "server": server.name,
                     "transport": "sse",
-                    "endpoints": {"sse": "/sse", "messages": "/messages"},
+                    "endpoints": {
+                        "sse": "/sse",
+                        "messages": "/messages",
+                        "streamable": "/",
+                    },
                 },
             )
+
+        async def streamable_root(scope, receive, send):
+            if scope.get("method", "").upper() == "POST":
+                await streamable_manager.handle_request(scope, receive, send)
+            else:
+                await root(scope, receive, send)
 
         # ----------------------------------------------------------------
         # OAuth 2.0 (optional — enabled by META_DATA_MCP_OAUTH_ISSUER)
@@ -591,7 +703,6 @@ async def run_server(
                 ) from exc
             from mcp.server.auth.settings import ClientRegistrationOptions
             from pydantic import AnyHttpUrl
-            from starlette.requests import Request
 
             from meta_data_mcp.oauth_provider import InMemoryOAuthProvider
 
@@ -831,6 +942,22 @@ async def run_server(
         )
         app.add_middleware(SmitheryTriggersMiddleware)
 
+        # Access logging middleware (added early to capture all requests)
+        log_request_body = os.getenv("META_DATA_MCP_LOG_REQUEST_BODY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        log_response_body = os.getenv(
+            "META_DATA_MCP_LOG_RESPONSE_BODY", ""
+        ).lower() in ("1", "true", "yes")
+        app.add_middleware(
+            AccessLogMiddleware,
+            logger=logging.getLogger("meta_data_mcp.access"),
+            log_request_body=log_request_body,
+            log_response_body=log_response_body,
+        )
+
         auth_token = os.getenv("META_DATA_MCP_AUTH_TOKEN")
         auth_enabled = bool(auth_token or oauth_provider)
         if auth_enabled:
@@ -897,6 +1024,7 @@ async def run_server(
 
 
 __all__ = [
+    "AccessLogMiddleware",
     "BearerAuthMiddleware",
     "create_mcp_server",
     "register_ui_resource",
