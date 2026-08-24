@@ -934,7 +934,7 @@ async def run_server(
             debug=False,
             lifespan=lifespan,
             routes=[
-                Route("/", endpoint=root),
+                Route("/", endpoint=streamable_root, methods=["GET", "POST"]),
                 Route("/sse", endpoint=SseApp()),
                 Mount("/messages", app=sse.handle_post_message),
             ]
