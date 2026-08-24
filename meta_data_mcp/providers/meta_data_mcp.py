@@ -21,6 +21,7 @@ server.
 import asyncio
 import importlib
 import logging
+import os
 import re
 import time
 from collections.abc import Sequence
@@ -1942,6 +1943,192 @@ TOOLS.append(
     ),
 )
 TOOLS_HANDLERS["opendata_health_snapshot"] = handle_health_snapshot
+
+
+###################
+# logging config & access log viewer
+###################
+
+
+class LoggingConfigParams(BaseModel):
+    """Parameters for opendata_logging_config."""
+
+    action: str = Field(
+        ...,
+        description="Action: 'get' (current config), 'set_level' (change log level), 'set_format' (change format).",
+    )
+    level: str | None = Field(
+        None,
+        description="Log level for 'set_level': DEBUG, INFO, WARNING, ERROR.",
+    )
+    format: str | None = Field(
+        None,
+        description="Log format for 'set_format': 'text' or 'json'.",
+    )
+
+
+class AccessLogParams(BaseModel):
+    """Parameters for opendata_access_log."""
+
+    limit: int = Field(
+        default=50,
+        ge=1,
+        le=500,
+        description="Number of recent access log entries to return (1-500, default 50).",
+    )
+    since_seconds: float | None = Field(
+        None,
+        ge=0,
+        le=86400,
+        description="Only return entries from the last N seconds (max 24h).",
+    )
+    status_code: int | None = Field(
+        None,
+        ge=100,
+        le=599,
+        description="Filter by HTTP status code (e.g. 200, 404, 500).",
+    )
+    path_prefix: str | None = Field(
+        None,
+        description="Filter by path prefix (e.g. '/sse', '/messages').",
+    )
+
+
+# In-memory ring buffer for access logs (captured by AccessLogMiddleware)
+_access_log_buffer: list[dict] = []
+_ACCESS_LOG_MAX = 1000
+
+
+def _record_access_log(entry: dict) -> None:
+    """Called by AccessLogMiddleware to record an entry."""
+    _access_log_buffer.append(entry)
+    if len(_access_log_buffer) > _ACCESS_LOG_MAX:
+        _access_log_buffer.pop(0)
+
+
+async def handle_logging_config(
+    arguments: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Get or change the server's logging configuration at runtime."""
+    import logging
+
+    from meta_data_mcp.logging_config import configure_logging
+
+    params = LoggingConfigParams(**(arguments or {}))
+
+    if params.action == "get":
+        root = logging.getLogger()
+        handlers = root.handlers
+        fmt = "text"
+        if handlers:
+            h = handlers[0]
+            if hasattr(h, "formatter") and h.formatter:
+                fmt = (
+                    "json"
+                    if h.formatter.__class__.__name__ == "_JsonFormatter"
+                    else "text"
+                )
+        return {
+            "level": logging.getLevelName(root.level),
+            "format": fmt,
+            "handlers": [type(h).__name__ for h in handlers],
+            "env": {
+                "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
+                "LOG_FORMAT": os.getenv("LOG_FORMAT", "text"),
+            },
+        }
+
+    elif params.action == "set_level":
+        if not params.level:
+            return {"error": "level required for set_level"}
+        level_name = params.level.upper()
+        valid = {"DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL"}
+        if level_name not in valid:
+            return {"error": f"Invalid level, must be one of {sorted(valid)}"}
+        level = getattr(logging, level_name)
+        logging.getLogger().setLevel(level)
+        return {"status": "ok", "level": level_name}
+
+    elif params.action == "set_format":
+        if not params.format:
+            return {"error": "format required for set_format"}
+        fmt = params.format.lower()
+        if fmt not in ("text", "json"):
+            return {"error": "format must be 'text' or 'json'"}
+        # Reconfigure with new format
+        os.environ["LOG_FORMAT"] = fmt
+        configure_logging()
+        return {"status": "ok", "format": fmt}
+
+    else:
+        return {
+            "error": f"Unknown action: {params.action}. Use 'get', 'set_level', or 'set_format'."
+        }
+
+
+async def handle_access_log(
+    arguments: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return recent access log entries from the in-memory buffer."""
+    import time
+
+    params = AccessLogParams(**(arguments or {}))
+
+    now = time.time()
+    entries = _access_log_buffer
+
+    if params.since_seconds is not None:
+        cutoff = now - params.since_seconds
+        entries = [e for e in entries if e.get("ts", 0) >= cutoff]
+
+    if params.status_code is not None:
+        entries = [e for e in entries if e.get("status_code") == params.status_code]
+
+    if params.path_prefix is not None:
+        entries = [
+            e for e in entries if e.get("path", "").startswith(params.path_prefix)
+        ]
+
+    # Return most recent first
+    entries = list(reversed(entries))[: params.limit]
+
+    return {
+        "count": len(entries),
+        "entries": entries,
+        "buffer_size": len(_access_log_buffer),
+        "buffer_max": _ACCESS_LOG_MAX,
+    }
+
+
+TOOLS.append(
+    types.Tool(
+        name="opendata_logging_config",
+        title="Logging Config",
+        description=(
+            "View or change the server's logging configuration at runtime. "
+            "Actions: 'get' (current config), 'set_level' (change level), 'set_format' (text/json). "
+            "Changes apply immediately to the running process."
+        ),
+        input_schema=LoggingConfigParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=False, idempotentHint=False),
+    ),
+)
+TOOLS_HANDLERS["opendata_logging_config"] = handle_logging_config
+
+TOOLS.append(
+    types.Tool(
+        name="opendata_access_log",
+        title="Access Log",
+        description=(
+            "View recent HTTP access log entries captured by the AccessLogMiddleware. "
+            "Supports filtering by time window, status code, and path prefix. "
+            "Returns structured entries with request_id, client, method, path, status, duration."
+        ),
+        input_schema=AccessLogParams.model_json_schema(),
+        annotations=types.ToolAnnotations(readOnlyHint=True, idempotentHint=True),
+    ),
+)
+TOOLS_HANDLERS["opendata_access_log"] = handle_access_log
 
 
 ###################
