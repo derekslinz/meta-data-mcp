@@ -665,11 +665,16 @@ async def run_server(
                 },
             )
 
-        async def streamable_root(scope, receive, send):
-            if scope.get("method", "").upper() == "POST":
-                await streamable_manager.handle_request(scope, receive, send)
+        async def streamable_root(request: Request) -> Response:
+            if request.method == "POST":
+                # Delegate to streamable_manager as ASGI app
+                await streamable_manager.handle_request(
+                    request.scope, request.receive, request._send
+                )
+                # handle_request writes directly to send, so return empty response
+                return Response(content="", status_code=200)
             else:
-                await root(scope, receive, send)
+                return await root(request)
 
         # ----------------------------------------------------------------
         # OAuth 2.0 (optional — enabled by META_DATA_MCP_OAUTH_ISSUER)
