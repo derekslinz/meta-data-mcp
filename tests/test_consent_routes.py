@@ -41,7 +41,11 @@ def provider():
     return InMemoryOAuthProvider(issuer_url="http://localhost:8000")
 
 
-async def _new_session(provider) -> str:
+async def _new_session(
+    provider,
+    *,
+    redirect_uri: str = "http://localhost/cb",
+) -> str:
     """Create a pending consent session and return its token."""
     from mcp.server.auth.provider import AuthorizationParams
     from mcp.shared.auth import OAuthClientInformationFull
@@ -53,7 +57,7 @@ async def _new_session(provider) -> str:
         state="xyz",
         scopes=["opendata"],
         code_challenge=compute_pkce_challenge("verifier123"),
-        redirect_uri="http://localhost/cb",  # type: ignore[arg-type]
+        redirect_uri=redirect_uri,  # type: ignore[arg-type]
         redirect_uri_provided_explicitly=False,
     )
     url = await provider.authorize(client, params)
@@ -120,6 +124,91 @@ async def test_consent_get_ungated_shows_approve(provider):
     assert r.status_code == 200
     assert "Approve" in r.text
     assert 'type="email"' not in r.text
+
+
+@pytest.mark.anyio
+async def test_consent_get_discloses_redirect_uri(provider):
+    """The consent page must show where the code will be delivered.
+
+    DCR lets a client choose its own ``client_name``, so the displayed name is
+    not evidence of who receives the authorization code. Without this, a user
+    approving a request cannot distinguish a legitimate client from one
+    exfiltrating the code to an attacker's host.
+    """
+    session = await _new_session(provider, redirect_uri="https://evil.example/cb")
+    app = _app(provider, email_gate=False)
+    async with _client(app) as c:
+        r = await c.get(f"/oauth/consent?session={session}")
+    assert r.status_code == 200
+    assert "evil.example" in r.text
+
+
+@pytest.mark.anyio
+async def test_consent_get_dcr_cannot_inject_markup(provider):
+    """A DCR-supplied redirect_uri must not be able to inject markup.
+
+    Two layers matter here. The SDK types ``redirect_uri`` as ``AnyUrl``,
+    which percent-encodes angle brackets before the value ever reaches the
+    provider -- so a raw ``<script>`` tag cannot survive that far. The
+    consent page's own escaping is the second layer, and is asserted
+    directly against the renderer below.
+    """
+    session = await _new_session(
+        provider,
+        redirect_uri="https://evil.example/<script>alert(1)</script>",
+    )
+    app = _app(provider, email_gate=False)
+    async with _client(app) as c:
+        r = await c.get(f"/oauth/consent?session={session}")
+    assert r.status_code == 200
+    # No live script tag anywhere in the rendered page.
+    assert "<script>" not in r.text
+    # The payload survives only in percent-encoded form.
+    assert "%3Cscript%3E" in r.text
+
+
+def test_consent_redirect_block_escapes_markup():
+    """The renderer itself must escape, independent of AnyUrl normalization."""
+    from meta_data_mcp.consent_routes import ConsentRoutes
+
+    block = ConsentRoutes._redirect_block('https://x.example/"<b>hi</b>')
+    # No live tag, and the angle brackets are entity-escaped.
+    assert "<b>hi</b>" not in block
+    assert "&lt;b&gt;" in block
+    # The double quote is escaped too, so it cannot break out of an attribute.
+    assert "&quot;" in block
+
+
+@pytest.mark.anyio
+async def test_consent_get_discloses_redirect_uri_gated(provider):
+    """The email-gated variant must disclose it too."""
+    session = await _new_session(provider, redirect_uri="https://evil.example/cb")
+    app = _app(
+        provider,
+        email_gate=True,
+        emailer=RecordingEmailer(),
+        magic_store=MagicLinkStore(),
+    )
+    async with _client(app) as c:
+        r = await c.get(f"/oauth/consent?session={session}")
+    assert r.status_code == 200
+    assert "evil.example" in r.text
+
+
+def test_consent_redirect_block_handles_odd_input():
+    """Malformed / relative / empty targets must not raise or lie."""
+    from meta_data_mcp.consent_routes import ConsentRoutes
+
+    # Empty -> explicit placeholder, not a blank line.
+    assert "(none supplied)" in ConsentRoutes._redirect_block("")
+    # Relative target: shown verbatim, no invented origin.
+    rel = ConsentRoutes._redirect_block("/cb")
+    assert "/cb" in rel
+    assert "<strong>" not in rel
+    # Absolute: origin is highlighted, full URI still present.
+    absolute = ConsentRoutes._redirect_block("https://a.example:8443/cb?x=1#f")
+    assert "https://a.example:8443" in absolute
+    assert "/cb?x=1#f" in absolute
 
 
 @pytest.mark.anyio

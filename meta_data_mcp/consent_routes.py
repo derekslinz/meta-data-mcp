@@ -31,6 +31,7 @@ _CONSENT_STYLE = """<style>body{font-family:sans-serif;max-width:480px;margin:3r
   input[type=email]{width:100%;padding:.6rem;border:1px solid #ccc;border-radius:4px;font-size:1rem;margin:.5rem 0 1rem;box-sizing:border-box}
   button{padding:.6rem 1.4rem;border:none;border-radius:4px;cursor:pointer;font-size:1rem}
   .approve{background:#2563eb;color:#fff} .deny{background:#e5e7eb;color:#111;margin-left:.5rem}
+  .uri{font-family:monospace;font-size:.8rem;color:#555;word-break:break-all}
 </style>"""
 
 
@@ -92,6 +93,30 @@ class ConsentRoutes:
         return urlunsplit(parts._replace(query=urlencode(merged)))
 
     @staticmethod
+    def _redirect_block(redirect_uri: object) -> str:
+        """Render the authorization-code destination for the consent page.
+
+        Dynamic Client Registration lets a client pick its own ``client_name``,
+        so the name shown on this page proves nothing about who will actually
+        receive the code. Surface the destination so the user can judge whether
+        they trust that party. Returns HTML for element content (not an
+        attribute context), with every component escaped.
+        """
+        raw = str(redirect_uri or "")
+        if not raw:
+            return "<em>(none supplied)</em>"
+        parts = urlsplit(raw)
+        if not parts.scheme or not parts.netloc:
+            # Relative or malformed target -- show it verbatim rather than
+            # inventing an origin the server never parsed out of it.
+            return _html.escape(raw)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        return (
+            f"<strong>{_html.escape(origin)}</strong>"
+            f'<br><span class="uri">{_html.escape(raw)}</span>'
+        )
+
+    @staticmethod
     def _client_ip(request: Request) -> str:
         """Best-effort client IP for rate limiting.
 
@@ -141,6 +166,7 @@ class ConsentRoutes:
             str(session.get("client_name", session.get("client_id", "?"))),
         )
         scopes_html = _html.escape(", ".join(session.get("scopes", [])) or "(default)")
+        redirect_html = self._redirect_block(session.get("redirect_uri", ""))
         session_token_escaped = _html.escape(session_token)
         if self.email_gate_enabled:
             body_html = f"""<div class="card">
@@ -148,6 +174,8 @@ class ConsentRoutes:
   <p><strong>{client_name}</strong> is requesting access. Enter your email and
   we'll send you a single-use sign-in link.</p>
   <p class="scope">Requested scopes: {scopes_html}</p>
+  <p class="scope">The sign-in link and authorization code will be sent to:
+  <br>{redirect_html}</p>
   <form method="POST" action="/oauth/consent/request-link">
     <input type="hidden" name="session" value="{session_token_escaped}">
     <input type="email" name="email" placeholder="you@example.com" required autofocus>
@@ -160,6 +188,8 @@ class ConsentRoutes:
   <h2>Authorize access</h2>
   <p><strong>{client_name}</strong> is requesting access to your meta-data-mcp server.</p>
   <p class="scope">Requested scopes: {scopes_html}</p>
+  <p class="scope">The authorization code will be sent to:
+  <br>{redirect_html}</p>
   <form method="POST" action="/oauth/consent/approve">
     <input type="hidden" name="session" value="{session_token_escaped}">
     <button type="submit" class="approve">Approve</button>
