@@ -67,6 +67,13 @@ class InMemoryOAuthProvider(
     _DEFAULT_MAX_CLIENTS: int = 1000
     _DEFAULT_TOKEN_TTL: int = 3600  # 1 hour
 
+    # Hard cap on each in-memory OAuth store (sessions, codes, tokens).
+    # Reaping is driven by crossing this rather than by a timer, so normal
+    # traffic pays nothing. Entries past the cap are evicted oldest-first,
+    # which bounds memory even when nothing has expired yet.
+    # META_DATA_MCP_OAUTH_SWEEP_THRESHOLD tunes it.
+    _DEFAULT_SWEEP_THRESHOLD: int = 5000
+
     def __init__(self, issuer_url: str, persistence: Any = None) -> None:
         self.issuer_url = issuer_url.rstrip("/")
         self._max_clients = self._read_positive_int_env(
@@ -76,6 +83,10 @@ class InMemoryOAuthProvider(
         self._token_ttl = self._read_positive_int_env(
             "META_DATA_MCP_OAUTH_TOKEN_TTL",
             self._DEFAULT_TOKEN_TTL,
+        )
+        self._sweep_threshold = self._read_positive_int_env(
+            "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD",
+            self._DEFAULT_SWEEP_THRESHOLD,
         )
         # Storage maps: key → object
         self._clients: dict[str, OAuthClientInformationFull] = {}
@@ -172,6 +183,7 @@ class InMemoryOAuthProvider(
             "state": params.state,
             "expires_at": time.time() + 43200,  # 12-hour consent window
         }
+        self._maybe_sweep()
         return f"{self.issuer_url}/oauth/consent?session={session_token}"
 
     def peek_session(self, session_token: str) -> dict[str, Any] | None:
@@ -198,6 +210,87 @@ class InMemoryOAuthProvider(
         if time.time() > session["expires_at"]:
             return None
         return session
+
+    def sweep_expired(self) -> int:
+        """Drop expired sessions, codes and tokens. Returns the count removed.
+
+        Every store here is otherwise only pruned when a caller presents the
+        matching secret, so a secret that is never presented is never freed.
+        Consent sessions are the cheapest to abuse: creating one needs only
+        an unauthenticated ``GET /authorize`` and no consent at all.
+        """
+        now = time.time()
+        removed = 0
+
+        for token in [
+            k for k, v in self._auth_sessions.items() if now > v["expires_at"]
+        ]:
+            del self._auth_sessions[token]
+            removed += 1
+
+        for code in [k for k, v in self._auth_codes.items() if now > v.expires_at]:
+            del self._auth_codes[code]
+            self._code_email.pop(code, None)
+            removed += 1
+
+        for token in [k for k, v in self._access_tokens.items() if now > v.expires_at]:
+            del self._access_tokens[token]
+            self._token_email.pop(token, None)
+            removed += 1
+
+        # Refresh tokens carry no expires_at in the SDK type, so they cannot
+        # be reaped by age. They are bounded indirectly: each one is only
+        # created alongside an access token, and dropping an expired access
+        # token above does not remove its refresh partner. Rotating refresh
+        # (exchange_refresh_token) does remove the old one.
+        return removed
+
+    def _evict_over_cap(self, store: dict, cap: int) -> int:
+        """Drop oldest entries from ``store`` until it is under ``cap``.
+
+        Expiry alone cannot bound these stores: a consent session lives 12
+        hours, so a caller can mint unlimited sessions inside one window and
+        none of them are expired yet, so sweep_expired() reaps nothing and the
+        dict grows without limit. Eviction is what actually caps memory, so it
+        is applied independently of age.
+
+        Dict insertion order is the creation order, and tokens are only ever
+        replaced in place on refresh rotation rather than re-added, so
+        first-inserted is oldest.
+        """
+        excess = len(store) - cap
+        if excess <= 0:
+            return 0
+        for key in list(store)[:excess]:
+            del store[key]
+        return excess
+
+    def _maybe_sweep(self) -> None:
+        """Reap expired state and enforce the hard cap on each store.
+
+        Called on the unauthenticated authorize() path, which is the cheapest
+        one to drive: no client registration, consent, or token is required.
+        """
+        if (
+            len(self._auth_sessions) < self._sweep_threshold
+            and len(self._auth_codes) < self._sweep_threshold
+            and len(self._access_tokens) < self._sweep_threshold
+        ):
+            return
+        self.sweep_expired()
+        # Still over after reaping => live entries, so evict oldest-first.
+        evicted = self._evict_over_cap(self._auth_sessions, self._sweep_threshold)
+        evicted += self._evict_over_cap(self._auth_codes, self._sweep_threshold)
+        evicted += self._evict_over_cap(self._access_tokens, self._sweep_threshold)
+        if evicted:
+            log.warning(
+                "OAuth in-memory cap reached: evicted %d live entries "
+                "(threshold %d). This is expected under a client flood; if it "
+                "recurs while load is normal, raise "
+                "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD.",
+                evicted,
+                self._sweep_threshold,
+            )
 
     def create_authorization_code(self, session: dict[str, Any]) -> str:
         """Issue an authorization code from an approved consent session."""

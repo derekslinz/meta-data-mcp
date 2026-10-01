@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import secrets
+import time
 
 import httpx
 import pytest
@@ -503,3 +504,138 @@ async def test_oidc_discovery_redirects_to_oauth_metadata():
         r = await client.get("/.well-known/openid-configuration")
     assert r.status_code == 301
     assert r.headers["location"] == "/.well-known/oauth-authorization-server"
+
+
+# ---------------------------------------------------------------------------
+# Expired-state sweep
+# ---------------------------------------------------------------------------
+
+
+def _params(challenge: str = "A" * 43, state: str = "s"):
+    from mcp.server.auth.provider import AuthorizationParams
+    from mcp.shared.auth import AnyUrl
+
+    return AuthorizationParams(
+        state=state,
+        scopes=["opendata"],
+        code_challenge=challenge,
+        redirect_uri=AnyUrl("http://localhost/cb"),
+        redirect_uri_provided_explicitly=False,
+    )
+
+
+def _client():
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    return OAuthClientInformationFull(client_id="c1", redirect_uris=None)
+
+
+def _auth_code(code: str, expires_at: float | None = None):
+    from mcp.server.auth.provider import AuthorizationCode
+    from mcp.shared.auth import AnyUrl
+
+    return AuthorizationCode(
+        code=code,
+        scopes=["opendata"],
+        expires_at=time.time() + 600 if expires_at is None else expires_at,
+        client_id="c1",
+        code_challenge="A" * 43,
+        redirect_uri=AnyUrl("http://localhost/cb"),
+        redirect_uri_provided_explicitly=False,
+    )
+
+
+@pytest.mark.anyio
+async def test_sweep_removes_expired_sessions():
+    """An abandoned consent session must not outlive its own expiry."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    url = await p.authorize(_client(), _params())
+    token = url.split("session=")[1]
+    assert len(p._auth_sessions) == 1
+
+    # Still valid -- a sweep now must not reap it.
+    assert p.sweep_expired() == 0
+    assert token in p._auth_sessions
+
+    # Age it past the 12-hour window.
+    p._auth_sessions[token]["expires_at"] = time.time() - 1
+    assert p.sweep_expired() == 1
+    assert token not in p._auth_sessions
+
+
+@pytest.mark.anyio
+async def test_sweep_removes_expired_auth_codes():
+    """An unredeemed authorization code must be reaped, not held forever."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+        },
+    )
+    assert code in p._auth_codes
+    p._auth_codes[code].expires_at = time.time() - 1
+    assert p.sweep_expired() == 1
+    assert code not in p._auth_codes
+
+
+@pytest.mark.anyio
+async def test_sweep_removes_expired_access_tokens_and_email_binding():
+    """Reaping an access token must not orphan its email side-map entry."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+            "email": "user@example.com",
+        },
+    )
+    token = await p.exchange_authorization_code(
+        _client(),
+        _auth_code(code, expires_at=time.time() - 1),
+    )
+    at = token.access_token
+    assert at in p._access_tokens
+    p._access_tokens[at].expires_at = time.time() - 1
+    p.sweep_expired()
+    assert at not in p._access_tokens
+    # The side-maps must not retain a dangling identity entry.
+    assert at not in p._token_email
+    assert at not in p._refresh_email
+
+
+@pytest.mark.anyio
+async def test_maybe_sweep_bounds_unauthenticated_growth():
+    """Memory must stay bounded under a flood of unauthenticated /authorize.
+
+    This is the property that matters: no consent, no token, no client
+    registration is required to create a session, so an attacker can drive
+    this path at will. The store must plateau rather than grow linearly.
+    """
+    import os
+
+    os.environ["META_DATA_MCP_OAUTH_SWEEP_THRESHOLD"] = "50"
+    try:
+        p = InMemoryOAuthProvider(issuer_url="https://as.example")
+        c = _client()
+        for _ in range(500):
+            await p.authorize(c, _params(state="x"))
+        # Sessions live 12h, so a sweep cannot reap them yet -- the cap has to
+        # come from the threshold, not from expiry.
+        assert len(p._auth_sessions) <= 60, len(p._auth_sessions)
+    finally:
+        del os.environ["META_DATA_MCP_OAUTH_SWEEP_THRESHOLD"]
+
+
+@pytest.mark.anyio
+async def test_sweep_is_idempotent_and_safe_on_empty():
+    """Sweeping an empty provider must be a no-op, not an error."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    assert p.sweep_expired() == 0
+    assert p.sweep_expired() == 0
