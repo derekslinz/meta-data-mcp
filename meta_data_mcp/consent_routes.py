@@ -110,7 +110,17 @@ class ConsentRoutes:
             # Relative or malformed target -- show it verbatim rather than
             # inventing an origin the server never parsed out of it.
             return _html.escape(raw)
-        origin = f"{parts.scheme}://{parts.netloc}"
+        try:
+            hostname = parts.hostname
+            port = parts.port
+        except ValueError:
+            return _html.escape(raw)
+        if not hostname:
+            return _html.escape(raw)
+        authority = f"[{hostname}]" if ":" in hostname else hostname
+        if port is not None:
+            authority = f"{authority}:{port}"
+        origin = f"{parts.scheme}://{authority}"
         return (
             f"<strong>{_html.escape(origin)}</strong>"
             f'<br><span class="uri">{_html.escape(raw)}</span>'

@@ -211,6 +211,17 @@ def test_consent_redirect_block_handles_odd_input():
     assert "/cb?x=1#f" in absolute
 
 
+def test_consent_redirect_block_excludes_credentials_from_highlighted_origin():
+    from meta_data_mcp.consent_routes import ConsentRoutes
+
+    block = ConsentRoutes._redirect_block(
+        "https://trusted.example@evil.example:8443/cb",
+    )
+
+    assert "<strong>https://evil.example:8443</strong>" in block
+    assert "<strong>https://trusted.example@evil.example" not in block
+
+
 @pytest.mark.anyio
 async def test_consent_get_invalid_session(provider):
     app = _app(provider)

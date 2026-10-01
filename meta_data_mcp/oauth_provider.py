@@ -240,6 +240,8 @@ class InMemoryOAuthProvider(
         for token in [k for k, v in self._access_tokens.items() if now > v.expires_at]:
             del self._access_tokens[token]
             self._token_email.pop(token, None)
+            if self._persistence is not None:
+                self._persistence.delete_access_token(token)
             removed += 1
 
         # Refresh tokens carry no expires_at in the SDK type, so they cannot
@@ -249,7 +251,7 @@ class InMemoryOAuthProvider(
         # (exchange_refresh_token) does remove the old one.
         return removed
 
-    def _evict_over_cap(self, store: dict, cap: int) -> int:
+    def _evict_over_cap(self, store: dict, cap: int) -> list[str]:
         """Drop oldest entries from ``store`` until it is under ``cap``.
 
         Expiry alone cannot bound these stores: a consent session lives 12
@@ -264,10 +266,11 @@ class InMemoryOAuthProvider(
         """
         excess = len(store) - cap
         if excess <= 0:
-            return 0
-        for key in list(store)[:excess]:
+            return []
+        evicted = list(store)[:excess]
+        for key in evicted:
             del store[key]
-        return excess
+        return evicted
 
     def _maybe_sweep(self) -> None:
         """Reap expired state and enforce the hard cap on each store.
@@ -279,13 +282,40 @@ class InMemoryOAuthProvider(
             len(self._auth_sessions) < self._sweep_threshold
             and len(self._auth_codes) < self._sweep_threshold
             and len(self._access_tokens) < self._sweep_threshold
+            and len(self._refresh_tokens) < self._sweep_threshold
         ):
             return
         self.sweep_expired()
         # Still over after reaping => live entries, so evict oldest-first.
-        evicted = self._evict_over_cap(self._auth_sessions, self._sweep_threshold)
-        evicted += self._evict_over_cap(self._auth_codes, self._sweep_threshold)
-        evicted += self._evict_over_cap(self._access_tokens, self._sweep_threshold)
+        evicted_sessions = self._evict_over_cap(
+            self._auth_sessions,
+            self._sweep_threshold,
+        )
+        evicted_codes = self._evict_over_cap(self._auth_codes, self._sweep_threshold)
+        evicted_access_tokens = self._evict_over_cap(
+            self._access_tokens,
+            self._sweep_threshold,
+        )
+        evicted_refresh_tokens = self._evict_over_cap(
+            self._refresh_tokens,
+            self._sweep_threshold,
+        )
+        for code in evicted_codes:
+            self._code_email.pop(code, None)
+        for token in evicted_access_tokens:
+            self._token_email.pop(token, None)
+            if self._persistence is not None:
+                self._persistence.delete_access_token(token)
+        for token in evicted_refresh_tokens:
+            self._refresh_email.pop(token, None)
+            if self._persistence is not None:
+                self._persistence.delete_refresh_token(token)
+        evicted = (
+            len(evicted_sessions)
+            + len(evicted_codes)
+            + len(evicted_access_tokens)
+            + len(evicted_refresh_tokens)
+        )
         if evicted:
             log.warning(
                 "OAuth in-memory cap reached: evicted %d live entries "

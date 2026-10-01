@@ -607,7 +607,7 @@ async def test_sweep_removes_expired_access_tokens_and_email_binding():
     assert at not in p._access_tokens
     # The side-maps must not retain a dangling identity entry.
     assert at not in p._token_email
-    assert at not in p._refresh_email
+    assert p._refresh_email[token.refresh_token] == "user@example.com"
 
 
 @pytest.mark.anyio
@@ -626,6 +626,38 @@ async def test_maybe_sweep_bounds_unauthenticated_growth(monkeypatch):
     # Sessions live 12h, so a sweep cannot reap them yet -- the cap has to
     # come from the threshold, not from expiry.
     assert len(p._auth_sessions) <= 60, len(p._auth_sessions)
+
+
+def test_cap_eviction_removes_authorization_code_email_binding(monkeypatch):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+        },
+    )
+    p._code_email[code] = "user@example.com"
+    newer_code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+        },
+    )
+    p._code_email[newer_code] = "other@example.com"
+
+    p._maybe_sweep()
+
+    assert code not in p._auth_codes
+    assert code not in p._code_email
+    assert newer_code in p._auth_codes
+    assert p._code_email[newer_code] == "other@example.com"
 
 
 @pytest.mark.anyio

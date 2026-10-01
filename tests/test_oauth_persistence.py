@@ -99,6 +99,62 @@ async def test_refresh_token_survives_restart(db_path):
 
 
 @pytest.mark.anyio
+async def test_cap_eviction_removes_tokens_from_memory_and_persistence(
+    db_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    token = await _issue_token(provider, email="user@example.com")
+    newer_token = await _issue_token(provider, email="other@example.com")
+
+    provider._maybe_sweep()
+
+    assert token.access_token not in provider._access_tokens
+    assert token.access_token not in provider._token_email
+    assert token.refresh_token not in provider._refresh_tokens
+    assert token.refresh_token not in provider._refresh_email
+    assert token.access_token not in persistence.load_access_tokens()[0]
+    assert token.refresh_token not in persistence.load_refresh_tokens()[0]
+    assert newer_token.access_token in provider._access_tokens
+    assert newer_token.refresh_token in provider._refresh_tokens
+    assert newer_token.access_token in persistence.load_access_tokens()[0]
+    assert newer_token.refresh_token in persistence.load_refresh_tokens()[0]
+    persistence.close()
+
+    restarted_persistence = SqliteOAuthPersistence(db_path)
+    restarted_provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=restarted_persistence,
+    )
+    assert token.access_token not in restarted_provider._access_tokens
+    assert token.refresh_token not in restarted_provider._refresh_tokens
+    assert newer_token.access_token in restarted_provider._access_tokens
+    assert newer_token.refresh_token in restarted_provider._refresh_tokens
+    restarted_persistence.close()
+
+
+@pytest.mark.anyio
+async def test_sweep_expired_access_token_deletes_persisted_row(db_path):
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    token = await _issue_token(provider, email="user@example.com")
+    provider._access_tokens[token.access_token].expires_at = 1
+
+    provider.sweep_expired()
+
+    assert token.access_token not in persistence.load_access_tokens()[0]
+    persistence.close()
+
+
+@pytest.mark.anyio
 async def test_revoke_removes_from_db(db_path):
     p1 = SqliteOAuthPersistence(db_path)
     provider1 = InMemoryOAuthProvider(
