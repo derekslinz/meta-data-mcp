@@ -207,7 +207,7 @@ def test_consent_redirect_block_handles_odd_input():
     assert "<strong>" not in rel
     # Absolute: origin is highlighted, full URI still present.
     absolute = ConsentRoutes._redirect_block("https://a.example:8443/cb?x=1#f")
-    assert "https://a.example:8443" in absolute
+    assert "<strong>https://a.example:8443</strong>" in absolute
     assert "/cb?x=1#f" in absolute
 
 
