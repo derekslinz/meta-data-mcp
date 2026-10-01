@@ -61,6 +61,10 @@ class InMemoryOAuthProvider(
         META_DATA_MCP_OAUTH_TOKEN_TTL: Access-token lifetime in seconds
             (default 3600 / 1 hour). Keep small to limit exposure if a token
             leaks.
+        META_DATA_MCP_OAUTH_SWEEP_THRESHOLD: Maximum number of entries in each
+            in-memory OAuth store before sweeping and oldest-first eviction
+            (default 5000). Must be a positive integer; invalid values fall
+            back to the default.
     """
 
     # Defaults; can be overridden via environment variables.

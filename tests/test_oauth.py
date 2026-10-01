@@ -611,26 +611,21 @@ async def test_sweep_removes_expired_access_tokens_and_email_binding():
 
 
 @pytest.mark.anyio
-async def test_maybe_sweep_bounds_unauthenticated_growth():
+async def test_maybe_sweep_bounds_unauthenticated_growth(monkeypatch):
     """Memory must stay bounded under a flood of unauthenticated /authorize.
 
     This is the property that matters: no consent, no token, no client
     registration is required to create a session, so an attacker can drive
     this path at will. The store must plateau rather than grow linearly.
     """
-    import os
-
-    os.environ["META_DATA_MCP_OAUTH_SWEEP_THRESHOLD"] = "50"
-    try:
-        p = InMemoryOAuthProvider(issuer_url="https://as.example")
-        c = _client()
-        for _ in range(500):
-            await p.authorize(c, _params(state="x"))
-        # Sessions live 12h, so a sweep cannot reap them yet -- the cap has to
-        # come from the threshold, not from expiry.
-        assert len(p._auth_sessions) <= 60, len(p._auth_sessions)
-    finally:
-        del os.environ["META_DATA_MCP_OAUTH_SWEEP_THRESHOLD"]
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "50")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    c = _client()
+    for _ in range(500):
+        await p.authorize(c, _params(state="x"))
+    # Sessions live 12h, so a sweep cannot reap them yet -- the cap has to
+    # come from the threshold, not from expiry.
+    assert len(p._auth_sessions) <= 60, len(p._auth_sessions)
 
 
 @pytest.mark.anyio
