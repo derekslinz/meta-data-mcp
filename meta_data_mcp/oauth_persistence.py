@@ -158,11 +158,22 @@ class SqliteOAuthPersistence:
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM access_tokens WHERE token = ?", (token,))
 
-    def load_access_tokens(self) -> tuple[dict[str, AccessToken], dict[str, str]]:
-        """Return (token → AccessToken, token → email) maps."""
-        with self._lock:
+    def load_access_tokens(
+        self,
+        limit: int | None = None,
+    ) -> tuple[dict[str, AccessToken], dict[str, str]]:
+        """Return token maps, pruning oldest rows first when ``limit`` is set."""
+        with self._lock, self._conn:
+            if limit is not None:
+                if limit <= 0:
+                    raise ValueError("limit must be positive")
+                self._conn.execute(
+                    "DELETE FROM access_tokens WHERE rowid NOT IN "
+                    "(SELECT rowid FROM access_tokens ORDER BY rowid DESC LIMIT ?)",
+                    (limit,),
+                )
             rows = self._conn.execute(
-                "SELECT token, data, email FROM access_tokens",
+                "SELECT token, data, email FROM access_tokens ORDER BY rowid ASC",
             ).fetchall()
         tokens: dict[str, AccessToken] = {}
         emails: dict[str, str] = {}
@@ -193,11 +204,22 @@ class SqliteOAuthPersistence:
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM refresh_tokens WHERE token = ?", (token,))
 
-    def load_refresh_tokens(self) -> tuple[dict[str, RefreshToken], dict[str, str]]:
-        """Return (token → RefreshToken, token → email) maps."""
-        with self._lock:
+    def load_refresh_tokens(
+        self,
+        limit: int | None = None,
+    ) -> tuple[dict[str, RefreshToken], dict[str, str]]:
+        """Return token maps, pruning oldest rows first when ``limit`` is set."""
+        with self._lock, self._conn:
+            if limit is not None:
+                if limit <= 0:
+                    raise ValueError("limit must be positive")
+                self._conn.execute(
+                    "DELETE FROM refresh_tokens WHERE rowid NOT IN "
+                    "(SELECT rowid FROM refresh_tokens ORDER BY rowid DESC LIMIT ?)",
+                    (limit,),
+                )
             rows = self._conn.execute(
-                "SELECT token, data, email FROM refresh_tokens",
+                "SELECT token, data, email FROM refresh_tokens ORDER BY rowid ASC",
             ).fetchall()
         tokens: dict[str, RefreshToken] = {}
         emails: dict[str, str] = {}

@@ -660,6 +660,29 @@ async def test_maybe_sweep_bounds_unauthenticated_growth(monkeypatch):
     assert len(p._auth_sessions) <= 60, len(p._auth_sessions)
 
 
+@pytest.mark.anyio
+async def test_maybe_sweep_skips_capacity_and_rate_limits_warnings(
+    monkeypatch,
+    caplog,
+):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    sweep = MagicMock(wraps=p.sweep_expired)
+    monkeypatch.setattr(p, "sweep_expired", sweep)
+
+    await p.authorize(_client(), _params())
+    sweep.assert_not_called()
+
+    with caplog.at_level("WARNING"):
+        await p.authorize(_client(), _params())
+        await p.authorize(_client(), _params())
+
+    assert sweep.call_count == 2
+    warnings = [r for r in caplog.records if "OAuth in-memory cap reached" in r.message]
+    assert len(warnings) == 1
+    assert len(p._auth_sessions) == 1
+
+
 def test_cap_eviction_removes_authorization_code_email_binding(monkeypatch):
     monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
     p = InMemoryOAuthProvider(issuer_url="https://as.example")

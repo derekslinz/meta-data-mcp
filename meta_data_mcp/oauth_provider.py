@@ -108,18 +108,24 @@ class InMemoryOAuthProvider(
         # new access token. Without this, refreshing would drop the identity and
         # let a user escape per-email rate limiting by rotating tokens.
         self._refresh_email: dict[str, str] = {}
+        self._cap_warning_emitted = False
         # Optional durable backend (SqliteOAuthPersistence). The dicts above stay
         # the working set; when persistence is present we load it on startup and
         # write-through every durable mutation. None → pure in-memory (default).
         self._persistence = persistence
         if persistence is not None:
             self._clients.update(persistence.load_clients())
-            access_tokens, token_email = persistence.load_access_tokens()
+            access_tokens, token_email = persistence.load_access_tokens(
+                limit=self._sweep_threshold,
+            )
             self._access_tokens.update(access_tokens)
             self._token_email.update(token_email)
-            refresh_tokens, refresh_email = persistence.load_refresh_tokens()
+            refresh_tokens, refresh_email = persistence.load_refresh_tokens(
+                limit=self._sweep_threshold,
+            )
             self._refresh_tokens.update(refresh_tokens)
             self._refresh_email.update(refresh_email)
+            self._maybe_sweep()
             log.info(
                 "Loaded OAuth state from persistence: %d clients, %d access "
                 "tokens, %d refresh tokens",
@@ -276,10 +282,10 @@ class InMemoryOAuthProvider(
         OAuth flow created the entry.
         """
         if (
-            len(self._auth_sessions) < self._sweep_threshold
-            and len(self._auth_codes) < self._sweep_threshold
-            and len(self._access_tokens) < self._sweep_threshold
-            and len(self._refresh_tokens) < self._sweep_threshold
+            len(self._auth_sessions) <= self._sweep_threshold
+            and len(self._auth_codes) <= self._sweep_threshold
+            and len(self._access_tokens) <= self._sweep_threshold
+            and len(self._refresh_tokens) <= self._sweep_threshold
         ):
             return
         self.sweep_expired()
@@ -313,12 +319,14 @@ class InMemoryOAuthProvider(
             + len(evicted_access_tokens)
             + len(evicted_refresh_tokens)
         )
-        if evicted:
+        if evicted and not self._cap_warning_emitted:
+            self._cap_warning_emitted = True
             log.warning(
                 "OAuth in-memory cap reached: evicted %d live entries "
                 "(threshold %d). This is expected under a client flood; if it "
                 "recurs while load is normal, raise "
-                "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD.",
+                "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD. Further warnings are "
+                "suppressed until restart.",
                 evicted,
                 self._sweep_threshold,
             )
