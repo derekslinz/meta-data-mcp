@@ -174,7 +174,7 @@ class ConsentRoutes:
   <p><strong>{client_name}</strong> is requesting access. Enter your email and
   we'll send you a single-use sign-in link.</p>
   <p class="scope">Requested scopes: {scopes_html}</p>
-  <p class="scope">The sign-in link and authorization code will be sent to:
+  <p class="scope">After sign-in, the authorization code will be sent to:
   <br>{redirect_html}</p>
   <form method="POST" action="/oauth/consent/request-link">
     <input type="hidden" name="session" value="{session_token_escaped}">
