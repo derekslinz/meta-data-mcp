@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import secrets
 import time
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
@@ -198,6 +199,37 @@ async def test_refresh_token_rotation(provider):
     assert refreshed.refresh_token != original.refresh_token
     # Old refresh token is gone
     assert await provider.load_refresh_token(client, original.refresh_token) is None
+
+
+@pytest.mark.anyio
+async def test_refresh_exchange_enforces_access_token_cap(monkeypatch):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    persistence = MagicMock()
+    persistence.load_clients.return_value = {}
+    persistence.load_access_tokens.return_value = ({}, {})
+    persistence.load_refresh_tokens.return_value = ({}, {})
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    client = OAuthClientInformationFull(client_id="rc", redirect_uris=None)
+    original = await provider.exchange_authorization_code(
+        client,
+        _auth_code("initial"),
+    )
+
+    for _ in range(3):
+        refresh_token = await provider.load_refresh_token(
+            client, original.refresh_token
+        )
+        assert refresh_token is not None
+        original = await provider.exchange_refresh_token(client, refresh_token, [])
+        assert len(provider._access_tokens) <= 1
+        assert original.access_token in provider._access_tokens
+
+    assert persistence.delete_access_token.call_count == 3
 
 
 @pytest.mark.anyio

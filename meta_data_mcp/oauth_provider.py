@@ -244,11 +244,8 @@ class InMemoryOAuthProvider(
                 self._persistence.delete_access_token(token)
             removed += 1
 
-        # Refresh tokens carry no expires_at in the SDK type, so they cannot
-        # be reaped by age. They are bounded indirectly: each one is only
-        # created alongside an access token, and dropping an expired access
-        # token above does not remove its refresh partner. Rotating refresh
-        # (exchange_refresh_token) does remove the old one.
+        # Refresh tokens carry no expires_at in the SDK type, so they are
+        # bounded by oldest-first cap eviction rather than age.
         return removed
 
     def _evict_over_cap(self, store: dict, cap: int) -> list[str]:
@@ -275,8 +272,8 @@ class InMemoryOAuthProvider(
     def _maybe_sweep(self) -> None:
         """Reap expired state and enforce the hard cap on each store.
 
-        Called on the unauthenticated authorize() path, which is the cheapest
-        one to drive: no client registration, consent, or token is required.
+        Called after insertions so each store is bounded regardless of which
+        OAuth flow created the entry.
         """
         if (
             len(self._auth_sessions) < self._sweep_threshold
@@ -345,6 +342,7 @@ class InMemoryOAuthProvider(
         email = session.get("email")
         if email:
             self._code_email[code] = email
+        self._maybe_sweep()
         return code
 
     # ------------------------------------------------------------------
@@ -415,6 +413,7 @@ class InMemoryOAuthProvider(
             if email:
                 self._persistence.record_signin(email, client_id, time.time())
 
+        self._maybe_sweep()
         return OAuthToken(
             access_token=access_token_str,
             token_type="Bearer",
@@ -476,6 +475,7 @@ class InMemoryOAuthProvider(
             self._persistence.save_access_token(new_access, new_access_token, email)
             self._persistence.save_refresh_token(new_refresh, new_refresh_token, email)
 
+        self._maybe_sweep()
         return OAuthToken(
             access_token=new_access,
             token_type="Bearer",
