@@ -335,7 +335,7 @@ are held in memory and each store is capped at
 `META_DATA_MCP_OAUTH_SWEEP_THRESHOLD` entries. Crossing the cap reaps whatever
 has expired, then evicts oldest-first if entries are still live. This bounds
 memory against a handshake flood — creating a consent session needs only an
-unauthenticated `GET /authorize`. A `OAuth in-memory cap reached` warning in
+unauthenticated `GET /authorize`. An `OAuth in-memory cap reached` warning in
 the logs means live entries were evicted; that is expected under a client
 flood, but if it recurs at normal load, raise the threshold. Note that a cap
 below the number of concurrently signed-in users will evict live tokens and
