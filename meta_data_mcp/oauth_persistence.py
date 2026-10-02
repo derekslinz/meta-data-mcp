@@ -158,6 +158,33 @@ class SqliteOAuthPersistence:
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM access_tokens WHERE token = ?", (token,))
 
+    def delete_access_tokens(self, tokens: list[str]) -> int:
+        """Delete many access tokens in one transaction; return rows removed.
+
+        A sweep or cap-eviction can reap thousands of tokens at once. Issuing
+        one ``DELETE`` per token inside one lock acquisition keeps that from
+        turning into thousands of separate transactions on the event loop.
+        """
+        if not tokens:
+            return 0
+        with self._lock, self._conn:
+            cur = self._conn.executemany(
+                "DELETE FROM access_tokens WHERE token = ?",
+                [(token,) for token in tokens],
+            )
+            return cur.rowcount
+
+    def delete_refresh_tokens(self, tokens: list[str]) -> int:
+        """Delete many refresh tokens in one transaction; return rows removed."""
+        if not tokens:
+            return 0
+        with self._lock, self._conn:
+            cur = self._conn.executemany(
+                "DELETE FROM refresh_tokens WHERE token = ?",
+                [(token,) for token in tokens],
+            )
+            return cur.rowcount
+
     def load_access_tokens(
         self,
         limit: int | None = None,

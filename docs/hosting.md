@@ -328,6 +328,18 @@ Requires OAuth to be enabled (`META_DATA_MCP_OAUTH_ISSUER`).
 | `META_DATA_MCP_SMTP_PORT` | SMTP port | `587` |
 | `META_DATA_MCP_SMTP_USER` / `META_DATA_MCP_SMTP_PASSWORD` | SMTP auth (omit for unauthenticated relays) | — |
 | `META_DATA_MCP_OAUTH_DB` | SQLite path for durable OAuth state + sign-in audit (see [Durable state](#durable-oauth-state)) | — (in-memory) |
+| `META_DATA_MCP_OAUTH_SWEEP_THRESHOLD` | Max entries per in-memory OAuth store (consent sessions, auth codes, access tokens, refresh tokens) before expired entries are reaped and the oldest live ones evicted | `5000` |
+
+**Bounded OAuth state:** consent sessions, authorization codes and issued tokens
+are held in memory and each store is capped at
+`META_DATA_MCP_OAUTH_SWEEP_THRESHOLD` entries. Crossing the cap reaps whatever
+has expired, then evicts oldest-first if entries are still live. This bounds
+memory against a handshake flood — creating a consent session needs only an
+unauthenticated `GET /authorize`. A `OAuth in-memory cap reached` warning in
+the logs means live entries were evicted; that is expected under a client
+flood, but if it recurs at normal load, raise the threshold. Note that a cap
+below the number of concurrently signed-in users will evict live tokens and
+force those users to re-authorize.
 
 **Email backend precedence:** Resend (if `…_RESEND_API_KEY` set) → SMTP (if
 `…_SMTP_HOST` set) → **console** (neither set). The console backend logs the

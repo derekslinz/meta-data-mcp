@@ -193,6 +193,60 @@ async def test_sweep_expired_access_token_deletes_persisted_row(db_path):
 
 
 @pytest.mark.anyio
+async def test_batched_token_deletes_remove_only_named_rows(db_path):
+    """The batch helpers exist to collapse N DELETEs into one transaction.
+
+    A sweep can reap thousands of tokens at once, and one ``DELETE`` per row
+    would stall the event loop, so the provider hands the whole batch over.
+    These assert the batch semantics, including the empty no-op that keeps a
+    sweep with nothing to reap from touching SQLite at all.
+    """
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    tokens = [
+        await _issue_token(provider, email=f"user{i}@example.com") for i in range(3)
+    ]
+
+    # Empty batches are a no-op, not an error and not a write.
+    assert persistence.delete_access_tokens([]) == 0
+    assert persistence.delete_refresh_tokens([]) == 0
+    assert len(persistence.load_access_tokens()[0]) == 3
+
+    doomed = [tokens[0].access_token, tokens[1].access_token]
+    assert persistence.delete_access_tokens(doomed) == 2
+    remaining = set(persistence.load_access_tokens()[0])
+    assert remaining == {tokens[2].access_token}
+
+    assert persistence.delete_refresh_tokens([tokens[0].refresh_token]) == 1
+    assert set(persistence.load_refresh_tokens()[0]) == {
+        tokens[1].refresh_token,
+        tokens[2].refresh_token,
+    }
+    persistence.close()
+
+
+@pytest.mark.anyio
+async def test_expired_sweep_deletes_every_persisted_token_in_one_batch(db_path):
+    """A mass expiry must reach persistence for every row, not just the first."""
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    for _ in range(5):
+        await _issue_token(provider, email="user@example.com")
+    for token in provider._access_tokens.values():
+        token.expires_at = 1
+
+    assert provider.sweep_expired() == 5
+    assert persistence.load_access_tokens()[0] == {}
+    persistence.close()
+
+
+@pytest.mark.anyio
 async def test_revoke_removes_from_db(db_path):
     p1 = SqliteOAuthPersistence(db_path)
     provider1 = InMemoryOAuthProvider(

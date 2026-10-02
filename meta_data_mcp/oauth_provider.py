@@ -26,6 +26,8 @@ import logging
 import os
 import secrets
 import time
+from collections.abc import Callable
+from itertools import islice
 from typing import Any
 
 from mcp.server.auth.provider import (
@@ -38,6 +40,18 @@ from mcp.server.auth.provider import (
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 log = logging.getLogger(__name__)
+
+
+def _is_expired(expires_at: float | int | None, now: float) -> bool:
+    """True when ``expires_at`` is set and is in the past.
+
+    ``expires_at`` is optional on the SDK's ``AccessToken`` / ``RefreshToken``
+    (``int | None``), where ``None`` means "never expires". Such an entry is
+    live indefinitely and is bounded by cap eviction instead. Comparing a
+    ``None`` against ``now`` would raise ``TypeError``, so it is filtered here
+    once rather than at every call site.
+    """
+    return expires_at is not None and now > expires_at
 
 
 class InMemoryOAuthProvider(
@@ -76,6 +90,11 @@ class InMemoryOAuthProvider(
     # traffic pays nothing. Entries past the cap are evicted oldest-first,
     # which bounds memory even when nothing has expired yet.
     # META_DATA_MCP_OAUTH_SWEEP_THRESHOLD tunes it.
+    #
+    # Only the store that just received an insertion is swept. Under a flood
+    # the same store overflows on every request, so re-scanning the others
+    # each time would put an O(all entries) cost on the unauthenticated
+    # ``GET /authorize`` path — the exact path an attacker drives.
     _DEFAULT_SWEEP_THRESHOLD: int = 5000
 
     def __init__(self, issuer_url: str, persistence: Any = None) -> None:
@@ -193,7 +212,7 @@ class InMemoryOAuthProvider(
             "state": params.state,
             "expires_at": time.time() + 43200,  # 12-hour consent window
         }
-        self._maybe_sweep()
+        self._maybe_sweep(self._auth_sessions)
         return f"{self.issuer_url}/oauth/consent?session={session_token}"
 
     def peek_session(self, session_token: str) -> dict[str, Any] | None:
@@ -221,6 +240,22 @@ class InMemoryOAuthProvider(
             return None
         return session
 
+    # Expiry is read through these per-store getters rather than off the SDK
+    # types directly, because ``expires_at`` is optional (``int | None``) on
+    # AccessToken and RefreshToken — a ``None`` means "never expires" and must
+    # survive the sweep, exactly as ``verify_access_token()`` already treats it.
+    @staticmethod
+    def _session_expiry(session: dict[str, Any]) -> float | None:
+        return session["expires_at"]
+
+    @staticmethod
+    def _code_expiry(code: AuthorizationCode) -> float | None:
+        return code.expires_at
+
+    @staticmethod
+    def _access_expiry(token: AccessToken) -> float | None:
+        return token.expires_at
+
     def sweep_expired(self) -> int:
         """Drop expired sessions, codes and tokens. Returns the count removed.
 
@@ -229,107 +264,126 @@ class InMemoryOAuthProvider(
         Consent sessions are the cheapest to abuse: creating one needs only
         an unauthenticated ``GET /authorize`` and no consent at all.
         """
+        return sum(self._sweep_store(*spec) for spec in self._reapers())
+
+    def _reapers(self) -> tuple[tuple[dict, Callable, Callable], ...]:
+        """(store, expiry-getter, on-drop) triples for every bounded store.
+
+        ``RefreshToken.expires_at`` exists on the SDK type and is optional, but
+        this provider never sets it — a refresh token is invalidated by
+        rotation or revocation, not by age. The getter therefore yields
+        ``None`` ("never expires") and those tokens are bounded by cap
+        eviction alone. They are still swept so that if a caller ever starts
+        setting the field, expiry is honoured for free.
+        """
+        return (
+            (self._auth_sessions, self._session_expiry, self._drop_sessions),
+            (self._auth_codes, self._code_expiry, self._drop_codes),
+            (self._access_tokens, self._access_expiry, self._drop_access_tokens),
+            (
+                self._refresh_tokens,
+                self._access_expiry,  # same optional field, same None semantics
+                self._drop_refresh_tokens,
+            ),
+        )
+
+    def _sweep_store(
+        self,
+        store: dict,
+        expiry_of: Callable[[Any], float | None],
+        on_drop: Callable[[list[str]], None],
+    ) -> int:
+        """Reap one store's expired entries. Returns how many were removed."""
         now = time.time()
-        removed = 0
+        expired = [k for k, v in store.items() if _is_expired(expiry_of(v), now)]
+        if not expired:
+            return 0
+        for key in expired:
+            del store[key]
+        on_drop(expired)
+        return len(expired)
 
-        for token in [
-            k for k, v in self._auth_sessions.items() if now > v["expires_at"]
-        ]:
-            del self._auth_sessions[token]
-            removed += 1
+    @staticmethod
+    def _drop_sessions(keys: list[str]) -> None:
+        """Consent sessions carry no side-map entries and are never persisted."""
+        del keys
 
-        for code in [k for k, v in self._auth_codes.items() if now > v.expires_at]:
-            del self._auth_codes[code]
-            self._code_email.pop(code, None)
-            removed += 1
+    def _drop_codes(self, keys: list[str]) -> None:
+        for key in keys:
+            self._code_email.pop(key, None)
 
-        for token in [k for k, v in self._access_tokens.items() if now > v.expires_at]:
-            del self._access_tokens[token]
-            self._token_email.pop(token, None)
-            if self._persistence is not None:
-                self._persistence.delete_access_token(token)
-            removed += 1
+    def _drop_access_tokens(self, keys: list[str]) -> None:
+        for key in keys:
+            self._token_email.pop(key, None)
+        if self._persistence is not None:
+            # One transaction for the whole batch: a sweep can reap thousands
+            # of tokens, and a DELETE per row would stall the event loop.
+            self._persistence.delete_access_tokens(keys)
 
-        # Refresh tokens carry no expires_at in the SDK type, so they are
-        # bounded by oldest-first cap eviction rather than age.
-        return removed
+    def _drop_refresh_tokens(self, keys: list[str]) -> None:
+        for key in keys:
+            self._refresh_email.pop(key, None)
+        if self._persistence is not None:
+            self._persistence.delete_refresh_tokens(keys)
 
     def _evict_over_cap(self, store: dict, cap: int) -> list[str]:
         """Drop oldest entries from ``store`` until it is under ``cap``.
 
         Expiry alone cannot bound these stores: a consent session lives 12
         hours, so a caller can mint unlimited sessions inside one window and
-        none of them are expired yet, so sweep_expired() reaps nothing and the
+        none of them are expired yet, so the sweep reaps nothing and the
         dict grows without limit. Eviction is what actually caps memory, so it
         is applied independently of age.
 
-        Dict insertion order is the creation order, and tokens are only ever
-        replaced in place on refresh rotation rather than re-added, so
-        first-inserted is oldest.
+        Dict insertion order is the creation order, and refresh rotation pops
+        the old token before inserting its replacement, so first-inserted is
+        genuinely the oldest live entry.
         """
         excess = len(store) - cap
         if excess <= 0:
             return []
-        evicted = list(store)[:excess]
+        # islice, not list(store)[:excess]: the slice copies the whole store
+        # just to name a handful of keys, and this runs on the hot path once
+        # a store is at its cap.
+        evicted = list(islice(store, excess))
         for key in evicted:
             del store[key]
         return evicted
 
-    def _maybe_sweep(self) -> None:
-        """Reap expired state and enforce the hard cap on each store.
+    def _maybe_sweep(self, store: dict | None = None) -> None:
+        """Reap expired state and enforce the hard cap on the named store.
 
         Called after insertions so each store is bounded regardless of which
-        OAuth flow created the entry.
+        OAuth flow created the entry. When ``store`` is given, only that store
+        is examined — the caller knows which one just grew, and scanning the
+        others would make every request pay for the whole provider's state.
+        With ``store=None`` every store is checked, which is what startup and
+        tests want.
         """
-        if (
-            len(self._auth_sessions) <= self._sweep_threshold
-            and len(self._auth_codes) <= self._sweep_threshold
-            and len(self._access_tokens) <= self._sweep_threshold
-            and len(self._refresh_tokens) <= self._sweep_threshold
-        ):
+        specs = self._reapers()
+        if store is not None:
+            specs = tuple(spec for spec in specs if spec[0] is store)
+            if not specs:
+                return
+        if not any(len(target) > self._sweep_threshold for target, _, _ in specs):
             return
-        self.sweep_expired()
-        # Still over after reaping => live entries, so evict oldest-first.
-        evicted_sessions = self._evict_over_cap(
-            self._auth_sessions,
-            self._sweep_threshold,
-        )
-        evicted_codes = self._evict_over_cap(self._auth_codes, self._sweep_threshold)
-        evicted_access_tokens = self._evict_over_cap(
-            self._access_tokens,
-            self._sweep_threshold,
-        )
-        evicted_refresh_tokens = self._evict_over_cap(
-            self._refresh_tokens,
-            self._sweep_threshold,
-        )
-        for code in evicted_codes:
-            self._code_email.pop(code, None)
-        for token in evicted_access_tokens:
-            self._token_email.pop(token, None)
-            if self._persistence is not None:
-                self._persistence.delete_access_token(token)
-        for token in evicted_refresh_tokens:
-            self._refresh_email.pop(token, None)
-            if self._persistence is not None:
-                self._persistence.delete_refresh_token(token)
-        evicted = (
-            len(evicted_sessions)
-            + len(evicted_codes)
-            + len(evicted_access_tokens)
-            + len(evicted_refresh_tokens)
-        )
-        if evicted and not self._cap_warning_emitted:
-            self._cap_warning_emitted = True
-            log.warning(
-                "OAuth in-memory cap reached: evicted %d live entries "
-                "(threshold %d). This is expected under a client flood; if it "
-                "recurs while load is normal, raise "
-                "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD. Further warnings are "
-                "suppressed until restart.",
-                evicted,
-                self._sweep_threshold,
-            )
+        for target, expiry_of, on_drop in specs:
+            if len(target) <= self._sweep_threshold:
+                continue
+            self._sweep_store(target, expiry_of, on_drop)
+            evicted = self._evict_over_cap(target, self._sweep_threshold)
+            on_drop(evicted)
+            if evicted and not self._cap_warning_emitted:
+                self._cap_warning_emitted = True
+                log.warning(
+                    "OAuth in-memory cap reached: evicted %d live entries from a "
+                    "store at the threshold of %d. This is expected under a "
+                    "client flood; if it recurs while load is normal, raise "
+                    "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD. Further warnings are "
+                    "suppressed until restart.",
+                    len(evicted),
+                    self._sweep_threshold,
+                )
 
     def create_authorization_code(self, session: dict[str, Any]) -> str:
         """Issue an authorization code from an approved consent session."""
@@ -350,7 +404,7 @@ class InMemoryOAuthProvider(
         email = session.get("email")
         if email:
             self._code_email[code] = email
-        self._maybe_sweep()
+        self._maybe_sweep(self._auth_codes)
         return code
 
     # ------------------------------------------------------------------
@@ -421,7 +475,7 @@ class InMemoryOAuthProvider(
             if email:
                 self._persistence.record_signin(email, client_id, time.time())
 
-        self._maybe_sweep()
+        self._maybe_sweep(self._access_tokens)
         return OAuthToken(
             access_token=access_token_str,
             token_type="Bearer",
@@ -483,7 +537,10 @@ class InMemoryOAuthProvider(
             self._persistence.save_access_token(new_access, new_access_token, email)
             self._persistence.save_refresh_token(new_refresh, new_refresh_token, email)
 
-        self._maybe_sweep()
+        # Rotation touches both token stores; check them together so neither
+        # can drift over the cap unnoticed.
+        self._maybe_sweep(self._access_tokens)
+        self._maybe_sweep(self._refresh_tokens)
         return OAuthToken(
             access_token=new_access,
             token_type="Bearer",

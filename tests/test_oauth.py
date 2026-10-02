@@ -229,7 +229,19 @@ async def test_refresh_exchange_enforces_access_token_cap(monkeypatch):
         assert len(provider._access_tokens) <= 1
         assert original.access_token in provider._access_tokens
 
-    assert persistence.delete_access_token.call_count == 3
+    # Each rotation evicts exactly one superseded access token, and the
+    # eviction reaches persistence as one batched call per sweep.
+    evicted = [
+        token
+        for call in persistence.delete_access_tokens.call_args_list
+        for token in call.args[0]
+    ]
+    assert len(evicted) == 3
+    assert persistence.delete_access_tokens.call_count == 3
+    # Refresh tokens are never expired and rotation keeps that store at the
+    # cap, so it never overflows and nothing is evicted from it here. The
+    # refresh-eviction path is covered by the persistence round-trip test.
+    assert persistence.delete_refresh_tokens.call_count == 0
 
 
 @pytest.mark.anyio
@@ -667,8 +679,8 @@ async def test_maybe_sweep_skips_capacity_and_rate_limits_warnings(
 ):
     monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
     p = InMemoryOAuthProvider(issuer_url="https://as.example")
-    sweep = MagicMock(wraps=p.sweep_expired)
-    monkeypatch.setattr(p, "sweep_expired", sweep)
+    sweep = MagicMock(wraps=p._sweep_store)
+    monkeypatch.setattr(p, "_sweep_store", sweep)
 
     await p.authorize(_client(), _params())
     sweep.assert_not_called()
@@ -677,10 +689,60 @@ async def test_maybe_sweep_skips_capacity_and_rate_limits_warnings(
         await p.authorize(_client(), _params())
         await p.authorize(_client(), _params())
 
+    # Two overflows past the cap => two reaps, but only one warning; the
+    # latch keeps the flood from filling the log.
     assert sweep.call_count == 2
     warnings = [r for r in caplog.records if "OAuth in-memory cap reached" in r.message]
     assert len(warnings) == 1
     assert len(p._auth_sessions) == 1
+
+
+@pytest.mark.anyio
+async def test_sweep_preserves_non_expiring_access_token():
+    """A token with ``expires_at=None`` means "never expires" in the SDK.
+
+    ``AccessToken.expires_at`` is optional (``int | None``), and
+    ``verify_access_token()`` already treats ``None`` as live. The sweep must
+    agree, or one such token crashes every later OAuth request with
+    ``TypeError: '>' not supported between 'float' and 'NoneType'``.
+    """
+    from mcp.server.auth.provider import AccessToken
+
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    p._access_tokens["forever"] = AccessToken(
+        token="forever",
+        client_id="c1",
+        scopes=["opendata"],
+        expires_at=None,
+    )
+
+    assert p.sweep_expired() == 0
+    assert "forever" in p._access_tokens
+
+
+@pytest.mark.anyio
+async def test_maybe_sweep_targets_only_the_named_store(monkeypatch):
+    """An insertion must not make every request rescan the whole provider.
+
+    The flood this defends against is unauthenticated, so sweeping every
+    store on every insertion would tax normal traffic once any one store
+    reached its cap.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    await p.authorize(_client(), _params())
+
+    swept: list[dict] = []
+    original = p._sweep_store
+
+    def spy(store, expiry_of, on_drop):
+        swept.append(store)
+        return original(store, expiry_of, on_drop)
+
+    monkeypatch.setattr(p, "_sweep_store", spy)
+    await p.authorize(_client(), _params())
+
+    assert swept == [p._auth_sessions]
 
 
 def test_cap_eviction_removes_authorization_code_email_binding(monkeypatch):
