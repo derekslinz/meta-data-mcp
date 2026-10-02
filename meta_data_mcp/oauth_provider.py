@@ -86,16 +86,22 @@ class InMemoryOAuthProvider(
     _DEFAULT_TOKEN_TTL: int = 3600  # 1 hour
 
     # Hard cap on each in-memory OAuth store (sessions, codes, tokens).
-    # Reaping is driven by crossing this rather than by a timer, so normal
-    # traffic pays nothing. Entries past the cap are evicted oldest-first,
-    # which bounds memory even when nothing has expired yet.
-    # META_DATA_MCP_OAUTH_SWEEP_THRESHOLD tunes it.
+    # Entries past the cap are evicted oldest-first, which bounds memory even
+    # when nothing has expired yet. META_DATA_MCP_OAUTH_SWEEP_THRESHOLD
+    # tunes it.
     #
-    # Only the store that just received an insertion is swept. Under a flood
-    # the same store overflows on every request, so re-scanning the others
-    # each time would put an O(all entries) cost on the unauthenticated
-    # ``GET /authorize`` path — the exact path an attacker drives.
+    # Overflow handling must stay O(1) per insertion. The flood this defends
+    # against is unauthenticated, so a full scan per request would let an
+    # attacker buy O(cap) CPU for the price of one request. Eviction is
+    # O(excess) and the expiry scan is amortized over _SWEEP_SCAN_INTERVAL
+    # insertions instead — see _maybe_sweep().
     _DEFAULT_SWEEP_THRESHOLD: int = 5000
+
+    # How many overflow insertions may pass before a store is scanned for
+    # expired entries. At the default cap this bounds the scan's share of a
+    # flood's cost to ~1/64th per request, and expiry only ever runs behind
+    # genuine overflow (i.e. under flood or at process startup).
+    _SWEEP_SCAN_INTERVAL: int = 64
 
     def __init__(self, issuer_url: str, persistence: Any = None) -> None:
         self.issuer_url = issuer_url.rstrip("/")
@@ -128,6 +134,10 @@ class InMemoryOAuthProvider(
         # let a user escape per-email rate limiting by rotating tokens.
         self._refresh_email: dict[str, str] = {}
         self._cap_warning_emitted = False
+        # Overflow insertions since each store was last scanned for expired
+        # entries, keyed by id(store). Drives the amortized scan in
+        # _maybe_sweep(); entries are removed when the store is back under cap.
+        self._sweep_scan_counters: dict[int, int] = {}
         # Optional durable backend (SqliteOAuthPersistence). The dicts above stay
         # the working set; when persistence is present we load it on startup and
         # write-through every durable mutation. None → pure in-memory (default).
@@ -351,7 +361,7 @@ class InMemoryOAuthProvider(
         return evicted
 
     def _maybe_sweep(self, store: dict | None = None) -> None:
-        """Reap expired state and enforce the hard cap on the named store.
+        """Enforce the hard cap on the named store, reaping expired entries.
 
         Called after insertions so each store is bounded regardless of which
         OAuth flow created the entry. When ``store`` is given, only that store
@@ -359,21 +369,42 @@ class InMemoryOAuthProvider(
         others would make every request pay for the whole provider's state.
         With ``store=None`` every store is checked, which is what startup and
         tests want.
+
+        Cost is O(1) amortized per insertion, not O(cap):
+
+        * Eviction runs every time, but only touches ``excess`` entries.
+        * The expiry scan — the only O(cap) part — runs at most once per
+          ``_SWEEP_SCAN_INTERVAL`` overflow insertions.
+
+        A flood of unauthenticated ``GET /authorize`` calls keeps a store
+        pinned at the cap, where every entry is still inside the 12-hour
+        consent window. Scanning on each request made each attacker-controlled
+        call pay O(cap) (~0.3ms at the default cap) to evict a single entry,
+        which is the CPU-amplification shape the cap exists to prevent.
         """
         specs = self._reapers()
         if store is not None:
             specs = tuple(spec for spec in specs if spec[0] is store)
             if not specs:
                 return
-        if not any(len(target) > self._sweep_threshold for target, _, _ in specs):
-            return
+        counters = self._sweep_scan_counters
         for target, expiry_of, on_drop in specs:
+            key = id(target)
             if len(target) <= self._sweep_threshold:
+                # Back under the cap: no work owed, and reset the scan budget
+                # so the next overflow pays for a fresh scan.
+                counters.pop(key, None)
                 continue
-            self._sweep_store(target, expiry_of, on_drop)
+            if counters.get(key, 0) + 1 >= self._SWEEP_SCAN_INTERVAL:
+                counters[key] = 0
+                self._sweep_store(target, expiry_of, on_drop)
+            else:
+                counters[key] = counters.get(key, 0) + 1
             evicted = self._evict_over_cap(target, self._sweep_threshold)
+            if not evicted:
+                continue
             on_drop(evicted)
-            if evicted and not self._cap_warning_emitted:
+            if not self._cap_warning_emitted:
                 self._cap_warning_emitted = True
                 log.warning(
                     "OAuth in-memory cap reached: evicted %d live entries from a "

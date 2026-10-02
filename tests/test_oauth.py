@@ -706,19 +706,19 @@ async def test_maybe_sweep_skips_capacity_and_rate_limits_warnings(
 ):
     monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
     p = InMemoryOAuthProvider(issuer_url="https://as.example")
-    sweep = MagicMock(wraps=p._sweep_store)
-    monkeypatch.setattr(p, "_sweep_store", sweep)
+    evict = MagicMock(wraps=p._evict_over_cap)
+    monkeypatch.setattr(p, "_evict_over_cap", evict)
 
     await p.authorize(_client(), _params())
-    sweep.assert_not_called()
+    evict.assert_not_called()
 
     with caplog.at_level("WARNING"):
         await p.authorize(_client(), _params())
         await p.authorize(_client(), _params())
 
-    # Two overflows past the cap => two reaps, but only one warning; the
+    # Two overflows past the cap => two evictions, but only one warning; the
     # latch keeps the flood from filling the log.
-    assert sweep.call_count == 2
+    assert evict.call_count == 2
     warnings = [r for r in caplog.records if "OAuth in-memory cap reached" in r.message]
     assert len(warnings) == 1
     assert len(p._auth_sessions) == 1
@@ -748,28 +748,91 @@ async def test_sweep_preserves_non_expiring_access_token():
 
 
 @pytest.mark.anyio
-async def test_maybe_sweep_targets_only_the_named_store(monkeypatch):
-    """An insertion must not make every request rescan the whole provider.
+async def test_maybe_sweep_does_not_scan_per_insertion(monkeypatch):
+    """Overflow handling must stay O(1) amortized, not O(cap) per request.
 
-    The flood this defends against is unauthenticated, so sweeping every
-    store on every insertion would tax normal traffic once any one store
-    reached its cap.
+    The flood this defends against is unauthenticated, so scanning the store
+    on every insertion let one attacker-controlled request buy O(cap) CPU
+    (~0.3ms at the default cap) just to evict a single entry. The expiry scan
+    is amortized over _SWEEP_SCAN_INTERVAL overflows; eviction still happens
+    every time.
     """
-    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "5")
     p = InMemoryOAuthProvider(issuer_url="https://as.example")
-    await p.authorize(_client(), _params())
+    interval = p._SWEEP_SCAN_INTERVAL
 
-    swept: list[dict] = []
+    scans = 0
     original = p._sweep_store
 
     def spy(store, expiry_of, on_drop):
-        swept.append(store)
+        nonlocal scans
+        scans += 1
         return original(store, expiry_of, on_drop)
 
     monkeypatch.setattr(p, "_sweep_store", spy)
-    await p.authorize(_client(), _params())
 
-    assert swept == [p._auth_sessions]
+    overflows = interval * 3
+    for i in range(5 + overflows):
+        p._auth_sessions[f"s{i}"] = {"expires_at": float("inf")}
+        p._maybe_sweep(p._auth_sessions)
+
+    # ~1 scan per interval, not one per insertion.
+    assert scans <= overflows / interval + 1, scans
+    assert scans < overflows, scans
+    # The cap is still enforced exactly, on every overflow.
+    assert len(p._auth_sessions) <= 5, len(p._auth_sessions)
+
+
+@pytest.mark.anyio
+async def test_amortized_sweep_still_reaps_expired_entries(monkeypatch):
+    """Amortizing the scan must not stop expiry from ever being applied.
+
+    The cheap path evicts by age-blind insertion order, which frees memory but
+    leaves genuinely expired entries in place. The periodic scan is the only
+    thing that reclaims those, so it has to fire within the interval.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "5")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+
+    # One live session keeps the store pinned over the cap; the rest are dead.
+    p._auth_sessions["live"] = {"expires_at": float("inf")}
+    for i in range(20):
+        p._auth_sessions[f"dead{i}"] = {"expires_at": 1.0}
+
+    for i in range(p._SWEEP_SCAN_INTERVAL + 2):
+        p._auth_sessions[f"flood{i}"] = {"expires_at": float("inf")}
+        p._maybe_sweep(p._auth_sessions)
+
+    assert not [k for k in p._auth_sessions if k.startswith("dead")], (
+        "expired sessions survived: the amortized scan never ran"
+    )
+    assert len(p._auth_sessions) <= 5, len(p._auth_sessions)
+
+
+@pytest.mark.anyio
+async def test_scan_budget_is_per_store_and_cleared_when_under_cap(monkeypatch):
+    """Scan budgets are tracked per store and cleared once a store recovers.
+
+    The budget is what keeps the amortized scan off the hot path, so it has to
+    be released when a store falls back under the cap — otherwise a store that
+    was briefly flooded would carry a spent budget and, if it later drifted
+    just over the cap again, never reap.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "3")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+
+    # Burn part of the budget on one store only.
+    for i in range(p._SWEEP_SCAN_INTERVAL + 2):
+        p._auth_sessions[f"s{i}"] = {"expires_at": float("inf")}
+        p._maybe_sweep(p._auth_sessions)
+
+    assert id(p._auth_sessions) in p._sweep_scan_counters
+    assert id(p._auth_codes) not in p._sweep_scan_counters
+
+    # Draining the store releases its budget.
+    p._auth_sessions.clear()
+    p._maybe_sweep(p._auth_sessions)
+    assert id(p._auth_sessions) not in p._sweep_scan_counters
 
 
 def test_cap_eviction_removes_authorization_code_email_binding(monkeypatch):

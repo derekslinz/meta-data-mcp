@@ -332,14 +332,16 @@ Requires OAuth to be enabled (`META_DATA_MCP_OAUTH_ISSUER`).
 
 **Bounded OAuth state:** consent sessions, authorization codes and issued tokens
 are held in memory and each store is capped at
-`META_DATA_MCP_OAUTH_SWEEP_THRESHOLD` entries. Crossing the cap reaps whatever
-has expired, then evicts oldest-first if entries are still live. This bounds
-memory against a handshake flood — creating a consent session needs only an
-unauthenticated `GET /authorize`. An `OAuth in-memory cap reached` warning in
-the logs means live entries were evicted; that is expected under a client
-flood, but if it recurs at normal load, raise the threshold. Note that a cap
-below the number of concurrently signed-in users will evict live tokens and
-force those users to re-authorize.
+`META_DATA_MCP_OAUTH_SWEEP_THRESHOLD` entries. Crossing the cap evicts the
+oldest entries immediately, and expired entries are reaped by a periodic scan
+that runs once per 64 overflows rather than on every request — so a flood of
+unauthenticated `GET /authorize` calls cannot turn each request into work
+proportional to the cap. This bounds memory against a handshake flood, since
+creating a consent session needs no authentication. An
+`OAuth in-memory cap reached` warning in the logs means live entries were
+evicted; that is expected under a client flood, but if it recurs at normal
+load, raise the threshold. Note that a cap below the number of concurrently
+signed-in users will evict live tokens and force those users to re-authorize.
 
 **Email backend precedence:** Resend (if `…_RESEND_API_KEY` set) → SMTP (if
 `…_SMTP_HOST` set) → **console** (neither set). The console backend logs the
