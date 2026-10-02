@@ -245,6 +245,33 @@ async def test_refresh_exchange_enforces_access_token_cap(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_authorization_code_exchange_enforces_refresh_token_cap(monkeypatch):
+    """An authorization-code grant writes BOTH token stores, so both cap.
+
+    ``exchange_authorization_code`` inserts an access token *and* a refresh
+    token. Sweeping only the access-token store let repeated grants grow
+    ``_refresh_tokens`` (and the persisted refresh-token table) without bound,
+    defeating the cap the setting exists to enforce.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "3")
+    provider = InMemoryOAuthProvider(issuer_url="https://as.example")
+    client = _client()
+
+    for i in range(10):
+        token = await provider.exchange_authorization_code(
+            client,
+            _auth_code(f"code{i}"),
+        )
+        assert len(provider._access_tokens) <= 3, len(provider._access_tokens)
+        assert len(provider._refresh_tokens) <= 3, len(provider._refresh_tokens)
+        assert token.access_token in provider._access_tokens
+        assert token.refresh_token in provider._refresh_tokens
+
+    # Oldest evicted first: the surviving tokens are the most recent grants.
+    assert len(provider._refresh_tokens) == 3
+
+
+@pytest.mark.anyio
 async def test_verify_access_token_unknown_returns_none(provider):
     assert await provider.verify_access_token("unknown-token") is None
 

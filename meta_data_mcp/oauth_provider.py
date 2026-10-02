@@ -475,7 +475,12 @@ class InMemoryOAuthProvider(
             if email:
                 self._persistence.record_signin(email, client_id, time.time())
 
+        # This grant inserts into both token stores, so both must be capped.
+        # Sweeping only the access-token store let repeated authorization-code
+        # grants grow _refresh_tokens (and the persisted refresh-token table)
+        # without bound.
         self._maybe_sweep(self._access_tokens)
+        self._maybe_sweep(self._refresh_tokens)
         return OAuthToken(
             access_token=access_token_str,
             token_type="Bearer",

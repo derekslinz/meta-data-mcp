@@ -112,8 +112,10 @@ async def test_cap_eviction_removes_tokens_from_memory_and_persistence(
     token = await _issue_token(provider, email="user@example.com")
     newer_token = await _issue_token(provider, email="other@example.com")
 
-    provider._maybe_sweep()
-
+    # No manual _maybe_sweep() here on purpose: the cap must be enforced by the
+    # exchange path itself. Calling the all-store sweep by hand previously hid
+    # the fact that exchange_authorization_code only swept _access_tokens,
+    # leaving the refresh-token store (and this table) unbounded.
     assert token.access_token not in provider._access_tokens
     assert token.access_token not in provider._token_email
     assert token.refresh_token not in provider._refresh_tokens
