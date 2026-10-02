@@ -787,26 +787,56 @@ async def test_maybe_sweep_does_not_scan_per_insertion(monkeypatch):
 async def test_amortized_sweep_still_reaps_expired_entries(monkeypatch):
     """Amortizing the scan must not stop expiry from ever being applied.
 
-    The cheap path evicts by age-blind insertion order, which frees memory but
-    leaves genuinely expired entries in place. The periodic scan is the only
-    thing that reclaims those, so it has to fire within the interval.
+    The cheap path evicts oldest-first by insertion order, which frees memory
+    but cannot distinguish an expired entry from a live one. The periodic scan
+    is the only thing that reclaims expired entries, so it has to fire within
+    the interval.
+
+    Ordering is what makes this a real test. Live entries are inserted FIRST
+    and the expired ones sit behind them, so age-blind eviction consumes only
+    live entries while the store stays over its cap — which is the condition
+    that triggers the scan at all. The scan then clears the expired tail that
+    eviction could not reach.
     """
-    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "5")
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "400")
     p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    interval = p._SWEEP_SCAN_INTERVAL
+    live = 300
+    dead = 150
 
-    # One live session keeps the store pinned over the cap; the rest are dead.
-    p._auth_sessions["live"] = {"expires_at": float("inf")}
-    for i in range(20):
+    for i in range(live):
+        p._auth_sessions[f"live{i}"] = {"expires_at": float("inf")}
+    for i in range(dead):
         p._auth_sessions[f"dead{i}"] = {"expires_at": 1.0}
+    # Over the cap from the start, so the scan path is exercised.
+    assert live + dead > 400
 
-    for i in range(p._SWEEP_SCAN_INTERVAL + 2):
+    evicted_total = 0
+    original = p._evict_over_cap
+
+    def counting_evict(store, cap):
+        nonlocal evicted_total
+        out = original(store, cap)
+        evicted_total += len(out)
+        return out
+
+    monkeypatch.setattr(p, "_evict_over_cap", counting_evict)
+    for i in range(interval + 2):
         p._auth_sessions[f"flood{i}"] = {"expires_at": float("inf")}
         p._maybe_sweep(p._auth_sessions)
 
     assert not [k for k in p._auth_sessions if k.startswith("dead")], (
         "expired sessions survived: the amortized scan never ran"
     )
-    assert len(p._auth_sessions) <= 5, len(p._auth_sessions)
+    # Eviction ran but stayed inside the live head of the queue, so it cannot
+    # be what removed them.
+    assert evicted_total < live, (
+        f"eviction consumed {evicted_total} entries, enough to reach the "
+        "expired tail; this test would be vacuous"
+    )
+    assert any(k.startswith("live") for k in p._auth_sessions), (
+        "eviction ate the live head, so the setup no longer proves anything"
+    )
 
 
 @pytest.mark.anyio

@@ -211,6 +211,33 @@ def test_consent_redirect_block_handles_odd_input():
     assert "/cb?x=1#f" in absolute
 
 
+def test_consent_redirect_block_survives_malformed_ipv6_host():
+    """``urlsplit`` itself raises on a malformed IPv6 host.
+
+    The renderer's malformed-target fallback is documented as never raising,
+    but ``urlsplit("https://[invalid/cb")`` raises ``ValueError`` before the
+    guard was ever reached, so the fallback was unreachable for exactly the
+    inputs it exists to handle. The SDK's ``AnyUrl`` rejects these upstream,
+    so this is defence in depth for any other caller.
+    """
+    from meta_data_mcp.consent_routes import ConsentRoutes
+
+    for raw in (
+        "https://[invalid/cb",
+        "https://[/cb",
+        "http://[::1/cb",
+        "https://]/cb",
+    ):
+        block = ConsentRoutes._redirect_block(raw)
+        # Rendered verbatim and escaped, with no invented origin.
+        assert "<strong>" not in block, raw
+        assert raw in block, raw
+
+    # A well-formed IPv6 literal still gets its origin highlighted.
+    ok = ConsentRoutes._redirect_block("https://[::1]:9000/cb")
+    assert "<strong>https://[::1]:9000</strong>" in ok
+
+
 def test_consent_redirect_block_excludes_credentials_from_highlighted_origin():
     from meta_data_mcp.consent_routes import ConsentRoutes
 

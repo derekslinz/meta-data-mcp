@@ -105,17 +105,21 @@ class ConsentRoutes:
         raw = str(redirect_uri or "")
         if not raw:
             return "<em>(none supplied)</em>"
-        parts = urlsplit(raw)
-        if not parts.scheme or not parts.netloc:
-            # Relative or malformed target -- show it verbatim rather than
-            # inventing an origin the server never parsed out of it.
-            return _html.escape(raw)
         try:
+            # urlsplit() itself raises ValueError on a malformed IPv6 host
+            # (e.g. "https://[invalid/cb"), so the split belongs inside the
+            # guard alongside .hostname/.port -- otherwise the malformed-target
+            # fallback below is unreachable for exactly the inputs it exists
+            # to handle. The SDK's AnyUrl rejects these upstream, so this is
+            # belt-and-braces for any other caller.
+            parts = urlsplit(raw)
             hostname = parts.hostname
             port = parts.port
         except ValueError:
             return _html.escape(raw)
-        if not hostname:
+        if not parts.scheme or not parts.netloc or not hostname:
+            # Relative or malformed target -- show it verbatim rather than
+            # inventing an origin the server never parsed out of it.
             return _html.escape(raw)
         authority = f"[{hostname}]" if ":" in hostname else hostname
         if port is not None:
