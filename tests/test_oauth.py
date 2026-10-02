@@ -11,6 +11,8 @@ Covers:
 from __future__ import annotations
 
 import secrets
+import time
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
@@ -197,6 +199,76 @@ async def test_refresh_token_rotation(provider):
     assert refreshed.refresh_token != original.refresh_token
     # Old refresh token is gone
     assert await provider.load_refresh_token(client, original.refresh_token) is None
+
+
+@pytest.mark.anyio
+async def test_refresh_exchange_enforces_access_token_cap(monkeypatch):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    persistence = MagicMock()
+    persistence.load_clients.return_value = {}
+    persistence.load_access_tokens.return_value = ({}, {})
+    persistence.load_refresh_tokens.return_value = ({}, {})
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    client = OAuthClientInformationFull(client_id="rc", redirect_uris=None)
+    original = await provider.exchange_authorization_code(
+        client,
+        _auth_code("initial"),
+    )
+
+    for _ in range(3):
+        refresh_token = await provider.load_refresh_token(
+            client, original.refresh_token
+        )
+        assert refresh_token is not None
+        original = await provider.exchange_refresh_token(client, refresh_token, [])
+        assert len(provider._access_tokens) <= 1
+        assert original.access_token in provider._access_tokens
+
+    # Each rotation evicts exactly one superseded access token, and the
+    # eviction reaches persistence as one batched call per sweep.
+    evicted = [
+        token
+        for call in persistence.delete_access_tokens.call_args_list
+        for token in call.args[0]
+    ]
+    assert len(evicted) == 3
+    assert persistence.delete_access_tokens.call_count == 3
+    # Refresh tokens are never expired and rotation keeps that store at the
+    # cap, so it never overflows and nothing is evicted from it here. The
+    # refresh-eviction path is covered by the persistence round-trip test.
+    assert persistence.delete_refresh_tokens.call_count == 0
+
+
+@pytest.mark.anyio
+async def test_authorization_code_exchange_enforces_refresh_token_cap(monkeypatch):
+    """An authorization-code grant writes BOTH token stores, so both cap.
+
+    ``exchange_authorization_code`` inserts an access token *and* a refresh
+    token. Sweeping only the access-token store let repeated grants grow
+    ``_refresh_tokens`` (and the persisted refresh-token table) without bound,
+    defeating the cap the setting exists to enforce.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "3")
+    provider = InMemoryOAuthProvider(issuer_url="https://as.example")
+    client = _client()
+
+    for i in range(10):
+        token = await provider.exchange_authorization_code(
+            client,
+            _auth_code(f"code{i}"),
+        )
+        assert len(provider._access_tokens) <= 3, len(provider._access_tokens)
+        assert len(provider._refresh_tokens) <= 3, len(provider._refresh_tokens)
+        assert token.access_token in provider._access_tokens
+        assert token.refresh_token in provider._refresh_tokens
+
+    # Oldest evicted first: the surviving tokens are the most recent grants.
+    assert len(provider._refresh_tokens) == 3
 
 
 @pytest.mark.anyio
@@ -503,3 +575,377 @@ async def test_oidc_discovery_redirects_to_oauth_metadata():
         r = await client.get("/.well-known/openid-configuration")
     assert r.status_code == 301
     assert r.headers["location"] == "/.well-known/oauth-authorization-server"
+
+
+# ---------------------------------------------------------------------------
+# Expired-state sweep
+# ---------------------------------------------------------------------------
+
+
+def _params(challenge: str = "A" * 43, state: str = "s"):
+    from mcp.server.auth.provider import AuthorizationParams
+    from mcp.shared.auth import AnyUrl
+
+    return AuthorizationParams(
+        state=state,
+        scopes=["opendata"],
+        code_challenge=challenge,
+        redirect_uri=AnyUrl("http://localhost/cb"),
+        redirect_uri_provided_explicitly=False,
+    )
+
+
+def _client():
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    return OAuthClientInformationFull(client_id="c1", redirect_uris=None)
+
+
+def _auth_code(code: str, expires_at: float | None = None):
+    from mcp.server.auth.provider import AuthorizationCode
+    from mcp.shared.auth import AnyUrl
+
+    return AuthorizationCode(
+        code=code,
+        scopes=["opendata"],
+        expires_at=time.time() + 600 if expires_at is None else expires_at,
+        client_id="c1",
+        code_challenge="A" * 43,
+        redirect_uri=AnyUrl("http://localhost/cb"),
+        redirect_uri_provided_explicitly=False,
+    )
+
+
+@pytest.mark.anyio
+async def test_sweep_removes_expired_sessions():
+    """An abandoned consent session must not outlive its own expiry."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    url = await p.authorize(_client(), _params())
+    token = url.split("session=")[1]
+    assert len(p._auth_sessions) == 1
+
+    # Still valid -- a sweep now must not reap it.
+    assert p.sweep_expired() == 0
+    assert token in p._auth_sessions
+
+    # Age it past the 12-hour window.
+    p._auth_sessions[token]["expires_at"] = time.time() - 1
+    assert p.sweep_expired() == 1
+    assert token not in p._auth_sessions
+
+
+@pytest.mark.anyio
+async def test_sweep_removes_expired_auth_codes():
+    """An unredeemed authorization code must be reaped, not held forever."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+        },
+    )
+    assert code in p._auth_codes
+    p._auth_codes[code].expires_at = time.time() - 1
+    assert p.sweep_expired() == 1
+    assert code not in p._auth_codes
+
+
+@pytest.mark.anyio
+async def test_sweep_removes_expired_access_tokens_and_email_binding():
+    """Reaping an access token must not orphan its email side-map entry."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+            "email": "user@example.com",
+        },
+    )
+    token = await p.exchange_authorization_code(
+        _client(),
+        _auth_code(code, expires_at=time.time() - 1),
+    )
+    at = token.access_token
+    assert at in p._access_tokens
+    p._access_tokens[at].expires_at = time.time() - 1
+    p.sweep_expired()
+    assert at not in p._access_tokens
+    # The side-maps must not retain a dangling identity entry.
+    assert at not in p._token_email
+    assert p._refresh_email[token.refresh_token] == "user@example.com"
+
+
+@pytest.mark.anyio
+async def test_maybe_sweep_bounds_unauthenticated_growth(monkeypatch):
+    """Memory must stay bounded under a flood of unauthenticated /authorize.
+
+    This is the property that matters: no consent, no token, no client
+    registration is required to create a session, so an attacker can drive
+    this path at will. The store must plateau rather than grow linearly.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "50")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    c = _client()
+    for _ in range(500):
+        await p.authorize(c, _params(state="x"))
+    # Sessions live 12h, so a sweep cannot reap them yet -- the cap has to
+    # come from the threshold, not from expiry.
+    assert len(p._auth_sessions) <= 60, len(p._auth_sessions)
+
+
+@pytest.mark.anyio
+async def test_maybe_sweep_skips_capacity_and_rate_limits_warnings(
+    monkeypatch,
+    caplog,
+):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    evict = MagicMock(wraps=p._evict_over_cap)
+    monkeypatch.setattr(p, "_evict_over_cap", evict)
+
+    await p.authorize(_client(), _params())
+    evict.assert_not_called()
+
+    with caplog.at_level("WARNING"):
+        await p.authorize(_client(), _params())
+        await p.authorize(_client(), _params())
+
+    # Two overflows past the cap => two evictions, but only one warning; the
+    # latch keeps the flood from filling the log.
+    assert evict.call_count == 2
+    warnings = [r for r in caplog.records if "OAuth in-memory cap reached" in r.message]
+    assert len(warnings) == 1
+    assert len(p._auth_sessions) == 1
+
+
+@pytest.mark.anyio
+async def test_cap_warning_does_not_claim_live_entries_evicted(monkeypatch, caplog):
+    """The overflow warning must not overstate what eviction removed.
+
+    Eviction is age-blind and the expiry scan is skipped on most overflows, so
+    a dropped entry may well have been expired already. An operator reading
+    "evicted N live entries" would reasonably conclude that valid sessions
+    were displaced, which the warning cannot support.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "3")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+
+    # Every entry is already expired; nothing live is at risk here.
+    for i in range(4):
+        p._auth_sessions[f"expired{i}"] = {"expires_at": 1.0}
+
+    with caplog.at_level("WARNING"):
+        p._maybe_sweep(p._auth_sessions)
+
+    warnings = [r.message for r in caplog.records if "cap reached" in r.message]
+    assert len(warnings) == 1
+    message = warnings[0]
+    # The false claim was "evicted N live entries" -- check that exact form,
+    # not the bare word "live" (the disclaimer legitimately uses it).
+    assert "live entries" not in message.lower(), message
+    assert "oldest" in message, message
+    # Says what eviction actually is, rather than implying user impact.
+    assert "age-blind" in message, message
+
+
+@pytest.mark.anyio
+async def test_cap_warning_pluralizes_entries(caplog):
+    """A single drop must read as "1 oldest entry", not "1 oldest entries"."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    p._sweep_threshold = 1
+    for i in range(2):
+        p._auth_sessions[f"expired{i}"] = {"expires_at": 1.0}
+
+    with caplog.at_level("WARNING"):
+        p._maybe_sweep(p._auth_sessions)
+
+    message = next(r.message for r in caplog.records if "cap reached" in r.message)
+    assert "1 oldest entry " in message, message
+    assert "1 oldest entries" not in message, message
+
+
+@pytest.mark.anyio
+async def test_sweep_preserves_non_expiring_access_token():
+    """A token with ``expires_at=None`` means "never expires" in the SDK.
+
+    ``AccessToken.expires_at`` is optional (``int | None``), and
+    ``verify_access_token()`` already treats ``None`` as live. The sweep must
+    agree, or one such token crashes every later OAuth request with
+    ``TypeError: '>' not supported between 'float' and 'NoneType'``.
+    """
+    from mcp.server.auth.provider import AccessToken
+
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    p._access_tokens["forever"] = AccessToken(
+        token="forever",
+        client_id="c1",
+        scopes=["opendata"],
+        expires_at=None,
+    )
+
+    assert p.sweep_expired() == 0
+    assert "forever" in p._access_tokens
+
+
+@pytest.mark.anyio
+async def test_maybe_sweep_does_not_scan_per_insertion(monkeypatch):
+    """Overflow handling must stay O(1) amortized, not O(cap) per request.
+
+    The flood this defends against is unauthenticated, so scanning the store
+    on every insertion let one attacker-controlled request buy O(cap) CPU
+    (~0.3ms at the default cap) just to evict a single entry. The expiry scan
+    is amortized over _SWEEP_SCAN_INTERVAL overflows; eviction still happens
+    every time.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "5")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    interval = p._SWEEP_SCAN_INTERVAL
+
+    scans = 0
+    original = p._sweep_store
+
+    def spy(store, expiry_of, on_drop):
+        nonlocal scans
+        scans += 1
+        return original(store, expiry_of, on_drop)
+
+    monkeypatch.setattr(p, "_sweep_store", spy)
+
+    overflows = interval * 3
+    for i in range(5 + overflows):
+        p._auth_sessions[f"s{i}"] = {"expires_at": float("inf")}
+        p._maybe_sweep(p._auth_sessions)
+
+    # ~1 scan per interval, not one per insertion.
+    assert scans <= overflows / interval + 1, scans
+    assert scans < overflows, scans
+    # The cap is still enforced exactly, on every overflow.
+    assert len(p._auth_sessions) <= 5, len(p._auth_sessions)
+
+
+@pytest.mark.anyio
+async def test_amortized_sweep_still_reaps_expired_entries(monkeypatch):
+    """Amortizing the scan must not stop expiry from ever being applied.
+
+    The cheap path evicts oldest-first by insertion order, which frees memory
+    but cannot distinguish an expired entry from a live one. The periodic scan
+    is the only thing that reclaims expired entries, so it has to fire within
+    the interval.
+
+    Ordering is what makes this a real test. Live entries are inserted FIRST
+    and the expired ones sit behind them, so age-blind eviction consumes only
+    live entries while the store stays over its cap — which is the condition
+    that triggers the scan at all. The scan then clears the expired tail that
+    eviction could not reach.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "400")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    interval = p._SWEEP_SCAN_INTERVAL
+    live = 300
+    dead = 150
+
+    for i in range(live):
+        p._auth_sessions[f"live{i}"] = {"expires_at": float("inf")}
+    for i in range(dead):
+        p._auth_sessions[f"dead{i}"] = {"expires_at": 1.0}
+    # Over the cap from the start, so the scan path is exercised.
+    assert live + dead > 400
+
+    evicted_total = 0
+    original = p._evict_over_cap
+
+    def counting_evict(store, cap):
+        nonlocal evicted_total
+        out = original(store, cap)
+        evicted_total += len(out)
+        return out
+
+    monkeypatch.setattr(p, "_evict_over_cap", counting_evict)
+    for i in range(interval + 2):
+        p._auth_sessions[f"flood{i}"] = {"expires_at": float("inf")}
+        p._maybe_sweep(p._auth_sessions)
+
+    assert not [k for k in p._auth_sessions if k.startswith("dead")], (
+        "expired sessions survived: the amortized scan never ran"
+    )
+    # Eviction ran but stayed inside the live head of the queue, so it cannot
+    # be what removed them.
+    assert evicted_total < live, (
+        f"eviction consumed {evicted_total} entries, enough to reach the "
+        "expired tail; this test would be vacuous"
+    )
+    assert any(k.startswith("live") for k in p._auth_sessions), (
+        "eviction ate the live head, so the setup no longer proves anything"
+    )
+
+
+@pytest.mark.anyio
+async def test_scan_budget_is_per_store_and_cleared_when_under_cap(monkeypatch):
+    """Scan budgets are tracked per store and cleared once a store recovers.
+
+    The budget is what keeps the amortized scan off the hot path, so it has to
+    be released when a store falls back under the cap — otherwise a store that
+    was briefly flooded would carry a spent budget and, if it later drifted
+    just over the cap again, never reap.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "3")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+
+    # Burn part of the budget on one store only.
+    for i in range(p._SWEEP_SCAN_INTERVAL + 2):
+        p._auth_sessions[f"s{i}"] = {"expires_at": float("inf")}
+        p._maybe_sweep(p._auth_sessions)
+
+    assert id(p._auth_sessions) in p._sweep_scan_counters
+    assert id(p._auth_codes) not in p._sweep_scan_counters
+
+    # Draining the store releases its budget.
+    p._auth_sessions.clear()
+    p._maybe_sweep(p._auth_sessions)
+    assert id(p._auth_sessions) not in p._sweep_scan_counters
+
+
+def test_cap_eviction_removes_authorization_code_email_binding(monkeypatch):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+        },
+    )
+    p._code_email[code] = "user@example.com"
+    newer_code = p.create_authorization_code(
+        {
+            "client_id": "c1",
+            "scopes": ["opendata"],
+            "code_challenge": "A" * 43,
+            "redirect_uri": "http://localhost/cb",
+            "redirect_uri_provided_explicitly": False,
+        },
+    )
+    p._code_email[newer_code] = "other@example.com"
+
+    p._maybe_sweep()
+
+    assert code not in p._auth_codes
+    assert code not in p._code_email
+    assert newer_code in p._auth_codes
+    assert p._code_email[newer_code] == "other@example.com"
+
+
+@pytest.mark.anyio
+async def test_sweep_is_idempotent_and_safe_on_empty():
+    """Sweeping an empty provider must be a no-op, not an error."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    assert p.sweep_expired() == 0
+    assert p.sweep_expired() == 0

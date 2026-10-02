@@ -99,6 +99,156 @@ async def test_refresh_token_survives_restart(db_path):
 
 
 @pytest.mark.anyio
+async def test_cap_eviction_removes_tokens_from_memory_and_persistence(
+    db_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "1")
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    token = await _issue_token(provider, email="user@example.com")
+    newer_token = await _issue_token(provider, email="other@example.com")
+
+    # No manual _maybe_sweep() here on purpose: the cap must be enforced by the
+    # exchange path itself. Calling the all-store sweep by hand previously hid
+    # the fact that exchange_authorization_code only swept _access_tokens,
+    # leaving the refresh-token store (and this table) unbounded.
+    assert token.access_token not in provider._access_tokens
+    assert token.access_token not in provider._token_email
+    assert token.refresh_token not in provider._refresh_tokens
+    assert token.refresh_token not in provider._refresh_email
+    assert token.access_token not in persistence.load_access_tokens()[0]
+    assert token.refresh_token not in persistence.load_refresh_tokens()[0]
+    assert newer_token.access_token in provider._access_tokens
+    assert newer_token.refresh_token in provider._refresh_tokens
+    assert newer_token.access_token in persistence.load_access_tokens()[0]
+    assert newer_token.refresh_token in persistence.load_refresh_tokens()[0]
+    persistence.close()
+
+    restarted_persistence = SqliteOAuthPersistence(db_path)
+    restarted_provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=restarted_persistence,
+    )
+    assert token.access_token not in restarted_provider._access_tokens
+    assert token.refresh_token not in restarted_provider._refresh_tokens
+    assert newer_token.access_token in restarted_provider._access_tokens
+    assert newer_token.refresh_token in restarted_provider._refresh_tokens
+    restarted_persistence.close()
+
+
+@pytest.mark.anyio
+async def test_startup_prunes_persisted_tokens_to_configured_cap(db_path, monkeypatch):
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "10")
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    tokens = [
+        await _issue_token(provider, email=f"user{i}@example.com") for i in range(3)
+    ]
+    persistence.close()
+
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "2")
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+
+    assert len(provider._access_tokens) == 2
+    assert len(provider._refresh_tokens) == 2
+    assert tokens[0].access_token not in provider._access_tokens
+    assert tokens[0].refresh_token not in provider._refresh_tokens
+    assert all(token.access_token in provider._access_tokens for token in tokens[1:])
+    assert all(token.refresh_token in provider._refresh_tokens for token in tokens[1:])
+    assert tokens[0].access_token not in provider._token_email
+    assert tokens[0].refresh_token not in provider._refresh_email
+    assert set(persistence.load_access_tokens()[0]) == set(provider._access_tokens)
+    assert set(persistence.load_refresh_tokens()[0]) == set(provider._refresh_tokens)
+    persistence.close()
+
+    persistence = SqliteOAuthPersistence(db_path)
+    assert set(persistence.load_access_tokens()[0]) == set(provider._access_tokens)
+    assert set(persistence.load_refresh_tokens()[0]) == set(provider._refresh_tokens)
+    persistence.close()
+
+
+@pytest.mark.anyio
+async def test_sweep_expired_access_token_deletes_persisted_row(db_path):
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    token = await _issue_token(provider, email="user@example.com")
+    provider._access_tokens[token.access_token].expires_at = 1
+
+    provider.sweep_expired()
+
+    assert token.access_token not in persistence.load_access_tokens()[0]
+    persistence.close()
+
+
+@pytest.mark.anyio
+async def test_batched_token_deletes_remove_only_named_rows(db_path):
+    """The batch helpers exist to collapse N DELETEs into one transaction.
+
+    A sweep can reap thousands of tokens at once, and one ``DELETE`` per row
+    would stall the event loop, so the provider hands the whole batch over.
+    These assert the batch semantics, including the empty no-op that keeps a
+    sweep with nothing to reap from touching SQLite at all.
+    """
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    tokens = [
+        await _issue_token(provider, email=f"user{i}@example.com") for i in range(3)
+    ]
+
+    # Empty batches are a no-op, not an error and not a write.
+    assert persistence.delete_access_tokens([]) == 0
+    assert persistence.delete_refresh_tokens([]) == 0
+    assert len(persistence.load_access_tokens()[0]) == 3
+
+    doomed = [tokens[0].access_token, tokens[1].access_token]
+    assert persistence.delete_access_tokens(doomed) == 2
+    remaining = set(persistence.load_access_tokens()[0])
+    assert remaining == {tokens[2].access_token}
+
+    assert persistence.delete_refresh_tokens([tokens[0].refresh_token]) == 1
+    assert set(persistence.load_refresh_tokens()[0]) == {
+        tokens[1].refresh_token,
+        tokens[2].refresh_token,
+    }
+    persistence.close()
+
+
+@pytest.mark.anyio
+async def test_expired_sweep_deletes_every_persisted_token_in_one_batch(db_path):
+    """A mass expiry must reach persistence for every row, not just the first."""
+    persistence = SqliteOAuthPersistence(db_path)
+    provider = InMemoryOAuthProvider(
+        issuer_url="http://localhost:8000",
+        persistence=persistence,
+    )
+    for _ in range(5):
+        await _issue_token(provider, email="user@example.com")
+    for token in provider._access_tokens.values():
+        token.expires_at = 1
+
+    assert provider.sweep_expired() == 5
+    assert persistence.load_access_tokens()[0] == {}
+    persistence.close()
+
+
+@pytest.mark.anyio
 async def test_revoke_removes_from_db(db_path):
     p1 = SqliteOAuthPersistence(db_path)
     provider1 = InMemoryOAuthProvider(

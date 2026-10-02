@@ -158,11 +158,49 @@ class SqliteOAuthPersistence:
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM access_tokens WHERE token = ?", (token,))
 
-    def load_access_tokens(self) -> tuple[dict[str, AccessToken], dict[str, str]]:
-        """Return (token → AccessToken, token → email) maps."""
-        with self._lock:
+    def delete_access_tokens(self, tokens: list[str]) -> int:
+        """Delete many access tokens in one transaction; return rows removed.
+
+        A sweep or cap-eviction can reap thousands of tokens at once. Issuing
+        one ``DELETE`` per token inside one lock acquisition keeps that from
+        turning into thousands of separate transactions on the event loop.
+        """
+        if not tokens:
+            return 0
+        with self._lock, self._conn:
+            cur = self._conn.executemany(
+                "DELETE FROM access_tokens WHERE token = ?",
+                [(token,) for token in tokens],
+            )
+            return cur.rowcount
+
+    def delete_refresh_tokens(self, tokens: list[str]) -> int:
+        """Delete many refresh tokens in one transaction; return rows removed."""
+        if not tokens:
+            return 0
+        with self._lock, self._conn:
+            cur = self._conn.executemany(
+                "DELETE FROM refresh_tokens WHERE token = ?",
+                [(token,) for token in tokens],
+            )
+            return cur.rowcount
+
+    def load_access_tokens(
+        self,
+        limit: int | None = None,
+    ) -> tuple[dict[str, AccessToken], dict[str, str]]:
+        """Return token maps, pruning oldest rows first when ``limit`` is set."""
+        with self._lock, self._conn:
+            if limit is not None:
+                if limit <= 0:
+                    raise ValueError("limit must be positive")
+                self._conn.execute(
+                    "DELETE FROM access_tokens WHERE rowid NOT IN "
+                    "(SELECT rowid FROM access_tokens ORDER BY rowid DESC LIMIT ?)",
+                    (limit,),
+                )
             rows = self._conn.execute(
-                "SELECT token, data, email FROM access_tokens",
+                "SELECT token, data, email FROM access_tokens ORDER BY rowid ASC",
             ).fetchall()
         tokens: dict[str, AccessToken] = {}
         emails: dict[str, str] = {}
@@ -193,11 +231,22 @@ class SqliteOAuthPersistence:
         with self._lock, self._conn:
             self._conn.execute("DELETE FROM refresh_tokens WHERE token = ?", (token,))
 
-    def load_refresh_tokens(self) -> tuple[dict[str, RefreshToken], dict[str, str]]:
-        """Return (token → RefreshToken, token → email) maps."""
-        with self._lock:
+    def load_refresh_tokens(
+        self,
+        limit: int | None = None,
+    ) -> tuple[dict[str, RefreshToken], dict[str, str]]:
+        """Return token maps, pruning oldest rows first when ``limit`` is set."""
+        with self._lock, self._conn:
+            if limit is not None:
+                if limit <= 0:
+                    raise ValueError("limit must be positive")
+                self._conn.execute(
+                    "DELETE FROM refresh_tokens WHERE rowid NOT IN "
+                    "(SELECT rowid FROM refresh_tokens ORDER BY rowid DESC LIMIT ?)",
+                    (limit,),
+                )
             rows = self._conn.execute(
-                "SELECT token, data, email FROM refresh_tokens",
+                "SELECT token, data, email FROM refresh_tokens ORDER BY rowid ASC",
             ).fetchall()
         tokens: dict[str, RefreshToken] = {}
         emails: dict[str, str] = {}
