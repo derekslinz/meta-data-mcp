@@ -725,6 +725,52 @@ async def test_maybe_sweep_skips_capacity_and_rate_limits_warnings(
 
 
 @pytest.mark.anyio
+async def test_cap_warning_does_not_claim_live_entries_evicted(monkeypatch, caplog):
+    """The overflow warning must not overstate what eviction removed.
+
+    Eviction is age-blind and the expiry scan is skipped on most overflows, so
+    a dropped entry may well have been expired already. An operator reading
+    "evicted N live entries" would reasonably conclude that valid sessions
+    were displaced, which the warning cannot support.
+    """
+    monkeypatch.setenv("META_DATA_MCP_OAUTH_SWEEP_THRESHOLD", "3")
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+
+    # Every entry is already expired; nothing live is at risk here.
+    for i in range(4):
+        p._auth_sessions[f"expired{i}"] = {"expires_at": 1.0}
+
+    with caplog.at_level("WARNING"):
+        p._maybe_sweep(p._auth_sessions)
+
+    warnings = [r.message for r in caplog.records if "cap reached" in r.message]
+    assert len(warnings) == 1
+    message = warnings[0]
+    # The false claim was "evicted N live entries" -- check that exact form,
+    # not the bare word "live" (the disclaimer legitimately uses it).
+    assert "live entries" not in message.lower(), message
+    assert "oldest" in message, message
+    # Says what eviction actually is, rather than implying user impact.
+    assert "age-blind" in message, message
+
+
+@pytest.mark.anyio
+async def test_cap_warning_pluralizes_entries(caplog):
+    """A single drop must read as "1 oldest entry", not "1 oldest entries"."""
+    p = InMemoryOAuthProvider(issuer_url="https://as.example")
+    p._sweep_threshold = 1
+    for i in range(2):
+        p._auth_sessions[f"expired{i}"] = {"expires_at": 1.0}
+
+    with caplog.at_level("WARNING"):
+        p._maybe_sweep(p._auth_sessions)
+
+    message = next(r.message for r in caplog.records if "cap reached" in r.message)
+    assert "1 oldest entry " in message, message
+    assert "1 oldest entries" not in message, message
+
+
+@pytest.mark.anyio
 async def test_sweep_preserves_non_expiring_access_token():
     """A token with ``expires_at=None`` means "never expires" in the SDK.
 

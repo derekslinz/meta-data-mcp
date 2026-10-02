@@ -347,7 +347,9 @@ class InMemoryOAuthProvider(
 
         Dict insertion order is the creation order, and refresh rotation pops
         the old token before inserting its replacement, so first-inserted is
-        genuinely the oldest live entry.
+        genuinely the oldest entry. Whether that entry is still live is not
+        checked here — eviction is age-blind, and the periodic sweep is what
+        reclaims entries that have genuinely expired.
         """
         excess = len(store) - cap
         if excess <= 0:
@@ -407,12 +409,15 @@ class InMemoryOAuthProvider(
             if not self._cap_warning_emitted:
                 self._cap_warning_emitted = True
                 log.warning(
-                    "OAuth in-memory cap reached: evicted %d live entries from a "
-                    "store at the threshold of %d. This is expected under a "
-                    "client flood; if it recurs while load is normal, raise "
-                    "META_DATA_MCP_OAUTH_SWEEP_THRESHOLD. Further warnings are "
-                    "suppressed until restart.",
+                    "OAuth in-memory cap reached: dropped %d oldest %s from a "
+                    "store at the threshold of %d. Eviction is age-blind, so "
+                    "these may be expired entries or entries still in use; it "
+                    "does not by itself mean live sessions were displaced. "
+                    "Expected under a client flood; if it recurs while load is "
+                    "normal, raise META_DATA_MCP_OAUTH_SWEEP_THRESHOLD. Further "
+                    "warnings are suppressed until restart.",
                     len(evicted),
+                    "entry" if len(evicted) == 1 else "entries",
                     self._sweep_threshold,
                 )
 
